@@ -87,7 +87,7 @@ class _ShopState extends State<ShopScreen> {
                 ? const GEmpty(title: 'No items found', sub: 'Try a different category or search term', icon: Icons.shopping_bag_outlined)
                 : GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.82),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.70),
                     itemCount: _products.length,
                     itemBuilder: (_, i) => _ProductTile(
                       pData: asMap(_products[i]),

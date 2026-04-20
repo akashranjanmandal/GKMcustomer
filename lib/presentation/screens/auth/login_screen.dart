@@ -84,6 +84,7 @@ class _LoginState extends State<LoginScreen> {
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: C.forest,
+    resizeToAvoidBottomInset: false,
     body: AnimatedSwitcher(
       duration: 500.ms,
       child: switch (_step) {

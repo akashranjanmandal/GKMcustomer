@@ -34,18 +34,7 @@ class _SplashState extends State<SplashScreen> with SingleTickerProviderStateMix
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Placeholder for logo
-              Container(
-                width: 120, height: 120,
-                decoration: BoxDecoration(
-                  color: C.green,
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: C.green.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))],
-                ),
-                child: const Icon(Icons.yard_rounded, size: 64, color: Colors.white),
-              ),
-              const SizedBox(height: 24),
-              Text('Ghar Ka Mali', style: p(28, w: FontWeight.w900, color: C.green, ls: -0.5)),
+              Image.asset('assets/images/logo.png', width: 160, height: 160, fit: BoxFit.contain),
             ],
           ),
         ),

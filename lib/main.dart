@@ -155,12 +155,6 @@ class _ShellState extends State<_Shell> {
     ];
     return Scaffold(
       body: IndexedStack(index: _idx, children: pages),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () { /* WhatsApp link logic */ },
-        backgroundColor: const Color(0xFF25D366),
-        elevation: 10,
-        child: Image.network('https://cdn-icons-png.flaticon.com/512/124/124034.png', width: 32, height: 32, color: Colors.white),
-      ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(1,1), end: const Offset(1.1, 1.1), duration: 1.seconds),
       bottomNavigationBar: Consumer<CartProvider>(
         builder: (_, cart, __) => GNavBar(idx: _idx, onTap: (i) => setState(() => _idx = i), cartCount: cart.count),
       ),

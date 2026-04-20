@@ -44,7 +44,12 @@ Future<PickedLocation?> detectCurrentLocation() async {
     if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
     if (![LocationPermission.whileInUse, LocationPermission.always].contains(perm)) return null;
 
-    final Position pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 8));
+    Position pos;
+    try {
+      pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 10));
+    } catch (_) {
+      pos = (await Geolocator.getLastKnownPosition()) ?? await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+    }
 
     final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.latitude}&lon=${pos.longitude}&zoom=18');
     final res = await http.get(uri, headers: {'Accept-Language': 'en'}).timeout(const Duration(seconds: 4));
@@ -116,10 +121,14 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (![LocationPermission.whileInUse, LocationPermission.always].contains(perm)) { setState(() => _gpsLoading = false); return; }
 
-      Position? pos = await Geolocator.getLastKnownPosition();
-      pos ??= await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 3));
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 10));
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
 
-      if (!mounted) return;
+      if (!mounted || pos == null) { setState(() => _gpsLoading = false); return; }
       _lat = pos.latitude; _lng = pos.longitude;
       setState(() { _gpsLoading = false; _geocoding = true; });
       await _reverseGeocode(_lat!, _lng!);

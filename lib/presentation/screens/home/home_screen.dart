@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
+import '../../../data/services/cart_provider.dart';
+import '../shop/shop_screen.dart';
 import 'package:video_player/video_player.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/location_provider.dart';
@@ -79,26 +80,29 @@ class _HomeState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext ctx) {
+    final cart = ctx.watch<CartProvider>();
     return Scaffold(
       backgroundColor: Colors.white,
-      body: RefreshIndicator(
-        onRefresh: _loadAll, color: C.forest,
-        child: CustomScrollView(slivers: [
-          _buildSliverHeader(ctx),
-          SliverToBoxAdapter(child: Column(children: [
-            const SizedBox(height: 24),
-            _buildBookingSection(ctx),
-            const SizedBox(height: 32),
-            _buildQuickActions(ctx),
-            const SizedBox(height: 32),
-            _buildShopSection(ctx),
-            const SizedBox(height: 32),
-            _buildPartnersSection(ctx),
-            const SizedBox(height: 120),
-          ])),
-        ]),
-      ),
-      floatingActionButton: _buildWhatsAppBtn(),
+      body: Stack(children: [
+        RefreshIndicator(
+          onRefresh: _loadAll, color: C.forest,
+          child: CustomScrollView(slivers: [
+            _buildSliverHeader(ctx),
+            SliverToBoxAdapter(child: Column(children: [
+              const SizedBox(height: 24),
+              _buildBookingSection(ctx),
+              const SizedBox(height: 32),
+              _buildQuickActions(ctx),
+              const SizedBox(height: 32),
+              _buildShopSection(ctx),
+              const SizedBox(height: 32),
+              _buildPartnersSection(ctx),
+              const SizedBox(height: 120),
+            ])),
+          ]),
+        ),
+        if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total),
+      ]),
     );
   }
 
@@ -233,12 +237,40 @@ class _HomeState extends State<HomeScreen> {
     ],
   );
 
-  Widget _buildWhatsAppBtn() => FloatingActionButton(
-    onPressed: () => launchUrl(Uri.parse('https://wa.me/918115550262'), mode: LaunchMode.externalApplication),
-    backgroundColor: const Color(0xFF25D366),
-    elevation: 4,
-    child: const Icon(Icons.chat_bubble_rounded, color: Colors.white),
-  ).animate().scale(delay: 1.seconds).fadeIn();
+  Widget _buildCartBar(BuildContext ctx, int count, double total) => Positioned(
+    left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
+    child: GestureDetector(
+      onTap: () {
+        final cart = context.read<CartProvider>();
+        Navigator.push(ctx, MaterialPageRoute(builder: (_) => CheckoutPage(cart: cart.items, onOrdered: () => cart.clear())));
+      },
+      child: Container(
+        height: 68, padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [BoxShadow(color: C.forest.withOpacity(0.45), blurRadius: 20, offset: const Offset(0, 10))],
+        ),
+        child: Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: Text('$count', style: p(14, w: FontWeight.w900, color: Colors.white))),
+          const SizedBox(width: 12),
+          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$count item${count == 1 ? '' : 's'} in cart', style: p(14, w: FontWeight.w800, color: Colors.white)),
+            Text('₹${total.toStringAsFixed(0)} total', style: p(11, color: Colors.white70)),
+          ])),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('View Cart', style: p(13, w: FontWeight.w900, color: Colors.black87)),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black87, size: 12),
+            ]),
+          ),
+        ]),
+      ),
+    ),
+  ).animate().slideY(begin: 1, end: 0, curve: Curves.easeOutQuart);
 }
 
 class _ServiceCard extends StatelessWidget {
