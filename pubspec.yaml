@@ -1,0 +1,46 @@
+name: gharkamali
+description: GharKaMali 
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  lottie: ^3.1.0
+  shimmer: ^3.0.0
+  cached_network_image: ^3.3.1
+  image_picker: ^1.1.2
+  provider: ^6.1.2
+  http: ^1.2.1
+  shared_preferences: ^2.3.2
+  geolocator: ^12.0.0
+  fl_chart: ^0.68.0
+  intl: ^0.19.0
+  url_launcher: ^6.3.0
+  permission_handler: ^11.3.1
+  cupertino_icons: ^1.0.8
+  video_player: ^2.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo.png
+    - assets/images/logo-dark.png
+    - assets/images/video.mp4
