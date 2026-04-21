@@ -118,7 +118,13 @@ class _HomeState extends State<HomeScreen> {
         
         // Location Selector (Left Side)
         Positioned(top: MediaQuery.of(ctx).padding.top + 10, left: 16, child: Consumer<LocationProvider>(builder: (ctx, lp, _) => GestureDetector(
-          onTap: () => showLocationPicker(ctx).then((loc) { if (loc != null) lp.save(loc); }),
+          onTap: () {
+            if (lp.locations.isNotEmpty) {
+              showSavedLocations(ctx);
+            } else {
+              showLocationPicker(ctx).then((loc) { if (loc != null) lp.save(loc); });
+            }
+          },
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(99)), 
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.location_on_rounded, color: C.gold, size: 14), const SizedBox(width: 6),

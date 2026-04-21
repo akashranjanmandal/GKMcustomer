@@ -8,6 +8,7 @@ import '../../widgets/widgets.dart';
 
 // ─── Bookings List ────────────────────────────────────────────────────────────
 class BookingsScreen extends StatefulWidget {
+  static bool needsReload = false;
   const BookingsScreen({super.key});
   @override State<BookingsScreen> createState() => _BkListState();
 }
@@ -23,7 +24,16 @@ class _BkListState extends State<BookingsScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tab = TabController(length: _labels.length, vsync: this)
-      ..addListener(() { if (!_tab.indexIsChanging) { setState(() { _items = []; }); _load(); } });
+      ..addListener(() {
+        if (!_tab.indexIsChanging) {
+          setState(() { _items = []; });
+          _load();
+        }
+        if (BookingsScreen.needsReload) {
+          BookingsScreen.needsReload = false;
+          _load();
+        }
+      });
     _load();
   }
   @override void dispose() { _tab.dispose(); super.dispose(); }

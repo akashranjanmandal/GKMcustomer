@@ -20,6 +20,7 @@ import 'presentation/screens/subscriptions/subscriptions_screen.dart';
 import 'presentation/screens/subscriptions/plans_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/complaints/complaints_screen.dart';
+import 'presentation/screens/profile/saved_addresses_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +67,7 @@ class GkmApp extends StatelessWidget {
       case '/plantopedia':    page = const PlantopediaScreen(); break;
       case '/notifications':  return _slide(const NotificationsScreen(), s);
       case '/complaints':     return _slide(const ComplaintsScreen(), s);
+      case '/saved-addresses':return _slide(const SavedAddressesScreen(), s);
       default:
         if (s.name?.startsWith('/booking/') == true) {
           final id = int.tryParse(s.name!.replaceFirst('/booking/', '')) ?? 0;

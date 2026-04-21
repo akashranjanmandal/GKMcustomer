@@ -8,6 +8,7 @@ import '../../../data/services/location_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/location_picker_sheet.dart';
+import 'bookings_screen.dart';
 
 class BookScreen extends StatefulWidget {
   final int? planId;
@@ -56,6 +57,21 @@ class _BookState extends State<BookScreen> {
 
   double get _total {
     double t = asDouble(_selectedPlan?['price']);
+    
+    // If it's an on-demand visit, use geofence specific pricing if available
+    if (!_isSub && _picked != null && _zone != null && _zone!.containsKey('base_price')) {
+      final base = asDouble(_zone!['base_price']);
+      if (base > 0) {
+        final ppp = asDouble(_zone!['price_per_plant']);
+        final min = asInt(_zone!['min_plants']);
+        final surge = asDouble(_zone!['surge_multiplier']) > 0 ? asDouble(_zone!['surge_multiplier']) : 1.0;
+        
+        t = base;
+        if (_plantCount > min) t += (_plantCount - min) * ppp;
+        t *= surge;
+      }
+    }
+
     for (final id in _selectedAddons) {
       final a = _addons.where((x) => asInt(x['id']) == id).firstOrNull;
       t += asDouble(a?['price']);
@@ -97,9 +113,17 @@ class _BookState extends State<BookScreen> {
   }
 
   Future<void> _openPicker() async {
-    final result = await showLocationPicker(context);
+    final lp = context.read<LocationProvider>();
+    PickedLocation? result;
+    
+    if (lp.locations.isEmpty) {
+      result = await showLocationPicker(context);
+    } else {
+      result = await showSavedLocations(context);
+    }
+
     if (result != null && mounted) {
-      context.read<LocationProvider>().save(result);
+      // lp.save(result); // Already handled in showSavedLocations for new ones
       setState(() => _picked = result);
     }
   }
@@ -107,15 +131,21 @@ class _BookState extends State<BookScreen> {
   Future<void> _submit() async {
     if (_picked == null || _selectedPlan == null) return;
     setState(() => _submitting = true);
-    print('>>> SUBMITTING BOOKING: zoneId: ${_picked?.zone['id']}, lat: ${_picked?.lat}, lng: ${_picked?.lng}');
+    final zoneId = _zone != null && asInt(_zone!['id']) > 0 ? asInt(_zone!['id']) : 0;
+    print('>>> SUBMITTING BOOKING: zoneId: $zoneId, lat: ${_picked?.lat}, lng: ${_picked?.lng}');
+
     try {
-      final zoneId = _zone != null && asInt(_zone!['id']) > 0 ? asInt(_zone!['id']) : 0;
+      if (zoneId == 0) throw ApiError('Please select a serviceable location first.', 404);
+
       if (_isSub) {
         await _api.createSubscription(
           planId: _planId!,
           zoneId: zoneId,
-          serviceAddress: context.read<LocationProvider>().fullAddress,
+          serviceAddress: _picked!.address,
           lat: _picked!.lat, lng: _picked!.lng,
+          flatNo: _picked!.flatNo, building: _picked!.building,
+          area: _picked!.area, landmark: _picked!.landmark,
+          city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
           plantCount: _plantCount,
           autoRenew: _autoRenew,
         );
@@ -128,8 +158,11 @@ class _BookState extends State<BookScreen> {
         await _api.createBooking(
           zoneId: zoneId,
           scheduledDate: _date, scheduledTime: _time,
-          serviceAddress: context.read<LocationProvider>().fullAddress,
+          serviceAddress: _picked!.address,
           lat: _picked!.lat, lng: _picked!.lng,
+          flatNo: _picked!.flatNo, building: _picked!.building,
+          area: _picked!.area, landmark: _picked!.landmark,
+          city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
           plantCount: _plantCount,
           customerNotes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
         );
@@ -137,7 +170,11 @@ class _BookState extends State<BookScreen> {
         setState(() => _submitting = false);
         showMsg(context, 'Booking confirmed!', ok: true);
         await Future.delayed(800.ms);
-        if (mounted) Navigator.pop(context, true);
+        if (mounted) {
+          BookingsScreen.needsReload = true;
+          showMsg(context, 'Booking successful!', ok: true);
+          Navigator.pushNamedAndRemoveUntil(context, '/bookings', (r) => r.isFirst);
+        }
       }
     } on ApiError catch (e) {
       print('!!! BOOKING ERROR: ${e.message}');
@@ -148,9 +185,9 @@ class _BookState extends State<BookScreen> {
 
   bool _canNext() {
     switch (_currentStepKey) {
-      case 'Location': return _picked != null;
+      case 'Location': return _picked != null && asInt(_picked?.zone['id']) > 0;
       case 'Plan':     return _planId != null;
-      case 'Schedule': return _date.isNotEmpty;
+      case 'Schedule': return _isSub || _date.isNotEmpty;
       default:         return true;
     }
   }
@@ -234,8 +271,11 @@ class _BookState extends State<BookScreen> {
         ]),
         const Divider(height: 32),
         Text(context.read<LocationProvider>().fullAddress, style: p(14, w: FontWeight.w600, h: 1.5)),
-        const SizedBox(height: 8),
-        if (asStr(_picked!.zone['name']).isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(6)), child: Text('Zone: ${asStr(_picked!.zone['name'])}', style: p(10, w: FontWeight.w800, color: Colors.white))),
+        const SizedBox(height: 16),
+        if (asInt(_picked!.zone['id']) > 0) 
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(6)), child: Text('Zone: ${asStr(_picked!.zone['name'])}', style: p(10, w: FontWeight.w800, color: Colors.white)))
+        else 
+          _RowInfo(label: 'Status', value: 'Not Serviceable', isBold: true),
       ]),
     ).animate().fadeIn().slideY(begin: 0.1, end: 0)
     else Column(children: [

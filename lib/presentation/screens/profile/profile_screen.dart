@@ -145,7 +145,7 @@ class _ProfileState extends State<ProfileScreen> {
               _MenuItem(Icons.shopping_bag_outlined,           'My Orders',            () => Navigator.pushNamed(ctx, '/shop/orders')),
               _MenuItem(Icons.psychology_rounded,              'Plantopedia',          () => Navigator.pushNamed(ctx, '/plantopedia')),
               _MenuItem(Icons.notifications_rounded,           'Notifications',        () => Navigator.pushNamed(ctx, '/notifications')),
-              _MenuItem(Icons.map_outlined,                    'Saved addresses',      () {}),
+              _MenuItem(Icons.map_outlined,                    'Saved addresses',      () => Navigator.pushNamed(ctx, '/saved-addresses')),
               _MenuItem(Icons.info_outline_rounded,            'About us',             () {}),
               _MenuItem(Icons.description_outlined,            'Terms of services',    () {}),
               _MenuItem(Icons.shield_outlined,                 'Privacy policy',       () {}),

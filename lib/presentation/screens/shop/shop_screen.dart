@@ -265,7 +265,7 @@ class _ProductTileState extends State<_ProductTile> {
                 decoration: const BoxDecoration(color: Color(0xFFF1F5F1), borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                  child: Image.network(imgUrl(pData['image']), fit: BoxFit.cover,
+                  child: Image.network(imgUrl(pData['images'] ?? pData['image']), fit: BoxFit.cover,
                     errorBuilder: (_,__,___) => Center(child: Icon(Icons.eco_rounded, color: C.green.withOpacity(0.4), size: 48))),
                 ),
               ),
@@ -350,7 +350,7 @@ class _ProductDetails extends StatelessWidget {
       ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: Image.network(
-          imgUrl(pData['image']),
+          imgUrl(pData['images'] ?? pData['image']),
           fit: BoxFit.cover,
           width: double.infinity,
           height: 260,

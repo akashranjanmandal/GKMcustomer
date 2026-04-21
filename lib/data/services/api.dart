@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/material.dart';
 
 const kBase    = 'https://gkm.gobt.in/api';
 const kTokKey  = 'gkm_token';
@@ -163,6 +164,8 @@ class Api {
     required String serviceAddress,
     required double lat,
     required double lng,
+    String? flatNo, String? building, String? area, String? landmark, 
+    String? city, String? state, String? pincode,
     String? scheduledTime,
     int? plantCount,
     int? preferredGardenerId,
@@ -174,6 +177,13 @@ class Api {
     'service_address': serviceAddress,
     'service_latitude': lat,
     'service_longitude': lng,
+    if (flatNo != null) 'flat_no': flatNo,
+    if (building != null) 'building': building,
+    if (area != null) 'area': area,
+    if (landmark != null) 'landmark': landmark,
+    if (city != null) 'city': city,
+    if (state != null) 'state': state,
+    if (pincode != null) 'pincode': pincode,
     if (scheduledTime != null) 'scheduled_time': scheduledTime,
     if (plantCount != null) 'plant_count': plantCount,
     if (preferredGardenerId != null) 'preferred_gardener_id': preferredGardenerId,
@@ -217,6 +227,8 @@ class Api {
     required String serviceAddress,
     required double lat,
     required double lng,
+    String? flatNo, String? building, String? area, String? landmark,
+    String? city, String? state, String? pincode,
     int? plantCount,
     bool autoRenew = true,
   }) => req('POST', '/subscriptions', body: {
@@ -226,6 +238,13 @@ class Api {
     'service_address': serviceAddress,
     'service_latitude': lat,
     'service_longitude': lng,
+    if (flatNo != null) 'flat_no': flatNo,
+    if (building != null) 'building': building,
+    if (area != null) 'area': area,
+    if (landmark != null) 'landmark': landmark,
+    if (city != null) 'city': city,
+    if (state != null) 'state': state,
+    if (pincode != null) 'pincode': pincode,
     if (plantCount != null) 'plant_count': plantCount,
     'auto_renew': autoRenew,
   });
@@ -324,6 +343,12 @@ class Api {
   });
 
   Future<dynamic> getMyComplaints() => req('GET', '/complaints/my');
+
+  // ─── ADDRESSES ────────────────────────────────────────────────────────────
+  Future<dynamic> getMyAddresses() => req('GET', '/addresses');
+  Future<dynamic> addAddress(Map<String, dynamic> data) => req('POST', '/addresses', body: data);
+  Future<dynamic> deleteAddress(int id) => req('DELETE', '/addresses/$id');
+  Future<dynamic> setDefaultAddress(int id) => req('PATCH', '/addresses/$id/default');
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -370,8 +395,23 @@ bool asBool(dynamic v, [bool fallback = false]) {
 }
 
 String imgUrl(dynamic v) {
-  final s = asStr(v);
-  if (s.isEmpty) return 'https://via.placeholder.com/150';
+  var s = '';
+  if (v is List && v.isNotEmpty) {
+    s = asStr(v[0]);
+  } else {
+    s = asStr(v);
+  }
+  
+  if (s.isEmpty || s == 'null') return 'https://via.placeholder.com/300?text=GharKaMali';
   if (s.startsWith('http')) return s;
-  return 'https://gkm.gobt.in${s.startsWith('/') ? '' : '/'}$s';
+  
+  // Ensure relative path starts with /
+  if (!s.startsWith('/')) s = '/$s';
+  
+  // Check if it already contains uploads, if not try to guess or just use base
+  if (!s.contains('/uploads/')) {
+     return 'https://gkm.gobt.in/uploads/products$s';
+  }
+  
+  return 'https://gkm.gobt.in$s';
 }
