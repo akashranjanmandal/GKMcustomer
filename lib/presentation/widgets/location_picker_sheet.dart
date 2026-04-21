@@ -337,7 +337,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       }
 
       _detectedZone = found ?? {};
-    } catch (e) { debugPrint('Serviceability error: $e'); }
+    } catch (e) { }
   }
 
 

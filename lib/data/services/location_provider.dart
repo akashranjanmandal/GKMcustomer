@@ -113,7 +113,7 @@ class LocationProvider extends ChangeNotifier {
         }
         notifyListeners();
       }
-    } catch (e) { debugPrint('Fetch addresses error: $e'); }
+    } catch (e) { }
   }
 
   Map<String, dynamic> _findZone(double lat, double lng) {
@@ -177,7 +177,7 @@ class LocationProvider extends ChangeNotifier {
         'longitude': loc.lng,
         'is_default': _locations.length == 1,
       });
-    } catch (e) { debugPrint('Save address to server error: $e'); }
+    } catch (e) { }
   }
 
   Future<void> remove(int index) async {
@@ -198,7 +198,7 @@ class LocationProvider extends ChangeNotifier {
         try {
           final api = api_svc.Api();
           await api.deleteAddress(loc.id!);
-        } catch (e) { debugPrint('Server delete address error: $e'); }
+        } catch (e) { }
       }
     }
   }

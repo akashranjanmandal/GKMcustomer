@@ -234,6 +234,16 @@ class _ProductTile extends StatefulWidget {
 class _ProductTileState extends State<_ProductTile> {
   bool _pressed = false;
 
+  String _getImageUrl(Map<String, dynamic> pData) {
+    if (pData['images'] is List && (pData['images'] as List).isNotEmpty) {
+      return (pData['images'] as List).first.toString();
+    }
+    if (pData['image'] != null && pData['image'].toString().isNotEmpty) {
+      return pData['image'].toString();
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final pData = widget.pData;
@@ -265,7 +275,9 @@ class _ProductTileState extends State<_ProductTile> {
                 decoration: const BoxDecoration(color: Color(0xFFF1F5F1), borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                  child: Image.network(imgUrl(pData['images'] ?? pData['image']), fit: BoxFit.cover,
+                  child: Image.network(
+                    _getImageUrl(pData),
+                    fit: BoxFit.cover,
                     errorBuilder: (_,__,___) => Center(child: Icon(Icons.eco_rounded, color: C.green.withOpacity(0.4), size: 48))),
                 ),
               ),
@@ -342,6 +354,17 @@ class _QtyBtn extends StatelessWidget {
 class _ProductDetails extends StatelessWidget {
   final Map<String, dynamic> pData; final VoidCallback onAdd;
   const _ProductDetails({required this.pData, required this.onAdd});
+
+  String _getImageUrl(Map<String, dynamic> pData) {
+    if (pData['images'] is List && (pData['images'] as List).isNotEmpty) {
+      return (pData['images'] as List).first.toString();
+    }
+    if (pData['image'] != null && pData['image'].toString().isNotEmpty) {
+      return pData['image'].toString();
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext ctx) => Container(
     decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
@@ -350,7 +373,7 @@ class _ProductDetails extends StatelessWidget {
       ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: Image.network(
-          imgUrl(pData['images'] ?? pData['image']),
+          _getImageUrl(pData),
           fit: BoxFit.cover,
           width: double.infinity,
           height: 260,
@@ -414,6 +437,17 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   final _api = Api(); bool _busy = false;
+
+  String _getImageUrl(Map<String, dynamic> prod) {
+    if (prod['images'] is List && (prod['images'] as List).isNotEmpty) {
+      return (prod['images'] as List).first.toString();
+    }
+    if (prod['image'] != null && prod['image'].toString().isNotEmpty) {
+      return prod['image'].toString();
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final loc = context.watch<LocationProvider>();
@@ -445,7 +479,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
          ...widget.cart.map((e) {
             final prod = asMap(e['product']); final q = asInt(e['qty']);
             return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [
-               ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(imgUrl(prod['image']), width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(color: Colors.grey[100], child: const Icon(Icons.eco)))),
+               ClipRRect(
+                 borderRadius: BorderRadius.circular(8), 
+                 child: Image.network(
+                   _getImageUrl(prod),
+                   width: 48, 
+                   height: 48, 
+                   fit: BoxFit.cover, 
+                   errorBuilder: (_,__,___) => Container(color: Colors.grey[100], child: const Icon(Icons.eco))
+                 )
+               ),
                const SizedBox(width: 12),
                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                  Text(asStr(prod['name']), style: p(14, w: FontWeight.w700), maxLines: 1),

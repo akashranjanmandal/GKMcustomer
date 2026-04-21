@@ -52,8 +52,11 @@ class Api {
     final headers = await _headers(auth: auth);
     final encoded = body != null ? jsonEncode(body) : null;
 
-    print('>>> API REQ: $method $uri');
-    if (encoded != null) print('>>> BODY: $encoded');
+    final showLogs = path.contains('/shop/products');
+    if (showLogs) {
+      print('>>> API REQ: $method $uri');
+      if (encoded != null) print('>>> BODY: $encoded');
+    }
 
     http.Response res;
     try {
@@ -69,7 +72,7 @@ class Api {
     on TimeoutException    { throw ApiError('Request timed out. Please try again.'); }
     catch (e)              { if (e is ApiError) rethrow; throw ApiError('Something went wrong. Please try again.'); }
 
-    print('<<< API RES: ${res.statusCode} ${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
+    if (showLogs) print('<<< API RES: ${res.statusCode} ${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
 
     dynamic json;
     try { json = jsonDecode(utf8.decode(res.bodyBytes)); } catch (_) { json = {}; }
@@ -97,7 +100,8 @@ class Api {
         req.files.add(await http.MultipartFile.fromPath(e.key, e.value.path));
       }
     }
-    print('>>> API UPLOAD: $method $path | fields: $fields | files: ${files?.keys}');
+    final showLogs = path.contains('/shop/products');
+    if (showLogs) print('>>> API UPLOAD: $method $path | fields: $fields | files: ${files?.keys}');
     http.Response res;
     try {
       final stream = await req.send().timeout(const Duration(seconds: 40));
@@ -105,7 +109,7 @@ class Api {
     } on SocketException  { throw ApiError('No internet connection.'); }
     on TimeoutException   { throw ApiError('Upload timed out. Please try again.'); }
 
-    print('<<< API RES: ${res.statusCode} ${res.body}');
+    if (showLogs) print('<<< API RES: ${res.statusCode} ${res.body}');
 
     dynamic json;
     try { json = jsonDecode(utf8.decode(res.bodyBytes)); } catch (_) { json = {}; }
@@ -170,6 +174,8 @@ class Api {
     int? plantCount,
     int? preferredGardenerId,
     String? customerNotes,
+    List<Map<String, dynamic>>? addons,
+    double? totalAmount,
   }) => req('POST', '/bookings', body: {
     'zone_id': zoneId,
     'geofence_id': zoneId,
@@ -188,6 +194,8 @@ class Api {
     if (plantCount != null) 'plant_count': plantCount,
     if (preferredGardenerId != null) 'preferred_gardener_id': preferredGardenerId,
     if (customerNotes != null && customerNotes.isNotEmpty) 'customer_notes': customerNotes,
+    if (addons != null) 'addons': addons,
+    if (totalAmount != null) 'total_amount': totalAmount,
   });
 
   Future<dynamic> getMyBookings({String? status, int page = 1, int limit = 10}) =>
@@ -231,6 +239,8 @@ class Api {
     String? city, String? state, String? pincode,
     int? plantCount,
     bool autoRenew = true,
+    List<Map<String, dynamic>>? addons,
+    double? totalAmount,
   }) => req('POST', '/subscriptions', body: {
     'plan_id': planId,
     'zone_id': zoneId,
@@ -247,6 +257,8 @@ class Api {
     if (pincode != null) 'pincode': pincode,
     if (plantCount != null) 'plant_count': plantCount,
     'auto_renew': autoRenew,
+    if (addons != null) 'addons': addons,
+    if (totalAmount != null) 'total_amount': totalAmount,
   });
 
   Future<dynamic> getMySubscriptions() => req('GET', '/subscriptions/my');
@@ -394,24 +406,9 @@ bool asBool(dynamic v, [bool fallback = false]) {
   return fallback;
 }
 
-String imgUrl(dynamic v) {
-  var s = '';
-  if (v is List && v.isNotEmpty) {
-    s = asStr(v[0]);
-  } else {
-    s = asStr(v);
-  }
-  
-  if (s.isEmpty || s == 'null') return 'https://via.placeholder.com/300?text=GharKaMali';
-  if (s.startsWith('http')) return s;
-  
-  // Ensure relative path starts with /
-  if (!s.startsWith('/')) s = '/$s';
-  
-  // Check if it already contains uploads, if not try to guess or just use base
-  if (!s.contains('/uploads/')) {
-     return 'https://gkm.gobt.in/uploads/products$s';
-  }
-  
-  return 'https://gkm.gobt.in$s';
+String imgUrl(dynamic img) {
+  if (img == null) return '';
+  if (img is List && img.isNotEmpty) return img.first.toString();
+  if (img is String) return img;
+  return '';
 }

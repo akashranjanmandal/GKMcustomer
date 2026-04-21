@@ -21,6 +21,7 @@ import 'presentation/screens/subscriptions/plans_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/complaints/complaints_screen.dart';
 import 'presentation/screens/profile/saved_addresses_screen.dart';
+import 'presentation/screens/profile/edit_profile_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +69,7 @@ class GkmApp extends StatelessWidget {
       case '/notifications':  return _slide(const NotificationsScreen(), s);
       case '/complaints':     return _slide(const ComplaintsScreen(), s);
       case '/saved-addresses':return _slide(const SavedAddressesScreen(), s);
+      case '/edit-profile':   return _slide(const EditProfileScreen(), s);
       default:
         if (s.name?.startsWith('/booking/') == true) {
           final id = int.tryParse(s.name!.replaceFirst('/booking/', '')) ?? 0;
@@ -138,6 +140,15 @@ class _Shell extends StatefulWidget {
 }
 class _ShellState extends State<_Shell> {
   int _idx = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh profile from server so phone/name/wallet are always current
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().refreshProfile();
+    });
+  }
 
   void _onLogout() => Navigator.pushAndRemoveUntil(context,
     PageRouteBuilder(

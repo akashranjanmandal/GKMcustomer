@@ -29,11 +29,11 @@ class _BkListState extends State<BookingsScreen> with SingleTickerProviderStateM
           setState(() { _items = []; });
           _load();
         }
-        if (BookingsScreen.needsReload) {
-          BookingsScreen.needsReload = false;
-          _load();
-        }
       });
+    
+    if (BookingsScreen.needsReload) {
+      BookingsScreen.needsReload = false;
+    }
     _load();
   }
   @override void dispose() { _tab.dispose(); super.dispose(); }

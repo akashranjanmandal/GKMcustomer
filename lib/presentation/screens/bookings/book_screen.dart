@@ -38,9 +38,9 @@ class _BookState extends State<BookScreen> {
 
   List<String> get _labels {
     if (_planPreSelected) {
-      return _isSub ? ['Location', 'Plants', 'Add-ons', 'Checkout'] : ['Location', 'Plants', 'Add-ons', 'Schedule', 'Checkout'];
+      return _isSub ? ['Location', 'Checkout'] : ['Location', 'Plants', 'Add-ons', 'Schedule', 'Checkout'];
     } else {
-      return _isSub ? ['Location', 'Plan', 'Plants', 'Add-ons', 'Checkout'] : ['Location', 'Plan', 'Plants', 'Add-ons', 'Schedule', 'Checkout'];
+      return _isSub ? ['Location', 'Plan', 'Checkout'] : ['Location', 'Plan', 'Plants', 'Add-ons', 'Schedule', 'Checkout'];
     }
   }
 
@@ -54,6 +54,19 @@ class _BookState extends State<BookScreen> {
 
   List<dynamic> get _subPlans => _plans.where((p) => asStr(p['plan_type']) == 'subscription').toList();
   List<dynamic> get _odPlans  => _plans.where((p) => asStr(p['plan_type']) != 'subscription').toList();
+
+  // Geofence-based price for a given on-demand plan (uses zone pricing when location is set)
+  double _odPrice(Map<String, dynamic> plan) {
+    if (asStr(plan['plan_type']) == 'subscription') return asDouble(plan['price']);
+    if (_picked != null && _zone != null && _zone!.containsKey('base_price')) {
+      final base = asDouble(_zone!['base_price']);
+      if (base > 0) {
+        final surge = asDouble(_zone!['surge_multiplier']) > 0 ? asDouble(_zone!['surge_multiplier']) : 1.0;
+        return base * surge;
+      }
+    }
+    return asDouble(plan['price']);
+  }
 
   double get _total {
     double t = asDouble(_selectedPlan?['price']);
@@ -132,10 +145,12 @@ class _BookState extends State<BookScreen> {
     if (_picked == null || _selectedPlan == null) return;
     setState(() => _submitting = true);
     final zoneId = _zone != null && asInt(_zone!['id']) > 0 ? asInt(_zone!['id']) : 0;
-    print('>>> SUBMITTING BOOKING: zoneId: $zoneId, lat: ${_picked?.lat}, lng: ${_picked?.lng}');
 
     try {
       if (zoneId == 0) throw ApiError('Please select a serviceable location first.', 404);
+
+      final addonsPayload = _selectedAddons.map((id) => {'addon_id': id, 'quantity': 1}).toList();
+      final totalAmount = _total;
 
       if (_isSub) {
         await _api.createSubscription(
@@ -146,8 +161,10 @@ class _BookState extends State<BookScreen> {
           flatNo: _picked!.flatNo, building: _picked!.building,
           area: _picked!.area, landmark: _picked!.landmark,
           city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
-          plantCount: _plantCount,
+          plantCount: null,
           autoRenew: _autoRenew,
+          addons: addonsPayload,
+          totalAmount: totalAmount,
         );
         if (!mounted) return;
         setState(() => _submitting = false);
@@ -165,6 +182,8 @@ class _BookState extends State<BookScreen> {
           city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
           plantCount: _plantCount,
           customerNotes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+          addons: addonsPayload,
+          totalAmount: totalAmount,
         );
         if (!mounted) return;
         setState(() => _submitting = false);
@@ -177,7 +196,6 @@ class _BookState extends State<BookScreen> {
         }
       }
     } on ApiError catch (e) {
-      print('!!! BOOKING ERROR: ${e.message}');
       setState(() => _submitting = false);
       if (mounted) showMsg(context, e.message, err: true);
     }
@@ -293,13 +311,13 @@ class _BookState extends State<BookScreen> {
     if (_subPlans.isNotEmpty) ...[
       GSec('Subscription Plans'),
       const SizedBox(height: 12),
-      ..._subPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => setState(() => _planId = asInt(pl['id'])))),
+      ..._subPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => setState(() => _planId = asInt(pl['id'])), displayPrice: _odPrice(Map<String, dynamic>.from(pl as Map)))),
     ],
     if (_odPlans.isNotEmpty) ...[
       if (_subPlans.isNotEmpty) const SizedBox(height: 32),
       GSec('One-Time Visit'),
       const SizedBox(height: 12),
-      ..._odPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => setState(() => _planId = asInt(pl['id'])))),
+      ..._odPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => setState(() => _planId = asInt(pl['id'])), displayPrice: _odPrice(Map<String, dynamic>.from(pl as Map)))),
     ],
   ]));
 
@@ -374,9 +392,9 @@ class _BookState extends State<BookScreen> {
         _RowInfo(label: 'Location', value: prov.label),
         _RowInfo(label: 'Address', value: prov.fullAddress, isBold: false),
         _RowInfo(label: 'Plan', value: asStr(_selectedPlan?['name'])),
-        _RowInfo(label: 'Plants', value: '$_plantCount plants'),
+        if (!_isSub) _RowInfo(label: 'Plants', value: '$_plantCount plants'),
         if (!_isSub) ...[ _RowInfo(label: 'Date', value: _date), _RowInfo(label: 'Time', value: _time) ],
-        if (_selectedAddons.isNotEmpty) _RowInfo(label: 'Add-ons', value: _selectedAddons.length.toString()),
+        if (!_isSub && _selectedAddons.isNotEmpty) _RowInfo(label: 'Add-ons', value: _selectedAddons.length.toString()),
         const Divider(height: 48),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('Total Amount', style: p(16, w: FontWeight.w700)),
@@ -390,17 +408,22 @@ class _BookState extends State<BookScreen> {
 
 class _PlanItem extends StatelessWidget {
   final Map<String, dynamic> plan; final bool sel; final VoidCallback onTap;
-  const _PlanItem({required this.plan, required this.sel, required this.onTap});
+  final double? displayPrice;
+  const _PlanItem({required this.plan, required this.sel, required this.onTap, this.displayPrice});
   @override
-  Widget build(BuildContext ctx) => GestureDetector(
-    onTap: onTap,
-    child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: sel ? C.forest : Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: sel ? C.forest : Colors.black.withOpacity(0.08)), boxShadow: [if(sel) BoxShadow(color: C.forest.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))]), child: Row(children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: (sel ? Colors.white : C.forest).withOpacity(0.12), borderRadius: BorderRadius.circular(16)), child: Icon(asStr(plan['plan_type']) == 'subscription' ? Icons.repeat_rounded : Icons.bolt_rounded, color: sel ? Colors.white : C.forest)),
-      const SizedBox(width: 16),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(asStr(plan['name']), style: p(16, w: FontWeight.w800, color: sel ? Colors.white : Colors.black)), Text('Best for basic maintenance', style: p(12, color: sel ? Colors.white60 : Colors.black38))])),
-      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('₹${asDouble(plan['price']).toStringAsFixed(0)}', style: p(18, w: FontWeight.w900, color: sel ? C.gold : C.forest)), Text(asStr(plan['plan_type']) == 'subscription' ? '/mo' : '/visit', style: p(10, color: sel ? Colors.white54 : Colors.black26))]),
-    ])),
-  );
+  Widget build(BuildContext ctx) {
+    final isSub = asStr(plan['plan_type']) == 'subscription';
+    final shownPrice = displayPrice ?? asDouble(plan['price']);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: sel ? C.forest : Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: sel ? C.forest : Colors.black.withOpacity(0.08)), boxShadow: [if(sel) BoxShadow(color: C.forest.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))]), child: Row(children: [
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: (sel ? Colors.white : C.forest).withOpacity(0.12), borderRadius: BorderRadius.circular(16)), child: Icon(isSub ? Icons.repeat_rounded : Icons.bolt_rounded, color: sel ? Colors.white : C.forest)),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(asStr(plan['name']), style: p(16, w: FontWeight.w800, color: sel ? Colors.white : Colors.black)), Text('Best for basic maintenance', style: p(12, color: sel ? Colors.white60 : Colors.black38))])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('₹${shownPrice.toStringAsFixed(0)}', style: p(18, w: FontWeight.w900, color: sel ? C.gold : C.forest)), Text(isSub ? '/mo' : '/visit', style: p(10, color: sel ? Colors.white54 : Colors.black26))]),
+      ])),
+    );
+  }
 }
 
 class _CounterBtn extends StatelessWidget {
