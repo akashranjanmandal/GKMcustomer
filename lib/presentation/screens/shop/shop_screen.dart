@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -236,12 +237,14 @@ class _ProductTileState extends State<_ProductTile> {
 
   String _getImageUrl(Map<String, dynamic> pData) {
     if (pData['images'] is List && (pData['images'] as List).isNotEmpty) {
-      return (pData['images'] as List).first.toString();
+      final url = (pData['images'] as List).first.toString();
+      if (url.isNotEmpty && url != 'null') return url;
     }
-    if (pData['image'] != null && pData['image'].toString().isNotEmpty) {
-      return pData['image'].toString();
+    if (pData['image'] != null) {
+      final url = pData['image'].toString();
+      if (url.isNotEmpty && url != 'null') return url;
     }
-    return '';
+    return 'https://gkm.gobt.in/uploads/shop/placeholder.jpg';
   }
 
   @override
@@ -275,10 +278,14 @@ class _ProductTileState extends State<_ProductTile> {
                 decoration: const BoxDecoration(color: Color(0xFFF1F5F1), borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                  child: Image.network(
-                    _getImageUrl(pData),
+                  child: CachedNetworkImage(
+                    imageUrl: _getImageUrl(pData),
                     fit: BoxFit.cover,
-                    errorBuilder: (_,__,___) => Center(child: Icon(Icons.eco_rounded, color: C.green.withOpacity(0.4), size: 48))),
+                    width: double.infinity,
+                    height: 148,
+                    placeholder: (_, __) => const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50))),
+                    errorWidget: (_, __, ___) => Center(child: Icon(Icons.eco_rounded, color: C.green.withOpacity(0.4), size: 48)),
+                  ),
                 ),
               ),
               // Discount badge
@@ -357,12 +364,14 @@ class _ProductDetails extends StatelessWidget {
 
   String _getImageUrl(Map<String, dynamic> pData) {
     if (pData['images'] is List && (pData['images'] as List).isNotEmpty) {
-      return (pData['images'] as List).first.toString();
+      final url = (pData['images'] as List).first.toString();
+      if (url.isNotEmpty && url != 'null') return url;
     }
-    if (pData['image'] != null && pData['image'].toString().isNotEmpty) {
-      return pData['image'].toString();
+    if (pData['image'] != null) {
+      final url = pData['image'].toString();
+      if (url.isNotEmpty && url != 'null') return url;
     }
-    return '';
+    return 'https://gkm.gobt.in/uploads/shop/placeholder.jpg';
   }
 
   @override
@@ -372,12 +381,13 @@ class _ProductDetails extends StatelessWidget {
       // ── Product image — full width, no broken Material wrapper ──────────
       ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: Image.network(
-          _getImageUrl(pData),
+        child: CachedNetworkImage(
+          imageUrl: _getImageUrl(pData),
           fit: BoxFit.cover,
           width: double.infinity,
           height: 260,
-          errorBuilder: (_,__,___) => Container(
+          placeholder: (_, __) => Container(height: 260, color: const Color(0xFFF1F5F1), child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50)))),
+          errorWidget: (_, __, ___) => Container(
             height: 200,
             color: const Color(0xFFF1F5F1),
             child: Center(child: Icon(Icons.eco_rounded, size: 64, color: C.green.withOpacity(0.4))),
@@ -440,12 +450,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   String _getImageUrl(Map<String, dynamic> prod) {
     if (prod['images'] is List && (prod['images'] as List).isNotEmpty) {
-      return (prod['images'] as List).first.toString();
+      final url = (prod['images'] as List).first.toString();
+      if (url.isNotEmpty && url != 'null') return url;
     }
-    if (prod['image'] != null && prod['image'].toString().isNotEmpty) {
-      return prod['image'].toString();
+    if (prod['image'] != null) {
+      final url = prod['image'].toString();
+      if (url.isNotEmpty && url != 'null') return url;
     }
-    return '';
+    return 'https://gkm.gobt.in/uploads/shop/placeholder.jpg';
   }
 
   @override
@@ -481,12 +493,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
             return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [
                ClipRRect(
                  borderRadius: BorderRadius.circular(8), 
-                 child: Image.network(
-                   _getImageUrl(prod),
-                   width: 48, 
-                   height: 48, 
-                   fit: BoxFit.cover, 
-                   errorBuilder: (_,__,___) => Container(color: Colors.grey[100], child: const Icon(Icons.eco))
+                 child: CachedNetworkImage(
+                   imageUrl: _getImageUrl(prod),
+                   width: 48, height: 48, fit: BoxFit.cover,
+                   placeholder: (_, __) => Container(color: Colors.grey[100]),
+                   errorWidget: (_, __, ___) => Container(color: Colors.grey[100], child: const Icon(Icons.eco)),
                  )
                ),
                const SizedBox(width: 12),
