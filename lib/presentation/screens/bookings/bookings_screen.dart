@@ -133,7 +133,7 @@ class _BkCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(13)),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(13),
-                  child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+                  child: Image.asset('assets/images/logo-icon.png', fit: BoxFit.contain),
                 )),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -287,6 +287,28 @@ class _BkDetailState extends State<BookingDetailScreen> {
               GDetailRow(icon: Icons.local_florist_rounded, label: 'PLANTS', value: '${_bk!['plant_count'] ?? '—'} plants'),
               if (asDouble(_bk!['total_amount']) > 0)
                 GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL', value: '₹${asDouble(_bk!['total_amount']).toStringAsFixed(0)}'),
+              
+              // Add-ons Section
+              if (asList(_bk!['addons']).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                const SizedBox(height: 12),
+                Text('INCLUDED ADD-ONS', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
+                const SizedBox(height: 8),
+                ...asList(_bk!['addons']).map((a) {
+                  final addon = asMap(a);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(children: [
+                      const Icon(Icons.check_circle_outline_rounded, size: 14, color: C.green),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(asStr(addon['name'] ?? addon['addon_name']), style: p(13, w: FontWeight.w600, color: C.t2))),
+                      if (asDouble(addon['price']) > 0) Text('₹${asDouble(addon['price']).toStringAsFixed(0)}', style: p(13, w: FontWeight.w700, color: C.t1)),
+                    ]),
+                  );
+                }),
+              ],
+
               if ((_bk!['customer_notes'] as String?)?.isNotEmpty == true)
                 GDetailRow(icon: Icons.sticky_note_2_outlined, label: 'NOTES', value: asStr(_bk!['customer_notes'])),
             ])).animate().fadeIn(),

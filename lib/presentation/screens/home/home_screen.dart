@@ -143,11 +143,24 @@ class _HomeState extends State<HomeScreen> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(8)), child: Text('Professional gardening made simple', style: p(10, w: FontWeight.w900, color: Colors.black, ls: 0.5))),
           const SizedBox(height: 16),
           SizedBox(
-            height: 44,
-            child: Row(children: [
-              Expanded(child: Text(_taglines[_tagIdx], style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis)
-                .animate(key: ValueKey(_tagIdx)).fadeIn(duration: 400.ms).moveY(begin: 10, end: 0)),
-            ]),
+            height: 48,
+            child: AnimatedSwitcher(
+              duration: 500.ms,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(anim),
+                  child: child,
+                ),
+              ),
+              child: Text(
+                _taglines[_tagIdx],
+                key: ValueKey(_tagIdx),
+                style: GoogleFonts.poppins(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white, height: 1.1),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
           Text('GharKaMali hai na!', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: C.gold, fontStyle: FontStyle.italic)),
           const SizedBox(height: 24),

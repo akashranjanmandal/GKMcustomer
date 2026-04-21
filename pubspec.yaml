@@ -28,6 +28,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   video_player: ^2.9.1
   font_awesome_flutter: ^10.7.0
+  camera: ^0.10.5+9
+  path_provider: ^2.1.5
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
@@ -45,5 +48,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
+    - assets/images/logo-icon.png
     - assets/images/logo-dark.png
     - assets/images/video.mp4

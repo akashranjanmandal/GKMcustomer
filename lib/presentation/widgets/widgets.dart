@@ -323,23 +323,31 @@ class GField extends StatelessWidget {
 
   @override
   Widget build(BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(label, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54))),
+    if (label.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(label, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54))),
     Container(
+      height: maxLines != null && maxLines! > 1 ? null : 54,
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F5F8),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black.withOpacity(0.04)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        color: const Color(0xFFF3F7F0),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: C.border, width: 1.2),
       ),
+      alignment: Alignment.center,
       child: TextField(
         controller: ctrl, keyboardType: keyboard, obscureText: isPass, maxLines: maxLines,
         onChanged: onChanged,
-        style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black),
+        style: p(15, w: FontWeight.w600, color: C.t1),
         decoration: InputDecoration(
-          hintText: hint, hintStyle: const TextStyle(color: Colors.black26),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          hintText: hint, hintStyle: TextStyle(color: C.t4, fontSize: 14, fontWeight: FontWeight.w400),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           prefixIcon: icon != null ? Icon(icon, color: C.forest.withOpacity(0.5), size: 20) : null,
-          border: InputBorder.none,
+          border:             InputBorder.none,
+          enabledBorder:      InputBorder.none,
+          focusedBorder:      InputBorder.none,
+          errorBorder:        InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          disabledBorder:     InputBorder.none,
+          filled:             false,
+          isDense:            true,
         ),
       ),
     ),

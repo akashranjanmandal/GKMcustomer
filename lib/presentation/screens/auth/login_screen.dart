@@ -84,7 +84,7 @@ class _LoginState extends State<LoginScreen> {
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: C.forest,
-    resizeToAvoidBottomInset: false,
+    resizeToAvoidBottomInset: true,
     body: AnimatedSwitcher(
       duration: 500.ms,
       child: switch (_step) {
@@ -151,13 +151,14 @@ class _PhoneScreen extends StatelessWidget {
         color: C.forest,
         padding: EdgeInsets.fromLTRB(24, top + 28, 24, 20),
         child: Column(children: [
-          Image.asset('assets/images/logo.png', height: 72, fit: BoxFit.contain)
+          Image.asset('assets/images/logo-icon.png', height: 72, fit: BoxFit.contain)
             .animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.88, 0.88)),
         ]),
       ),
       // ── Marquee area ──────────────────────────────────────────────────
       Expanded(child: Stack(children: [
         Container(
+          constraints: const BoxConstraints(minHeight: 180),
           color: C.forest,
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Column(children: [
@@ -358,6 +359,10 @@ class _OtpScreen extends StatelessWidget {
           if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
           if (v.isEmpty  && i > 0) focusNodes[i - 1].requestFocus();
           onChange(v);
+          
+          // Auto submit when all fields are filled
+          final code = controllers.map((c) => c.text).join();
+          if (code.length == 6) onVerify();
         },
       ))),
       const SizedBox(height: 48),

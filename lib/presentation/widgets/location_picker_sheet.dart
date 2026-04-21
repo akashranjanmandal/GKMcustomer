@@ -60,11 +60,20 @@ class PickedLocation {
 bool isPointInPolygon(double lat, double lng, List<dynamic> poly) {
   if (poly.isEmpty) return false;
 
+  // Handle nested GeoJSON structure [[[lng, lat], ...]]
+  List<dynamic> points = poly;
+  if (poly.isNotEmpty && poly[0] is List && poly[0].isNotEmpty && poly[0][0] is List) {
+    points = poly[0] as List;
+  }
+
   bool check(double y, double x, List<dynamic> p, int yIdx, int xIdx) {
     bool inside = false;
     final n = p.length;
     for (int i = 0, j = n - 1; i < n; j = i++) {
       final vi = p[i] as List; final vj = p[j] as List;
+      // Safety checks for point data
+      if (vi.length <= yIdx || vi.length <= xIdx || vj.length <= yIdx || vj.length <= xIdx) continue;
+      
       final yi = (vi[yIdx] as num).toDouble();
       final xi = (vi[xIdx] as num).toDouble();
       final yj = (vj[yIdx] as num).toDouble();
@@ -77,10 +86,10 @@ bool isPointInPolygon(double lat, double lng, List<dynamic> poly) {
     return inside;
   }
 
-  // Try standard [lat, lng]
-  if (check(lat, lng, poly, 0, 1)) return true;
-  // Try GeoJSON [lng, lat]
-  return check(lat, lng, poly, 1, 0);
+  // Try standard [lat, lng] (Index 0 is Lat, Index 1 is Lng)
+  if (check(lat, lng, points, 0, 1)) return true;
+  // Try GeoJSON [lng, lat] (Index 1 is Lat, Index 0 is Lng)
+  return check(lat, lng, points, 1, 0);
 }
 
 Future<PickedLocation?> detectCurrentLocation() async {

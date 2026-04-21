@@ -162,7 +162,7 @@ class _ShellState extends State<_Shell> {
     final pages = [
       HomeScreen(navTo: (i) => setState(() => _idx = i)),
       const BookingsScreen(),
-      const PlantopediaScreen(),
+      PlantopediaScreen(onClose: () => setState(() => _idx = 0)),
       const ShopScreen(),
       ProfileScreen(onLogout: _onLogout),
     ];
@@ -181,7 +181,7 @@ class _Splash extends StatelessWidget {
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: Colors.white,
     body: Center(
-      child: Image.asset('assets/images/logo.png', width: 220)
+      child: Image.asset('assets/images/logo-icon.png', width: 140)
         .animate().fadeIn(duration: 800.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1), curve: Curves.easeOutBack),
     ),
   );

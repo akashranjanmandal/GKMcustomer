@@ -88,7 +88,12 @@ class _ShopState extends State<ShopScreen> {
                 ? const GEmpty(title: 'No items found', sub: 'Try a different category or search term', icon: Icons.shopping_bag_outlined)
                 : GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.70),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2, 
+                      crossAxisSpacing: 10, 
+                      mainAxisSpacing: 10, 
+                      childAspectRatio: 0.65, // Increased height ratio for small screens
+                    ),
                     itemCount: _products.length,
                     itemBuilder: (_, i) => _ProductTile(
                       pData: asMap(_products[i]),
@@ -302,9 +307,9 @@ class _ProductTileState extends State<_ProductTile> {
                   ? Container(
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))]),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        _QtyBtn(icon: Icons.remove_rounded, onTap: widget.onRemove),
-                        Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('${widget.qty}', style: p(14, w: FontWeight.w900, color: C.forest))),
-                        _QtyBtn(icon: Icons.add_rounded, onTap: widget.onAdd),
+                        _QtyBtn(icon: Icons.remove_rounded, onTap: widget.onRemove, small: true),
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('${widget.qty}', style: p(13, w: FontWeight.w900, color: C.forest))),
+                        _QtyBtn(icon: Icons.add_rounded, onTap: widget.onAdd, small: true),
                       ]),
                     )
                   : GestureDetector(
@@ -323,20 +328,22 @@ class _ProductTileState extends State<_ProductTile> {
             ]),
 
             // ── Info area ────────────────────────────────────────────────
-            Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (catName.isNotEmpty)
-                Text(catName, style: p(10, w: FontWeight.w600, color: C.forest.withOpacity(0.65))),
-              const SizedBox(height: 2),
-              Text(asStr(pData['name']), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 6),
-              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                Text('₹${price.toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w900, color: C.green)),
-                if (mrp > price) ...[
-                  const SizedBox(width: 6),
-                  Text('₹${mrp.toStringAsFixed(0)}', style: const TextStyle(decoration: TextDecoration.lineThrough, decorationColor: Color(0xFF9AAA94), color: Color(0xFF9AAA94), fontSize: 11, fontWeight: FontWeight.w600)),
-                ],
-              ]),
-            ])),
+            Expanded(
+              child: Padding(padding: const EdgeInsets.fromLTRB(10, 8, 10, 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (catName.isNotEmpty)
+                  Text(catName, style: p(9, w: FontWeight.w600, color: C.forest.withOpacity(0.65))),
+                const SizedBox(height: 2),
+                Text(asStr(pData['name']), style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis),
+                const Spacer(),
+                Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  Text('₹${price.toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w900, color: C.green)),
+                  if (mrp > price) ...[
+                    const SizedBox(width: 4),
+                    Flexible(child: Text('₹${mrp.toStringAsFixed(0)}', style: const TextStyle(decoration: TextDecoration.lineThrough, decorationColor: Color(0xFF9AAA94), color: Color(0xFF9AAA94), fontSize: 10, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                  ],
+                ]),
+              ])),
+            ),
           ]),
         ),
       ),
@@ -345,15 +352,15 @@ class _ProductTileState extends State<_ProductTile> {
 }
 
 class _QtyBtn extends StatelessWidget {
-  final IconData icon; final VoidCallback onTap;
-  const _QtyBtn({required this.icon, required this.onTap});
+  final IconData icon; final VoidCallback onTap; final bool small;
+  const _QtyBtn({required this.icon, required this.onTap, this.small = false});
   @override
   Widget build(BuildContext ctx) => GestureDetector(
     onTap: onTap,
     child: Container(
-      width: 32, height: 32,
-      decoration: BoxDecoration(color: C.forest.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
-      child: Icon(icon, size: 16, color: C.forest),
+      width: small ? 26 : 32, height: small ? 26 : 32,
+      decoration: BoxDecoration(color: C.forest.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+      child: Icon(icon, size: small ? 14 : 16, color: C.forest),
     ),
   );
 }
@@ -560,5 +567,111 @@ class _MyOrdersState extends State<MyOrdersScreen> {
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
   @override
-  Widget build(BuildContext ctx) => Scaffold(backgroundColor: C.bg, body: CustomScrollView(slivers: [SliverToBoxAdapter(child: GHeader(pb: 16, child: Row(children: [GestureDetector(onTap: () => Navigator.pop(ctx), child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))), const SizedBox(width: 14), Text('My Orders', style: p(17, w: FontWeight.w700, color: Colors.white))]))), SliverPadding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), sliver: _loading ? SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 4)) : _orders.isEmpty ? const SliverFillRemaining(child: GEmpty(title: 'No orders yet', sub: 'Your shop orders will appear here', icon: Icons.shopping_bag_outlined)) : SliverList(delegate: SliverChildBuilderDelegate((_, i) { final o = _orders[i]; final status = asStr(o['status'], 'pending'); return Padding(padding: const EdgeInsets.only(bottom: 12), child: GCard(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text(asStr(o['order_number'], '#${o['id']}'), style: p(14, w: FontWeight.w700, color: C.t1))), GBadge(status)]), const SizedBox(height: 8), Text('₹${asDouble(o['total_amount']).toStringAsFixed(0)}', style: p(16, w: FontWeight.w800, color: C.green)), const SizedBox(height: 4), Text(asStr(o['shipping_address'] ?? o['delivery_address'], '—'), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)]))).animate().fadeIn(delay: Duration(milliseconds: i * 40)); }, childCount: _orders.length)))]));
+  Widget build(BuildContext ctx) => Scaffold(
+    backgroundColor: C.bg, 
+    body: CustomScrollView(slivers: [
+      SliverToBoxAdapter(child: GHeader(pb: 16, child: Row(children: [
+        GestureDetector(onTap: () => Navigator.pop(ctx), 
+          child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)), 
+          child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))), 
+        const SizedBox(width: 14), 
+        Text('My Orders', style: p(17, w: FontWeight.w700, color: Colors.white))
+      ]))), 
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), 
+        sliver: _loading 
+          ? SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 4)) 
+          : _orders.isEmpty 
+            ? const SliverFillRemaining(child: GEmpty(title: 'No orders yet', sub: 'Your shop orders will appear here', icon: Icons.shopping_bag_outlined)) 
+            : SliverList(delegate: SliverChildBuilderDelegate((_, i) { 
+                final o = asMap(_orders[i]); 
+                final status = asStr(o['status'], 'pending'); 
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12), 
+                  child: GCard(
+                    padding: const EdgeInsets.all(16), 
+                    onTap: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: o))),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Expanded(child: Text(asStr(o['order_number'], '#${o['id']}'), style: p(14, w: FontWeight.w700, color: C.t1))), 
+                        GBadge(status)
+                      ]), 
+                      const SizedBox(height: 8), 
+                      Text('₹${asDouble(o['total_amount']).toStringAsFixed(0)}', style: p(16, w: FontWeight.w800, color: C.green)), 
+                      const SizedBox(height: 4), 
+                      Text(asStr(o['shipping_address'] ?? o['delivery_address'], '—'), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)
+                    ])
+                  )
+                ).animate().fadeIn(delay: Duration(milliseconds: i * 40)); 
+              }, childCount: _orders.length)
+            )
+      )
+    ]));
+}
+
+class OrderDetailScreen extends StatelessWidget {
+  final Map<String, dynamic> order;
+  const OrderDetailScreen({super.key, required this.order});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final items = asList(order['items']);
+    final status = asStr(order['status'], 'pending');
+    
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: CustomScrollView(slivers: [
+        SliverToBoxAdapter(child: GHeader(pb: 52, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          GestureDetector(onTap: () => Navigator.pop(ctx),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white70),
+              const SizedBox(width: 4),
+              Text('My Orders', style: p(13, color: Colors.white70)),
+            ])),
+          const SizedBox(height: 16),
+          Text(asStr(order['order_number'], '#${order['id']}'), style: p(20, w: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 8),
+          GBadge(status),
+        ]))),
+
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+          sliver: SliverList(delegate: SliverChildListDelegate([
+            // Order Info
+            GCard(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 4, height: 16, decoration: BoxDecoration(color: C.green, borderRadius: BorderRadius.circular(99))),
+                const SizedBox(width: 8),
+                Text('ORDER DETAILS', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
+              ]),
+              const SizedBox(height: 16),
+              GDetailRow(icon: Icons.location_on_rounded, label: 'ADDRESS', value: asStr(order['shipping_address'] ?? order['delivery_address'], '—')),
+              GDetailRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: asStr(order['created_at'], '—').length >= 10 ? asStr(order['created_at']).substring(0,10) : '—'),
+              GDetailRow(icon: Icons.payments_rounded, label: 'METHOD', value: asStr(order['payment_method'], 'COD').toUpperCase()),
+              GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL', value: '₹${asDouble(order['total_amount']).toStringAsFixed(0)}'),
+            ])),
+
+            const SizedBox(height: 16),
+            GSec('Order Items'),
+            const SizedBox(height: 12),
+            ...items.map((i) {
+              final item = asMap(i);
+              final product = asMap(item['product']);
+              return Padding(padding: const EdgeInsets.only(bottom: 12),
+                child: GCard(padding: const EdgeInsets.all(12), child: Row(children: [
+                   Container(width: 44, height: 44, decoration: BoxDecoration(color: C.bg, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.eco_rounded, color: C.green, size: 20)),
+                   const SizedBox(width: 12),
+                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                     Text(asStr(product['name'] ?? item['product_name']), style: p(13, w: FontWeight.w700, color: C.t1)),
+                     Text('${item['quantity']} x ₹${asDouble(item['price']).toStringAsFixed(0)}', style: p(11, color: C.t3)),
+                   ])),
+                   Text('₹${(asDouble(item['price']) * asInt(item['quantity'])).toStringAsFixed(0)}', style: p(14, w: FontWeight.w800, color: C.t1)),
+                ])),
+              );
+            }).toList(),
+          ])),
+        ),
+      ]),
+    );
+  }
 }

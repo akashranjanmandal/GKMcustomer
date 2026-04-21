@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,12 +11,18 @@ import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 
 class PlantopediaScreen extends StatefulWidget {
-  const PlantopediaScreen({super.key});
+  final VoidCallback? onClose;
+  const PlantopediaScreen({super.key, this.onClose});
   @override State<PlantopediaScreen> createState() => _PlantState();
 }
+
 class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStateMixin {
   final _api = Api();
   final _picker = ImagePicker();
+  
+  CameraController? _camera;
+  bool _camInit = false;
+  
   File? _image;
   Map<String, dynamic>? _result;
   bool _identifying = false;
@@ -27,12 +34,26 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _loadHistory();
+    _initCamera();
     _anim = AnimationController(vsync: this, duration: 2.seconds)..repeat(reverse: true);
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+      _camera = CameraController(cameras.first, ResolutionPreset.high, enableAudio: false);
+      await _camera!.initialize();
+      if (mounted) setState(() => _camInit = true);
+    } catch (e) {
+      debugPrint('Camera error: $e');
+    }
   }
 
   @override
   void dispose() {
     _anim.dispose();
+    _camera?.dispose();
     super.dispose();
   }
 
@@ -45,14 +66,25 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
     } catch (_) { if (mounted) setState(() => _histLoading = false); }
   }
 
-  Future<void> _pick(ImageSource src) async {
+  Future<void> _capture() async {
+    if (_camera == null || !_camera!.value.isInitialized) return;
     try {
-      final f = await _picker.pickImage(source: src, imageQuality: 82, maxWidth: 1200);
+      final xf = await _camera!.takePicture();
+      setState(() { _image = File(xf.path); _result = null; });
+      _identify();
+    } catch (e) {
+      if (mounted) showMsg(context, 'Failed to capture image', err: true);
+    }
+  }
+
+  Future<void> _pickGallery() async {
+    try {
+      final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 82, maxWidth: 1200);
       if (f != null) {
         setState(() { _image = File(f.path); _result = null; });
         _identify();
       }
-    } catch (_) { if (mounted) showMsg(context, 'Could not access ${src == ImageSource.camera ? 'camera' : 'gallery'}', err: true); }
+    } catch (_) { if (mounted) showMsg(context, 'Could not access gallery', err: true); }
   }
 
   Future<void> _identify() async {
@@ -85,8 +117,10 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(children: [
-        // Camera Placeholder
-        Positioned.fill(child: Container(color: Colors.black12, child: const Center(child: Icon(Icons.camera_alt, color: Colors.white24, size: 64)))),
+        // Camera Preview
+        Positioned.fill(child: _camInit 
+          ? CameraPreview(_camera!) 
+          : Container(color: Colors.black, child: const Center(child: CircularProgressIndicator(color: Colors.white24)))),
         
         // Scan Overlay
         Positioned.fill(child: CustomPaint(painter: _ScannerPainter())),
@@ -94,9 +128,9 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
         // Header
         Positioned(top: MediaQuery.of(ctx).padding.top + 16, left: 16, right: 16,
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close, color: Colors.white)),
+            IconButton(onPressed: widget.onClose ?? () => Navigator.pop(ctx), icon: const Icon(Icons.close, color: Colors.white)),
             Text('Scan Plant', style: p(18, w: FontWeight.w700, color: Colors.white)),
-            IconButton(onPressed: () {}, icon: const Icon(Icons.flash_off, color: Colors.white)),
+            const SizedBox(width: 48), // Spacer
           ])),
 
         // Scan Line
@@ -117,10 +151,10 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
             Text('Point your camera at a plant', style: p(14, color: Colors.white70)),
             const SizedBox(height: 32),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _ScanTool(icon: Icons.photo_library, label: 'Gallery', onTap: () => _pick(ImageSource.gallery)),
+              _ScanTool(icon: Icons.photo_library, label: 'Gallery', onTap: _pickGallery),
               const SizedBox(width: 40),
               GestureDetector(
-                onTap: () => _pick(ImageSource.camera),
+                onTap: _capture,
                 child: Container(
                   width: 80, height: 80,
                   decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
@@ -157,7 +191,7 @@ class _ScanTool extends StatelessWidget {
     child: Column(children: [
       Container(
         width: 50, height: 50,
-        decoration: BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+        decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
         child: Icon(icon, color: Colors.white, size: 24),
       ),
       const SizedBox(height: 8),
@@ -227,3 +261,4 @@ class _HistorySheet extends StatelessWidget {
     ]),
   );
 }
+
