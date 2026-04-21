@@ -102,9 +102,10 @@ Future<PickedLocation?> detectCurrentLocation() async {
 
     Position pos;
     try {
-      pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 10));
+      pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 30));
     } catch (_) {
-      pos = (await Geolocator.getLastKnownPosition()) ?? await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+      pos = (await Geolocator.getLastKnownPosition()) ??
+          await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 30));
     }
 
     final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.latitude}&lon=${pos.longitude}&zoom=18');
@@ -262,9 +263,10 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
       Position? pos;
       try {
-        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 10));
+        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 30));
       } catch (_) {
-        pos = await Geolocator.getLastKnownPosition();
+        pos = await Geolocator.getLastKnownPosition() ??
+            await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 30));
       }
 
       if (!mounted || pos == null) { setState(() => _gpsLoading = false); return; }
