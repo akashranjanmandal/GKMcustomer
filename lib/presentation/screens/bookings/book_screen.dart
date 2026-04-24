@@ -92,6 +92,8 @@ class _BookState extends State<BookScreen> {
     return t;
   }
 
+  bool _zoneChecking = false;
+
   @override
   void initState() {
     super.initState();
@@ -100,11 +102,43 @@ class _BookState extends State<BookScreen> {
     _loadData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final saved = context.read<LocationProvider>().location;
-      if (saved != null && mounted) setState(() => _picked = saved);
+      if (saved != null && mounted) {
+        setState(() => _picked = saved);
+        // If saved location has no zone, re-check serviceability immediately
+        if (saved.zone.isEmpty || asInt(saved.zone['id']) == 0) {
+          _recheckZone(saved.lat, saved.lng);
+        }
+      }
     });
   }
 
+  Future<void> _recheckZone(double lat, double lng) async {
+    if (!mounted) return;
+    setState(() => _zoneChecking = true);
+    try {
+      final sRes = await _api.checkServiceability(lat, lng);
+      final data = asMap(sRes);
+      final zone = asMap(data['zone']);
+      if (mounted && zone.isNotEmpty && _picked != null) {
+        final updated = _picked!.copyWith(zone: zone);
+        setState(() { _picked = updated; _zoneChecking = false; });
+        // Persist the resolved zone back to provider
+        context.read<LocationProvider>().updateZoneForCurrent(zone);
+      } else {
+        if (mounted) setState(() => _zoneChecking = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _zoneChecking = false);
+    }
+  }
+
   @override void dispose() { _notesCtrl.dispose(); super.dispose(); }
+
+  String _cleanAddr(String s) {
+    final reg = RegExp(r'-?\d{1,3}\.\d{4,}');
+    if (reg.allMatches(s).length >= 2) return 'Service Location';
+    return s.isEmpty ? '—' : s;
+  }
 
   String _tomorrow() {
     final d = DateTime.now().add(const Duration(days: 1));
@@ -156,6 +190,7 @@ class _BookState extends State<BookScreen> {
         await _api.createSubscription(
           planId: _planId!,
           zoneId: zoneId,
+          geofenceId: _picked?.geofenceId,
           serviceAddress: _picked!.address,
           lat: _picked!.lat, lng: _picked!.lng,
           flatNo: _picked!.flatNo, building: _picked!.building,
@@ -174,6 +209,7 @@ class _BookState extends State<BookScreen> {
       } else {
         await _api.createBooking(
           zoneId: zoneId,
+          geofenceId: _picked?.geofenceId,
           scheduledDate: _date, scheduledTime: _time,
           serviceAddress: _picked!.address,
           lat: _picked!.lat, lng: _picked!.lng,
@@ -203,7 +239,7 @@ class _BookState extends State<BookScreen> {
 
   bool _canNext() {
     switch (_currentStepKey) {
-      case 'Location': return _picked != null && asInt(_picked?.zone['id']) > 0;
+      case 'Location': return !_zoneChecking && _picked != null && asInt(_picked?.zone['id']) > 0;
       case 'Plan':     return _planId != null;
       case 'Schedule': return _isSub || _date.isNotEmpty;
       default:         return true;
@@ -282,18 +318,30 @@ class _BookState extends State<BookScreen> {
           Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: C.forest.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.location_on_rounded, color: C.forest, size: 20)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Success!', style: p(14, w: FontWeight.w800, color: C.forest)),
-            Text('Your precise location is set', style: p(11, color: C.forest.withOpacity(0.6))),
+            Text('Location Set', style: p(14, w: FontWeight.w800, color: C.forest)),
+            Text(_picked!.fullAddress, style: p(11, color: C.forest.withOpacity(0.7), h: 1.4)),
           ])),
           GestureDetector(onTap: _openPicker, child: Text('Change', style: p(13, w: FontWeight.w800, color: C.forest))),
         ]),
-        const Divider(height: 32),
-        Text(context.read<LocationProvider>().fullAddress, style: p(14, w: FontWeight.w600, h: 1.5)),
-        const SizedBox(height: 16),
-        if (asInt(_picked!.zone['id']) > 0) 
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(6)), child: Text('Zone: ${asStr(_picked!.zone['name'])}', style: p(10, w: FontWeight.w800, color: Colors.white)))
-        else 
-          _RowInfo(label: 'Status', value: 'Not Serviceable', isBold: true),
+        const Divider(height: 24),
+        if (_zoneChecking)
+          Row(children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)),
+            const SizedBox(width: 12),
+            Text('Checking serviceability...', style: p(12, color: C.t3)),
+          ])
+        else if (asInt(_picked!.zone['id']) > 0)
+          Row(children: [
+            const Icon(Icons.check_circle_rounded, color: C.green, size: 16),
+            const SizedBox(width: 8),
+            Text('Serviceable · ${asStr(_picked!.zone['name'])}', style: p(12, w: FontWeight.w700, color: C.green)),
+          ])
+        else
+          Row(children: [
+            const Icon(Icons.info_outline_rounded, color: Colors.orange, size: 16),
+            const SizedBox(width: 8),
+            Expanded(child: Text('This area may not be serviceable. Try changing location.', style: p(12, color: Colors.orange))),
+          ]),
       ]),
     ).animate().fadeIn().slideY(begin: 0.1, end: 0)
     else Column(children: [
@@ -390,7 +438,7 @@ class _BookState extends State<BookScreen> {
       const SizedBox(height: 16),
       Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(32)), child: Column(children: [
         _RowInfo(label: 'Location', value: prov.label),
-        _RowInfo(label: 'Address', value: prov.fullAddress, isBold: false),
+        _RowInfo(label: 'Address', value: _cleanAddr(prov.fullAddress), isBold: false),
         _RowInfo(label: 'Plan', value: asStr(_selectedPlan?['name'])),
         if (!_isSub) _RowInfo(label: 'Plants', value: '$_plantCount plants'),
         if (!_isSub) ...[ _RowInfo(label: 'Date', value: _date), _RowInfo(label: 'Time', value: _time) ],

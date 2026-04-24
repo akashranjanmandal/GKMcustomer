@@ -156,11 +156,15 @@ class GBadge extends StatelessWidget {
   String get label => status.replaceAll('_', ' ').toUpperCase();
   @override
   Widget build(BuildContext ctx) => Container(
-    padding: EdgeInsets.symmetric(horizontal: small ? 8 : 10, vertical: small ? 3 : 4),
-    decoration: BoxDecoration(color: C.statusBg(status), borderRadius: BorderRadius.circular(99)),
+    padding: EdgeInsets.symmetric(horizontal: small ? 8 : 10, vertical: small ? 3 : 5),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(99),
+      border: Border.all(color: C.statusFg(status).withOpacity(0.35), width: 1.2),
+    ),
     child: Text(label, style: GoogleFonts.poppins(
-      fontSize: small ? 8.5 : 9.5, fontWeight: FontWeight.w700,
-      color: C.statusFg(status), letterSpacing: 0.4)),
+      fontSize: small ? 8.5 : 9.5, fontWeight: FontWeight.w800,
+      color: C.statusFg(status), letterSpacing: 0.5)),
   );
 }
 

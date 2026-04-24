@@ -145,75 +145,89 @@ class _PhoneScreen extends StatelessWidget {
     final top = MediaQuery.of(ctx).padding.top;
     final bot = MediaQuery.of(ctx).padding.bottom;
 
-    return Column(children: [
-      // ── Green header: logo + headline ─────────────────────────────────
-      Container(
-        color: C.forest,
-        padding: EdgeInsets.fromLTRB(24, top + 28, 24, 20),
-        child: Column(children: [
-          Image.asset('assets/images/logo-icon.png', height: 72, fit: BoxFit.contain)
-            .animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.88, 0.88)),
-        ]),
-      ),
-      // ── Marquee area ──────────────────────────────────────────────────
-      Expanded(child: Stack(children: [
+    return Column(
+      children: [
+        // ── Top Section (Header + Marquee) ─────────────────────────
+        // ── Green header: logo + headline ─────────────────────────
         Container(
-          constraints: const BoxConstraints(minHeight: 180),
+          width: double.infinity,
           color: C.forest,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          padding: EdgeInsets.fromLTRB(24, top + 20, 24, 10),
           child: Column(children: [
-            _MarqueeRow(tiles: _r1, duration: const Duration(seconds: 36), reverse: false),
-            _MarqueeRow(tiles: _r2, duration: const Duration(seconds: 30), reverse: true),
-            _MarqueeRow(tiles: _r3, duration: const Duration(seconds: 40), reverse: false),
+            Image.asset('assets/images/logo.png', height: 64, fit: BoxFit.contain)
+              .animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.88, 0.88)),
           ]),
         ),
-        // Top fade: forest → transparent
-        Positioned(top: 0, left: 0, right: 0, height: 36,
-          child: IgnorePointer(child: Container(decoration: BoxDecoration(gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [C.forest, C.forest.withOpacity(0)],
-          ))))),
-        // Bottom fade: transparent → white
-        Positioned(bottom: 0, left: 0, right: 0, height: 90,
-          child: IgnorePointer(child: Container(decoration: const BoxDecoration(gradient: LinearGradient(
-            begin: Alignment.bottomCenter, end: Alignment.topCenter,
-            colors: [Colors.white, Colors.transparent],
-          ))))),
-      ])),
+        
+        // ── Marquee area (Expanded to fill gap) ──────────────────
+        Expanded(
+          child: Stack(children: [
+            Container(
+              width: double.infinity,
+              color: C.forest,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _MarqueeRow(tiles: _r1, duration: const Duration(seconds: 36), reverse: false),
+                  _MarqueeRow(tiles: _r2, duration: const Duration(seconds: 30), reverse: true),
+                  _MarqueeRow(tiles: _r3, duration: const Duration(seconds: 40), reverse: false),
+                ],
+              ),
+            ),
+            // Top fade: forest → transparent
+            Positioned(top: 0, left: 0, right: 0, height: 36,
+              child: IgnorePointer(child: Container(decoration: BoxDecoration(gradient: LinearGradient(
+                begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                colors: [C.forest, C.forest.withOpacity(0)],
+              ))))),
+            // Bottom fade: transparent → white
+            Positioned(bottom: 0, left: 0, right: 0, height: 40,
+              child: IgnorePointer(child: Container(decoration: const BoxDecoration(gradient: LinearGradient(
+                begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                colors: [Colors.white, Colors.transparent],
+              ))))),
+          ]),
+        ),
 
-      // ── White bottom card ─────────────────────────────────────────────
-      Container(
-        color: Colors.white,
-        padding: EdgeInsets.fromLTRB(24, 8, 24, bot + 28),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Mobile Number', style: p(13, w: FontWeight.w600, color: C.t3)),
-          const SizedBox(height: 8),
-          _LoginInput(
-            child: Row(children: [
-              const SizedBox(width: 16),
-              const Icon(Icons.phone_android_rounded, size: 20, color: C.forest),
-              const SizedBox(width: 12),
-              Expanded(child: _rawField(
-                ctrl: phoneCtrl,
-                hint: 'e.g. 7319XXXXXX',
-                onChanged: onPhoneChanged,
-                keyboard: TextInputType.phone,
-                formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
-              )),
-            ]),
+        // ── Bottom Section (White Card) ────────────────────────────
+        Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          const SizedBox(height: 16),
-          GBtn(label: 'Continue', loading: busy, onTap: canContinue ? onSend : null, bg: canContinue ? C.forest : Colors.grey[300]!),
-          const SizedBox(height: 18),
-          Center(child: Text.rich(TextSpan(style: p(12, color: Colors.black38, h: 1.5), children: [
-            const TextSpan(text: 'By continuing, you agree to our '),
-            TextSpan(text: 'Terms of Service', style: p(12, w: FontWeight.w700, color: Colors.black54)),
-            const TextSpan(text: ' & '),
-            TextSpan(text: 'Privacy Policy', style: p(12, w: FontWeight.w700, color: Colors.black54)),
-          ]))),
-        ]),
-      ),
-    ]);
+          padding: EdgeInsets.fromLTRB(24, 24, 24, bot + 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Mobile Number', style: p(13, w: FontWeight.w600, color: C.t3)),
+            const SizedBox(height: 10),
+            _LoginInput(
+              child: Row(children: [
+                const SizedBox(width: 16),
+                const Icon(Icons.phone_android_rounded, size: 20, color: C.forest),
+                const SizedBox(width: 12),
+                Expanded(child: _rawField(
+                  ctrl: phoneCtrl,
+                  hint: 'e.g. 7319XXXXXX',
+                  onChanged: onPhoneChanged,
+                  keyboard: TextInputType.phone,
+                  formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(10)],
+                )),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            GBtn(label: 'Continue', loading: busy, onTap: canContinue ? onSend : null, bg: canContinue ? C.forest : Colors.grey[300]!),
+            const SizedBox(height: 18),
+            Center(child: Text.rich(TextSpan(style: p(12, color: Colors.black38, h: 1.5), children: [
+              const TextSpan(text: 'By continuing, you agree to our '),
+              TextSpan(text: 'Terms of Service', style: p(12, w: FontWeight.w700, color: Colors.black54)),
+              const TextSpan(text: ' & '),
+              TextSpan(text: 'Privacy Policy', style: p(12, w: FontWeight.w700, color: Colors.black54)),
+            ]))),
+          ]),
+        ),
+      ],
+    );
   }
 }
 
@@ -271,7 +285,7 @@ class _MarqueeRowState extends State<_MarqueeRow> with SingleTickerProviderState
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(t.icon, color: t.fg.withOpacity(0.88), size: 34),
+                      Icon(t.icon, color: t.fg.withOpacity(0.88), size: 28),
                       const SizedBox(height: 8),
                       Text(t.label,
                         style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: t.fg.withOpacity(0.72)),
@@ -348,29 +362,32 @@ class _OtpScreen extends StatelessWidget {
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: Colors.white,
     appBar: AppBar(backgroundColor: Colors.white, elevation: 0, leading: IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back, color: Colors.black))),
-    body: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('OTP verification', style: p(26, w: FontWeight.w900, color: Colors.black)),
-      const SizedBox(height: 8),
-      Text('Enter the 6-digit code sent to +91 $phone', style: p(14, color: Colors.black54)),
-      const SizedBox(height: 48),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: List.generate(6, (i) => _OtpBox(
-        controller: controllers[i], focusNode: focusNodes[i],
-        onChanged: (v) {
-          if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
-          if (v.isEmpty  && i > 0) focusNodes[i - 1].requestFocus();
-          onChange(v);
-          
-          // Auto submit when all fields are filled
-          final code = controllers.map((c) => c.text).join();
-          if (code.length == 6) onVerify();
-        },
-      ))),
-      const SizedBox(height: 48),
-      GBtn(label: 'Verify OTP', loading: busy, onTap: onVerify, bg: C.forest),
-      const SizedBox(height: 28),
-      Center(child: TextButton(onPressed: cd == 0 ? onResend : null,
-        child: Text(cd == 0 ? 'Resend OTP' : 'Resend in ${cd}s', style: p(14, w: FontWeight.w800, color: cd == 0 ? C.forest : Colors.black26)))),
-    ])),
+    body: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('OTP verification', style: p(26, w: FontWeight.w900, color: Colors.black)),
+        const SizedBox(height: 8),
+        Text('Enter the 6-digit code sent to +91 $phone', style: p(14, color: Colors.black54)),
+        const SizedBox(height: 48),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: List.generate(6, (i) => _OtpBox(
+          controller: controllers[i], focusNode: focusNodes[i],
+          onChanged: (v) {
+            if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
+            if (v.isEmpty  && i > 0) focusNodes[i - 1].requestFocus();
+            onChange(v);
+            
+            // Auto submit when all fields are filled
+            final code = controllers.map((c) => c.text).join();
+            if (code.length == 6) onVerify();
+          },
+        ))),
+        const SizedBox(height: 48),
+        GBtn(label: 'Verify OTP', loading: busy, onTap: onVerify, bg: C.forest),
+        const SizedBox(height: 28),
+        Center(child: TextButton(onPressed: cd == 0 ? onResend : null,
+          child: Text(cd == 0 ? 'Resend OTP' : 'Resend in ${cd}s', style: p(14, w: FontWeight.w800, color: cd == 0 ? C.forest : Colors.black26)))),
+      ]),
+    ),
   );
 }
 
@@ -383,15 +400,20 @@ class _NameScreen extends StatelessWidget {
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: Colors.white,
-    body: SafeArea(child: Padding(padding: const EdgeInsets.all(28), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SizedBox(height: 30),
-      Text('Last Step', style: p(36, w: FontWeight.w900, color: Colors.black)),
-      Text('Enter your name to complete your profile', style: p(15, color: Colors.black54)),
-      const SizedBox(height: 54),
-      GField(ctrl: nameCtrl, label: 'Full Name', hint: 'e.g. John Doe', icon: Icons.person_rounded),
-      const Spacer(),
-      GBtn(label: 'Complete Profile', loading: busy, onTap: onSubmit, bg: C.forest),
-    ]))),
+    body: SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 30),
+          Text('Last Step', style: p(36, w: FontWeight.w900, color: Colors.black)),
+          Text('Enter your name to complete your profile', style: p(15, color: Colors.black54)),
+          const SizedBox(height: 54),
+          GField(ctrl: nameCtrl, label: 'Full Name', hint: 'e.g. John Doe', icon: Icons.person_rounded),
+          const SizedBox(height: 48),
+          GBtn(label: 'Complete Profile', loading: busy, onTap: onSubmit, bg: C.forest),
+        ]),
+      ),
+    ),
   );
 }
 
