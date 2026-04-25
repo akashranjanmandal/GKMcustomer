@@ -52,7 +52,7 @@ class Api {
     final headers = await _headers(auth: auth);
     final encoded = body != null ? jsonEncode(body) : null;
 
-    final showLogs = path.contains('/shop/products');
+    final showLogs = path.contains('/shop/products') || path.contains('/payments/check-serviceability');
     if (showLogs) {
       print('>>> API REQ: $method $uri');
       if (encoded != null) print('>>> BODY: $encoded');
@@ -176,9 +176,10 @@ class Api {
     String? customerNotes,
     List<Map<String, dynamic>>? addons,
     double? totalAmount,
+    int? geofenceId,
   }) => req('POST', '/bookings', body: {
     'zone_id': zoneId,
-    'geofence_id': zoneId,
+    'geofence_id': geofenceId ?? zoneId,
     'scheduled_date': scheduledDate,
     'service_address': serviceAddress,
     'service_latitude': lat,
@@ -244,10 +245,11 @@ class Api {
     bool autoRenew = true,
     List<Map<String, dynamic>>? addons,
     double? totalAmount,
+    int? geofenceId,
   }) => req('POST', '/subscriptions', body: {
     'plan_id': planId,
     'zone_id': zoneId,
-    'geofence_id': zoneId,
+    'geofence_id': geofenceId ?? zoneId,
     'service_address': serviceAddress,
     'service_latitude': lat,
     'service_longitude': lng,
@@ -370,6 +372,9 @@ class Api {
 List<dynamic> asList(dynamic v) {
   if (v == null) return [];
   if (v is List) return v;
+  if (v is String && v.trim().startsWith('[')) {
+    try { return jsonDecode(v); } catch(_) {}
+  }
   if (v is Map) {
     final items = v['items'] ?? v['data'] ?? v['results'];
     if (items is List) return items;

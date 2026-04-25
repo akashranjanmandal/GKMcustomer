@@ -7,6 +7,7 @@ import 'package:gharkamali/data/services/api.dart' as api_svc;
 
 const _kLocKey = 'gkm_locations';
 const _kIdxKey = 'gkm_loc_idx';
+const _kGeoKey = 'gkm_geofences';
 
 class LocationProvider extends ChangeNotifier {
   List<PickedLocation> _locations = [];
@@ -25,13 +26,23 @@ class LocationProvider extends ChangeNotifier {
 
   String get fullAddress {
     if (location == null) return 'Select Delivery Address';
-    final parts = [
-      if (location!.flatNo?.isNotEmpty == true) 'Flat/House: ${location!.flatNo}',
-      if (location!.building?.isNotEmpty == true) 'Building: ${location!.building}',
-      if (location!.area?.isNotEmpty == true) location!.area,
-      if (location!.city?.isNotEmpty == true) location!.city,
+    // Build from structured user-provided fields — these are always clean
+    final parts = <String>[
+      if (location!.flatNo?.isNotEmpty == true) 'Flat ${location!.flatNo}',
+      if (location!.building?.isNotEmpty == true) location!.building!,
+      if (location!.area?.isNotEmpty == true) location!.area!,
+      if (location!.city?.isNotEmpty == true) location!.city!,
     ];
-    return parts.isNotEmpty ? parts.join(', ') : location!.address;
+    if (parts.isNotEmpty) return parts.join(', ');
+    // Fallback: sanitize the raw geocoded address (may contain coordinates)
+    return _sanitizeRawAddress(location!.address);
+  }
+
+  String _sanitizeRawAddress(String? s) {
+    if (s == null || s.trim().isEmpty) return 'Current Location';
+    final reg = RegExp(r'-?\d{1,3}\.\d{5,}');
+    if (reg.allMatches(s).length >= 2) return 'Current Location';
+    return s.trim();
   }
 
   // Raw address for API
@@ -39,14 +50,16 @@ class LocationProvider extends ChangeNotifier {
   String get city => location?.city ?? '';
   String get pincode => location?.pincode ?? '';
 
+  bool get isGpsLocation => location?.label == _kGpsLabel;
+
   String get label {
     if (location == null) return 'Select Location';
-    final parts = [
+    final parts = <String>[
       if (location!.area?.isNotEmpty == true) location!.area!,
       if (location!.city?.isNotEmpty == true) location!.city!,
     ];
-    final s = parts.isNotEmpty ? parts.join(', ') : location!.address;
-    return s.length > 30 ? '${s.substring(0, 30)}…' : s;
+    final s = parts.isNotEmpty ? parts.join(', ') : _sanitizeRawAddress(location!.address);
+    return s.length > 28 ? '${s.substring(0, 28)}…' : s;
   }
 
   LocationProvider() { _hydrate(); }
@@ -59,13 +72,33 @@ class LocationProvider extends ChangeNotifier {
         final list = jsonDecode(raw) as List;
         _locations = list.map((e) => _fromMap(Map<String, dynamic>.from(e))).toList();
       }
+
+      final rawGeo = p.getString(_kGeoKey);
+      if (rawGeo != null) {
+        _geofences = jsonDecode(rawGeo) as List;
+      }
+
       _currentIndex = p.getInt(_kIdxKey) ?? (_locations.isNotEmpty ? 0 : -1);
       
       // Also fetch from server to sync
       await fetchSavedAddresses();
-    } catch (_) {}
-    _loading = false;
-    notifyListeners();
+
+      // If any location is still missing a zone, try to find it from the fetched geofences
+      for (var i = 0; i < _locations.length; i++) {
+        if (_locations[i].zone.isEmpty) {
+          final zone = _findZone(_locations[i].lat, _locations[i].lng);
+          if (zone.isNotEmpty) {
+            _locations[i] = _locations[i].copyWith(zone: zone);
+          }
+        }
+      }
+
+      _loading = false;
+      notifyListeners();
+    } catch (_) {
+      _loading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> fetchSavedAddresses() async {
@@ -80,29 +113,42 @@ class LocationProvider extends ChangeNotifier {
 
       if (results[1] is List) {
         _geofences = results[1] as List;
+        final p = await SharedPreferences.getInstance();
+        await p.setString(_kGeoKey, jsonEncode(_geofences));
       }
 
       if (results[0] is List) {
         final res = results[0] as List;
-        final serverLocs = res.map((e) {
+        final serverLocs = await Future.wait(res.map((e) async {
           final m = api_svc.asMap(e);
           final loc = _fromServerMap(m);
-          
-          // Try to preserve zone from local cache if coordinates match perfectly
+
+          // 1. Try to reuse zone from local cache (exact coordinate match)
           final localMatch = _locations.firstWhere(
             (l) => (l.lat - loc.lat).abs() < 0.000001 && (l.lng - loc.lng).abs() < 0.000001 && l.zone.isNotEmpty,
             orElse: () => loc,
           );
+          if (localMatch.zone.isNotEmpty) return loc.copyWith(zone: localMatch.zone);
 
-          final zone = localMatch.zone.isNotEmpty ? localMatch.zone : _findZone(loc.lat, loc.lng);
-          return loc.copyWith(zone: zone);
-        }).toList();
-        
+          // 2. Try local polygon lookup against cached geofences
+          final polyZone = _findZone(loc.lat, loc.lng);
+          if (polyZone.isNotEmpty) return loc.copyWith(zone: polyZone);
+
+          // 3. Hit the serviceability API directly (most reliable)
+          try {
+            final sRes = await api.checkServiceability(loc.lat, loc.lng);
+            final data = api_svc.asMap(sRes);
+            final apiZone = api_svc.asMap(data['zone']);
+            if (apiZone.isNotEmpty) return loc.copyWith(zone: apiZone);
+          } catch (_) {}
+
+          return loc; // zone stays empty — location not serviceable
+        }).toList());
+
         if (serverLocs.isNotEmpty) {
-          // Preserve selection by comparing lat/lng instead of just index
           final current = location;
           _locations = serverLocs;
-          
+
           if (current != null) {
             final newIdx = _locations.indexWhere((l) => (l.lat - current.lat).abs() < 0.000001 && (l.lng - current.lng).abs() < 0.000001);
             if (newIdx != -1) _currentIndex = newIdx;
@@ -141,6 +187,14 @@ class LocationProvider extends ChangeNotifier {
     }
   }
 
+  // Update zone for whichever location is currently selected (used after re-check)
+  void updateZoneForCurrent(Map<String, dynamic> zone) {
+    if (_currentIndex >= 0 && _currentIndex < _locations.length) {
+      _locations[_currentIndex] = _locations[_currentIndex].copyWith(zone: zone);
+      notifyListeners();
+    }
+  }
+
   Future<void> save(PickedLocation loc) async {
     // Check if duplicate (by lat/lng or address)
     final existingIdx = _locations.indexWhere((e) => 
@@ -175,6 +229,8 @@ class LocationProvider extends ChangeNotifier {
         'pincode': loc.pincode,
         'latitude': loc.lat,
         'longitude': loc.lng,
+        'zone_id': api_svc.asInt(loc.zone['id']),
+        'geofence_id': loc.geofenceId ?? api_svc.asInt(loc.zone['id']),
         'is_default': _locations.length == 1,
       });
     } catch (e) { }
@@ -212,10 +268,41 @@ class LocationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // GPS label used to identify the auto-detected slot
+  static const _kGpsLabel = '__gps__';
+
   Future<void> autoDetect() async {
     try {
       final loc = await detectCurrentLocation();
-      if (loc != null) save(loc);
+      if (loc == null) return;
+      final gpsLoc = loc.copyWith(label: _kGpsLabel);
+
+      // Find existing GPS slot and update it, or insert at index 0
+      final existingIdx = _locations.indexWhere((l) => l.label == _kGpsLabel);
+      if (existingIdx != -1) {
+        _locations[existingIdx] = gpsLoc;
+        // Only switch to GPS slot if user hasn't manually selected another
+        if (_currentIndex == existingIdx) {
+          _currentIndex = existingIdx;
+        } else if (_locations[_currentIndex].label == _kGpsLabel) {
+          _currentIndex = existingIdx;
+        }
+      } else {
+        final hadNoLocation = _locations.isEmpty;
+        _locations.insert(0, gpsLoc);
+        if (hadNoLocation) {
+          // First time: select GPS location
+          _currentIndex = 0;
+        } else {
+          // Shift existing selection index since we inserted at 0
+          _currentIndex = (_currentIndex + 1).clamp(0, _locations.length - 1);
+        }
+      }
+
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_kLocKey, jsonEncode(_locations.map((e) => _toMap(e)).toList()));
+      await p.setInt(_kIdxKey, _currentIndex);
+      notifyListeners();
     } catch (_) {}
   }
 
@@ -227,6 +314,7 @@ class LocationProvider extends ChangeNotifier {
     'landmark': l.landmark,
     'city': l.city, 'state': l.state, 'pincode': l.pincode,
     'zone': l.zone,
+    'geofenceId': l.geofenceId,
   };
 
   static PickedLocation _fromMap(Map<String, dynamic> m) => PickedLocation(
@@ -243,6 +331,7 @@ class LocationProvider extends ChangeNotifier {
     state: m['state'] as String?,
     pincode: m['pincode'] as String?,
     zone: (m['zone'] as Map?)?.cast<String, dynamic>() ?? {},
+    geofenceId: api_svc.asInt(m['geofenceId']) > 0 ? api_svc.asInt(m['geofenceId']) : null,
   );
 
   static PickedLocation _fromServerMap(Map<String, dynamic> m) {

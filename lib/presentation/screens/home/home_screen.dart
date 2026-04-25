@@ -35,10 +35,6 @@ class _HomeState extends State<HomeScreen> {
     _tagTimer = Timer.periodic(const Duration(seconds: 4), (t) {
       if (mounted) setState(() => _tagIdx = (_tagIdx + 1) % _taglines.length);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final lp = context.read<LocationProvider>();
-      if (!lp.hasLocation) lp.autoDetect();
-    });
     _initVideo();
   }
 
@@ -208,7 +204,6 @@ class _HomeState extends State<HomeScreen> {
          childAspectRatio: 0.9,
          children: [
             _Feature(icon: Icons.yard_rounded, title: 'Plantopedia', onTap: () => widget.navTo(2)),
-            _Feature(icon: Icons.account_balance_wallet_rounded, title: 'My Wallet', onTap: () => Navigator.pushNamed(ctx, '/wallet')),
             _Feature(icon: Icons.shopping_bag_rounded, title: 'My Orders', onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
             _Feature(icon: Icons.support_agent_rounded, title: 'Support', onTap: () => Navigator.pushNamed(ctx, '/complaints')),
             _Feature(icon: Icons.local_florist_rounded, title: 'Store', onTap: () => widget.navTo(3)),

@@ -139,8 +139,6 @@ class _ProfileState extends State<ProfileScreen> {
             // ── Menu list ────────────────────────────────────────────────
             GCard(padding: EdgeInsets.zero, child: Column(children: [
               _MenuItem(Icons.repeat_rounded,                  'Subscriptions',        () => Navigator.pushNamed(ctx, '/subscriptions')),
-              _MenuItem(Icons.account_balance_wallet_rounded,  'Wallet',               () => Navigator.pushNamed(ctx, '/wallet'),
-                badge: '₹${auth.walletBalance.toStringAsFixed(0)}'),
               _MenuItem(Icons.storefront_rounded,              'Shop',                 () => Navigator.pushNamed(ctx, '/shop')),
               _MenuItem(Icons.shopping_bag_outlined,           'My Orders',            () => Navigator.pushNamed(ctx, '/shop/orders')),
               _MenuItem(Icons.psychology_rounded,              'Plantopedia',          () => Navigator.pushNamed(ctx, '/plantopedia')),

@@ -133,12 +133,14 @@ class _BkCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(13)),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(13),
-                  child: Image.asset('assets/images/logo-icon.png', fit: BoxFit.contain),
+                  child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
                 )),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(asStr(b['booking_number'], '#${b['id']}'), style: p(13, w: FontWeight.w700, color: C.t1)),
-                Text(asStr(b['gardener']?['name'], asStr(b['service_address'])), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(cleanAddr(asStr(b['gardener']?['name'], asStr(b['service_address']))), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text('₹${(asDouble(b['total_amount']) > 0 ? asDouble(b['total_amount']) : (asDouble(b['base_amount']) + asList(b['addons']).fold(0.0, (sum, a) => sum + asDouble(asMap(a)['price'])))).toStringAsFixed(0)}', style: p(15, w: FontWeight.w800, color: C.forest)),
               ])),
               GBadge(status),
             ]),
@@ -146,11 +148,21 @@ class _BkCard extends StatelessWidget {
             Row(children: [
               const Icon(Icons.location_on_rounded, size: 13, color: C.t4),
               const SizedBox(width: 4),
-              Expanded(child: Text(asStr(b['service_address'], '—'), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(cleanAddr(asStr(b['service_address'], '—')), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)),
               const Icon(Icons.calendar_today_rounded, size: 12, color: C.t4),
               const SizedBox(width: 4),
               Text(asStr(b['scheduled_date'], '—').length >= 10 ? asStr(b['scheduled_date']).substring(0,10) : '—', style: p(11, color: C.t3)),
             ]),
+            if (_cardAddons(b).isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const Divider(height: 1, color: Color(0xFFF0F0F0)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, children: _cardAddons(b).take(3).map((a) {
+                final name = asStr(a['name'] ?? a['addon_name'] ?? asMap(a['addon'])['name'], 'Add-on');
+                final price = asDouble(a['price'] ?? a['amount'] ?? asMap(a['addon'])['price']);
+                return Text('+ $name${price > 0 ? " (₹${price.toStringAsFixed(0)})" : ""}', style: p(10, w: FontWeight.w600, color: C.t4));
+              }).toList()),
+            ],
           ])),
         ]),
       ));
@@ -166,6 +178,7 @@ class BookingDetailScreen extends StatefulWidget {
 class _BkDetailState extends State<BookingDetailScreen> {
   final _api = Api();
   Map<String, dynamic>? _bk;
+  List<dynamic> _addons = [];
   bool _loading = true, _cancelling = false, _rating = false;
   Timer? _timer;
   int _stars = 5;
@@ -178,11 +191,47 @@ class _BkDetailState extends State<BookingDetailScreen> {
   }
   @override void dispose() { _timer?.cancel(); _reviewCtrl.dispose(); super.dispose(); }
 
+  // Extract addon list from booking map, trying all known response shapes
+  List<dynamic> _extractAddons(Map<String, dynamic> bk) {
+    // Try all possible keys the backend might use
+    for (final key in ['addons', 'booking_addons', 'add_ons', 'items']) {
+      final v = bk[key];
+      final list = asList(v);
+      if (list.isNotEmpty) return list;
+    }
+    return [];
+  }
+
+  // Normalize a single addon entry to {name, price}
+  Map<String, dynamic> _normalizeAddon(dynamic raw) {
+    final a = asMap(raw);
+    // Shape 1: {addon: {id, name, price, ...}, quantity, price}
+    if (a.containsKey('addon') && a['addon'] is Map) {
+      final inner = asMap(a['addon']);
+      final name = asStr(inner['name'] ?? inner['addon_name'] ?? inner['title'], 'Add-on');
+      // prefer top-level price (may reflect negotiated price), fallback to inner
+      final price = asDouble(a['price'] ?? a['amount'] ?? inner['price'] ?? inner['amount']);
+      return {'name': name, 'price': price};
+    }
+    // Shape 2: flat {name/addon_name/title, price/amount}
+    final name = asStr(a['name'] ?? a['addon_name'] ?? a['title'] ?? a['addon_title'], 'Add-on');
+    final price = asDouble(a['price'] ?? a['amount'] ?? a['addon_price']);
+    return {'name': name, 'price': price};
+  }
+
   Future<void> _load({bool quiet = false}) async {
     if (!quiet) setState(() => _loading = true);
     try {
-      final r = await _api.getBooking(widget.id);
-      if (mounted) setState(() { _bk = asMap(r); _loading = false; });
+      final results = await Future.wait([
+        _api.getBooking(widget.id),
+        _api.getBookingAddons(widget.id).catchError((_) => <dynamic>[]),
+      ]);
+      if (!mounted) return;
+      final bk = asMap(results[0]);
+      // Merge addons: prefer dedicated endpoint, fallback to embedded
+      List<dynamic> addons = asList(results[1]);
+      if (addons.isEmpty) addons = _extractAddons(bk);
+      setState(() { _bk = bk; _addons = addons; _loading = false; });
     } catch (_) { if (mounted && !quiet) setState(() => _loading = false); }
   }
 
@@ -281,7 +330,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
                 Text('BOOKING DETAILS', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
               ]),
               const SizedBox(height: 16),
-              GDetailRow(icon: Icons.location_on_rounded, label: 'ADDRESS', value: asStr(_bk!['service_address'], '—')),
+              GDetailRow(icon: Icons.location_on_rounded, label: 'ADDRESS', value: cleanAddr(asStr(_bk!['service_address'], '—'))),
               GDetailRow(icon: Icons.calendar_month_rounded, label: 'DATE', value: asStr(_bk!['scheduled_date'], '—').length >= 10 ? asStr(_bk!['scheduled_date']).substring(0,10) : '—'),
               GDetailRow(icon: Icons.access_time_rounded, label: 'TIME', value: asStr(_bk!['scheduled_time'], 'Flexible')),
               GDetailRow(icon: Icons.local_florist_rounded, label: 'PLANTS', value: '${_bk!['plant_count'] ?? '—'} plants'),
@@ -289,21 +338,21 @@ class _BkDetailState extends State<BookingDetailScreen> {
                 GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL', value: '₹${asDouble(_bk!['total_amount']).toStringAsFixed(0)}'),
               
               // Add-ons Section
-              if (asList(_bk!['addons']).isNotEmpty) ...[
+              if (_addons.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Divider(height: 1, color: Color(0xFFF0F0F0)),
                 const SizedBox(height: 12),
                 Text('INCLUDED ADD-ONS', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
                 const SizedBox(height: 8),
-                ...asList(_bk!['addons']).map((a) {
-                  final addon = asMap(a);
+                ..._addons.map((a) {
+                  final addon = _normalizeAddon(a);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Row(children: [
                       const Icon(Icons.check_circle_outline_rounded, size: 14, color: C.green),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(asStr(addon['name'] ?? addon['addon_name']), style: p(13, w: FontWeight.w600, color: C.t2))),
-                      if (asDouble(addon['price']) > 0) Text('₹${asDouble(addon['price']).toStringAsFixed(0)}', style: p(13, w: FontWeight.w700, color: C.t1)),
+                      Expanded(child: Text(addon['name'] as String, style: p(13, w: FontWeight.w600, color: C.t2))),
+                      Text('₹${(addon['price'] as double).toStringAsFixed(0)}', style: p(13, w: FontWeight.w700, color: C.t1)),
                     ]),
                   );
                 }),
@@ -387,6 +436,20 @@ class _BkDetailState extends State<BookingDetailScreen> {
       ]),
     );
   }
+}
+
+String cleanAddr(String s) {
+  final reg = RegExp(r'-?\d{1,3}\.\d{4,}');
+  if (reg.allMatches(s).length >= 2) return 'Service Location';
+  return s.isEmpty ? '—' : s;
+}
+
+List<dynamic> _cardAddons(Map<String, dynamic> b) {
+  for (final key in ['addons', 'booking_addons', 'add_ons']) {
+    final list = asList(b[key]);
+    if (list.isNotEmpty) return list;
+  }
+  return [];
 }
 
 Route<dynamic> _slide(Widget page) => PageRouteBuilder(

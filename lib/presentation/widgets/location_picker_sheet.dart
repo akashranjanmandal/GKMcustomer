@@ -19,12 +19,13 @@ class PickedLocation {
   final String address;
   final String? flatNo, building, area, landmark, city, state, pincode;
   final Map<String, dynamic> zone;
+  final int? geofenceId;
 
   const PickedLocation({
     this.id, this.label,
     required this.lat, required this.lng, required this.address,
     this.flatNo, this.building, this.area, this.landmark, this.city, this.state, this.pincode,
-    required this.zone,
+    required this.zone, this.geofenceId,
   });
 
   PickedLocation copyWith({
@@ -40,19 +41,22 @@ class PickedLocation {
   );
 
   String get fullAddress {
-    final parts = [
-      if (flatNo?.isNotEmpty == true) 'Flat/House: $flatNo',
-      if (building?.isNotEmpty == true) 'Building: $building',
+    final parts = <String>[
+      if (flatNo?.isNotEmpty == true) 'Flat $flatNo',
+      if (building?.isNotEmpty == true) building!,
       if (area?.isNotEmpty == true) area!,
-      address,
+      if (city?.isNotEmpty == true) city!,
     ];
-    return parts.join(', ');
+    if (parts.isNotEmpty) return parts.join(', ');
+    // Fallback to address if no structured fields
+    return address.isNotEmpty ? address : 'Current Location';
   }
 
   String get displayLabel {
-    if (label?.isNotEmpty == true) return label!;
-    if (flatNo?.isNotEmpty == true) return 'Flat $flatNo, $address'.split(',')[0];
-    return address.split(',')[0];
+    if (label != null && label!.isNotEmpty && label != '__gps__') return label!;
+    if (flatNo?.isNotEmpty == true) return 'Flat $flatNo, ${area ?? address}'.split(',').first;
+    if (area?.isNotEmpty == true) return area!;
+    return address.split(',').first;
   }
 }
 
@@ -60,11 +64,13 @@ class PickedLocation {
 bool isPointInPolygon(double lat, double lng, List<dynamic> poly) {
   if (poly.isEmpty) return false;
 
-  // Handle nested GeoJSON structure [[[lng, lat], ...]]
+  // Recursively find the actual points array (handles standard GeoJSON [[[lng, lat], ...]])
   List<dynamic> points = poly;
-  if (poly.isNotEmpty && poly[0] is List && poly[0].isNotEmpty && poly[0][0] is List) {
-    points = poly[0] as List;
+  while (points.isNotEmpty && points[0] is List && points[0].isNotEmpty && points[0][0] is List) {
+    points = points[0] as List;
   }
+
+  if (points.isEmpty || points.length < 3) return false;
 
   bool check(double y, double x, List<dynamic> p, int yIdx, int xIdx) {
     bool inside = false;
@@ -86,66 +92,106 @@ bool isPointInPolygon(double lat, double lng, List<dynamic> poly) {
     return inside;
   }
 
-  // Try standard [lat, lng] (Index 0 is Lat, Index 1 is Lng)
-  if (check(lat, lng, points, 0, 1)) return true;
-  // Try GeoJSON [lng, lat] (Index 1 is Lat, Index 0 is Lng)
-  return check(lat, lng, points, 1, 0);
+  // Try GeoJSON [lng, lat] (Standard)
+  if (check(lat, lng, points, 1, 0)) return true;
+  // Fallback to [lat, lng]
+  return check(lat, lng, points, 0, 1);
 }
 
 Future<PickedLocation?> detectCurrentLocation() async {
   try {
+    print('>>> [LocationDetection] Starting detection...');
     final svcOn = await Geolocator.isLocationServiceEnabled();
-    if (!svcOn) return null;
+    if (!svcOn) {
+      print('>>> [LocationDetection] FAILED: Location services are disabled on device');
+      return null;
+    }
+
     var perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
-    if (![LocationPermission.whileInUse, LocationPermission.always].contains(perm)) return null;
+    if (perm == LocationPermission.denied) {
+      print('>>> [LocationDetection] Permission denied, requesting...');
+      perm = await Geolocator.requestPermission();
+    }
+    if (![LocationPermission.whileInUse, LocationPermission.always].contains(perm)) {
+      print('>>> [LocationDetection] FAILED: Location permission not granted ($perm)');
+      return null;
+    }
 
     Position pos;
     try {
-      pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 30));
-    } catch (_) {
-      pos = (await Geolocator.getLastKnownPosition()) ??
-          await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 30));
+      print('>>> [LocationDetection] Getting current position...');
+      pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 10));
+    } catch (e) {
+      print('>>> [LocationDetection] getCurrentPosition failed ($e), trying last known...');
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        pos = last;
+      } else {
+        print('>>> [LocationDetection] No last known position, trying low accuracy...');
+        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 10));
+      }
     }
 
+    print('>>> [LocationDetection] Found coordinates: ${pos.latitude}, ${pos.longitude}');
+    
     final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.latitude}&lon=${pos.longitude}&zoom=18');
-    final res = await http.get(uri, headers: {'Accept-Language': 'en'}).timeout(const Duration(seconds: 4));
+    print('>>> [LocationDetection] Fetching address from Nominatim...');
+    final res = await http.get(uri, headers: {'Accept-Language': 'en', 'User-Agent': 'GharKaMali/1.0'}).timeout(const Duration(seconds: 8));
+
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     final a = (j['address'] as Map?)?.cast<String, dynamic>() ?? {};
 
+    final road   = (a['road'] ?? a['footway'] ?? '').toString().trim();
+    final suburb = (a['suburb'] ?? a['neighbourhood'] ?? a['quarter'] ?? '').toString().trim();
+    final city   = (a['city'] ?? a['town'] ?? a['village'] ?? a['county'] ?? '').toString().trim();
+
+    final addrParts = <String>[
+      if (road.isNotEmpty) road,
+      if (suburb.isNotEmpty) suburb,
+      if (city.isNotEmpty) city,
+    ].where((s) => s.isNotEmpty).toList();
+    String addr = addrParts.isNotEmpty ? addrParts.join(', ') : (suburb.isNotEmpty ? suburb : city.isNotEmpty ? city : 'Current Location');
+
     final api = Api();
+    print('>>> [LocationDetection] Checking serviceability for: ${pos.latitude}, ${pos.longitude}');
     final sRes = await api.checkServiceability(pos.latitude, pos.longitude);
     final data = asMap(sRes);
-    final allZones = data['zones'] as List? ?? [];
-    Map<String, dynamic>? found;
-
-    for (var z in allZones) {
-      final zone = asMap(z);
-      final coordsStr = asStr(zone['polygon_coords']);
-      if (coordsStr.isEmpty) continue;
-      try {
-        final poly = jsonDecode(coordsStr) as List;
-        bool inside = false;
-        for (int i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-          final xi = asDouble(poly[i][0]), yi = asDouble(poly[i][1]);
-          final xj = asDouble(poly[j][0]), yj = asDouble(poly[j][1]);
-          final intersect = ((yi > pos.longitude) != (yj > pos.longitude)) && (pos.latitude < (xj - xi) * (pos.longitude - yi) / (yj - yi) + xi);
-          if (intersect) inside = !inside;
+    
+    // Trust the backend's resolved zone first
+    Map<String, dynamic> found = asMap(data['zone']);
+    if (found.isNotEmpty) {
+      print('>>> [LocationDetection] Backend matched zone: ${found['name']} (ID: ${found['id']})');
+    } else {
+      print('>>> [LocationDetection] Backend found NO matching zone. Attempting local fallback check...');
+      final allZones = data['zones'] as List? ?? [];
+      for (var z in allZones) {
+        final zone = asMap(z);
+        final poly = asList(zone['polygon_coords']);
+        if (poly.isNotEmpty && isPointInPolygon(pos.latitude, pos.longitude, poly)) {
+          found = zone;
+          print('>>> [LocationDetection] Local fallback matched: ${found['name']}');
+          break;
         }
-        if (inside) { found = zone; break; }
-      } catch (_) {}
+      }
+    }
+
+    if (found.isEmpty) {
+      print('>>> [LocationDetection] WARNING: No matching zone found for these coordinates.');
     }
 
     return PickedLocation(
       lat: pos.latitude, lng: pos.longitude,
-      address: (j['display_name'] as String?) ?? '${pos.latitude}, ${pos.longitude}',
-      city:    (a['city'] ?? a['town'] ?? a['village'] ?? '') as String,
-      area:    (a['suburb'] ?? a['neighbourhood'] ?? a['road'] ?? '') as String,
-      pincode: (a['postcode'] ?? '') as String,
-      state:   (a['state'] ?? '') as String,
-      zone:    found ?? {},
+      address: addr,
+      city:    city,
+      area:    suburb.isNotEmpty ? suburb : road,
+      pincode: (a['postcode'] ?? '').toString(),
+      state:   (a['state'] ?? '').toString(),
+      zone:    found,
     );
-  } catch (_) { return null; }
+  } catch (e) { 
+    print('>>> [LocationDetection] CRITICAL ERROR: $e');
+    return null; 
+  }
 }
 
 Future<PickedLocation?> showLocationPicker(BuildContext context) {
@@ -177,9 +223,35 @@ class _SavedLocationsSheet extends StatelessWidget {
         const SizedBox(height: 24),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('Saved Addresses', style: p(20, w: FontWeight.w800, color: C.t1)),
-          GestureDetector(onTap: () => Navigator.pop(ctx), child: const Icon(Icons.close_rounded, color: C.t3)),
+          IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded, color: C.t3)),
         ]),
         const SizedBox(height: 16),
+        
+        // Add New Address Button
+        GestureDetector(
+          onTap: () async {
+            final res = await showLocationPicker(ctx);
+            if (res != null && ctx.mounted) {
+              lp.save(res);
+              Navigator.pop(ctx, res);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: C.forest.withOpacity(0.3), width: 1.5, style: BorderStyle.solid),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.add_circle_outline_rounded, color: C.forest, size: 20),
+              const SizedBox(width: 10),
+              Text('Add New Address', style: p(14, w: FontWeight.w700, color: C.forest)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 16),
+
         Flexible(child: ListView.builder(
           shrinkWrap: true, itemCount: lp.locations.length,
           itemBuilder: (_, i) {
@@ -194,27 +266,33 @@ class _SavedLocationsSheet extends StatelessWidget {
                   border: Border.all(color: sel ? C.forest : Colors.black.withOpacity(0.04)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.place_rounded, color: sel ? C.forest : C.t4, size: 20),
+                  Icon(loc.label == '__gps__' ? Icons.my_location_rounded : Icons.place_rounded,
+                      color: sel ? C.forest : C.t4, size: 20),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(loc.displayLabel, style: p(14, w: FontWeight.w700, color: sel ? C.forest : C.t1)),
-                    Text(loc.address, style: p(12, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(loc.label == '__gps__' ? 'Current Location' : loc.displayLabel,
+                        style: p(14, w: FontWeight.w700, color: sel ? C.forest : C.t1)),
+                    Text(loc.address.isEmpty ? 'Detected via GPS' : loc.address,
+                        style: p(12, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ])),
                   if (sel) const Icon(Icons.check_circle_rounded, color: C.forest, size: 18),
-                  IconButton(onPressed: () => lp.remove(i), icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent)),
+                  if (loc.label != '__gps__')
+                    IconButton(onPressed: () => lp.remove(i), icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent)),
                 ]),
               ),
             );
           },
         )),
-        const SizedBox(height: 12),
-        GBtn(label: 'Choose from Map', icon: Icons.map_rounded, onTap: () async {
-          final res = await showLocationPicker(ctx);
-          if (res != null && ctx.mounted) {
-            lp.save(res);
-            Navigator.pop(ctx, res);
-          }
-        }, bg: C.forest),
+        if (lp.locations.isEmpty) ...[
+          const SizedBox(height: 12),
+          GBtn(label: 'Choose from Map', icon: Icons.map_rounded, onTap: () async {
+            final res = await showLocationPicker(ctx);
+            if (res != null && ctx.mounted) {
+              lp.save(res);
+              Navigator.pop(ctx, res);
+            }
+          }, bg: C.forest),
+        ],
       ]),
     );
   }
@@ -246,11 +324,24 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   LatLng? _mapTarget;
 
   Timer? _mapIdleTimer;
+  Timer? _searchDebounce;
 
   bool get _isServiceable => _detectedZone.isNotEmpty && asInt(_detectedZone['id']) > 0;
 
   @override void initState() { super.initState(); _detectGPS(); }
-  @override void dispose() { _mapIdleTimer?.cancel(); _searchCtrl.dispose(); _flatCtrl.dispose(); _buildingCtrl.dispose(); _areaCtrl.dispose(); _cityCtrl.dispose(); _stateCtrl.dispose(); _pincodeCtrl.dispose(); _mapCtrl.dispose(); super.dispose(); }
+  @override void dispose() {
+    _mapIdleTimer?.cancel();
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    _flatCtrl.dispose();
+    _buildingCtrl.dispose();
+    _areaCtrl.dispose();
+    _cityCtrl.dispose();
+    _stateCtrl.dispose();
+    _pincodeCtrl.dispose();
+    _mapCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _detectGPS() async {
     setState(() { _gpsLoading = true; _searchResults = []; });
@@ -263,10 +354,10 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
       Position? pos;
       try {
-        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 30));
+        pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high, timeLimit: const Duration(seconds: 15));
       } catch (_) {
         pos = await Geolocator.getLastKnownPosition() ??
-            await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 30));
+            await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 15));
       }
 
       if (!mounted || pos == null) { setState(() => _gpsLoading = false); return; }
@@ -275,17 +366,29 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       if (_step == 1) _mapCtrl.move(_mapTarget!, 17);
       setState(() { _gpsLoading = false; _geocoding = true; });
       await _reverseGeocode(_lat!, _lng!);
+      // Auto-advance to map step when GPS succeeds in the search step
+      if (mounted && _step == 0 && _isServiceable) {
+        setState(() => _step = 1);
+      }
     } catch (_) {
-      if (mounted) setState(() { _gpsLoading = false; _geocoding = false; _detectedAddress = 'Location detected via GPS'; });
+      if (mounted) setState(() { _gpsLoading = false; _geocoding = false; });
     }
   }
 
-  Future<void> _searchAddress(String query) async {
-    if (query.length < 3) return;
+  void _onSearchChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.length < 3) {
+      if (_searchResults.isNotEmpty) setState(() => _searchResults = []);
+      return;
+    }
     setState(() => _searching = true);
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchAddress(query));
+  }
+
+  Future<void> _searchAddress(String query) async {
     try {
-      final uri = Uri.parse('https://nominatim.openstreetmap.org/search?format=jsonv2&q=${Uri.encodeComponent(query)}&limit=5&addressdetails=1');
-      final res = await http.get(uri, headers: {'Accept-Language': 'en'}).timeout(const Duration(seconds: 5));
+      final uri = Uri.parse('https://nominatim.openstreetmap.org/search?format=jsonv2&q=${Uri.encodeComponent(query)}&limit=8&addressdetails=1&countrycodes=in');
+      final res = await http.get(uri, headers: {'Accept-Language': 'en', 'User-Agent': 'GharKaMali/1.0'}).timeout(const Duration(seconds: 8));
       final j   = jsonDecode(res.body) as List;
       if (mounted) setState(() { _searchResults = j; _searching = false; });
     } catch (_) {
@@ -306,54 +409,83 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   }
 
   Future<void> _reverseGeocode(double lat, double lng) async {
+    final zoneFuture = _checkZone(lat, lng);
     try {
       final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&zoom=18');
-      final res = await http.get(uri, headers: {'Accept-Language': 'en'}).timeout(const Duration(seconds: 4));
+      final res = await http.get(uri, headers: {'Accept-Language': 'en', 'User-Agent': 'GharKaMali/1.0'}).timeout(const Duration(seconds: 8));
       final j   = jsonDecode(res.body) as Map<String, dynamic>;
       final a   = (j['address'] as Map?)?.cast<String, dynamic>() ?? {};
-      
-      await _checkZone(lat, lng);
-      if (mounted) setState(() { 
-        _detectedAddress = (j['display_name'] as String?) ?? '$lat, $lng'; 
-        _cityCtrl.text    = (a['city'] ?? a['town'] ?? a['village'] ?? '').toString();
-        _stateCtrl.text   = (a['state'] ?? '').toString();
-        _pincodeCtrl.text = (a['postcode'] ?? '').toString();
-        _areaCtrl.text    = (a['suburb'] ?? a['neighbourhood'] ?? a['road'] ?? '').toString();
-        _geocoding = false; 
+
+      final road     = (a['road'] ?? a['footway'] ?? '').toString().trim();
+      final suburb   = (a['suburb'] ?? a['neighbourhood'] ?? a['quarter'] ?? '').toString().trim();
+      final city     = (a['city'] ?? a['town'] ?? a['village'] ?? a['county'] ?? '').toString().trim();
+      final state    = (a['state'] ?? '').toString().trim();
+      final postcode = (a['postcode'] ?? '').toString().trim();
+
+      // Build a clean human-readable address without coordinates
+      final addrParts = <String>[
+        if (road.isNotEmpty) road,
+        if (suburb.isNotEmpty) suburb,
+        if (city.isNotEmpty) city,
+      ].where((s) => s.isNotEmpty).toList();
+      final addr = addrParts.isNotEmpty ? addrParts.join(', ') : (suburb.isNotEmpty ? suburb : city.isNotEmpty ? city : 'Current Location');
+
+      await zoneFuture;
+      if (mounted) setState(() {
+        _detectedAddress = addr;
+        _areaCtrl.text    = suburb.isNotEmpty ? suburb : road;
+        _cityCtrl.text    = city;
+        _stateCtrl.text   = state;
+        _pincodeCtrl.text = postcode;
+        _geocoding = false;
       });
     } catch (_) {
-      if (mounted) setState(() { _geocoding = false; _detectedAddress = '$lat, $lng'; });
+      await zoneFuture;
+      if (mounted) setState(() { _geocoding = false; if (_detectedAddress.isEmpty) _detectedAddress = 'Current Location'; });
     }
   }
 
   Future<void> _checkZone(double lat, double lng) async {
     try {
-      final sRes    = await _api.checkServiceability(lat, lng);
-      final data    = asMap(sRes);
-      // Backend placeholder might return Seladah for Noida, so we check locally
-      final allZones = data['zones'] as List? ?? [];
-      Map<String, dynamic>? found;
-
-      for (var z in allZones) {
-        final zone = asMap(z);
-        final coordsStr = asStr(zone['polygon_coords']);
-        if (coordsStr.isEmpty) continue;
-        try {
-          final poly = jsonDecode(coordsStr) as List;
-          if (isPointInPolygon(lat, lng, poly)) {
+      print('>>> [ZoneCheck] Checking: $lat, $lng');
+      final sRes = await _api.checkServiceability(lat, lng);
+      final data = asMap(sRes);
+      print('>>> [ZoneCheck] Backend raw response keys: ${data.keys.toList()}');
+      print('>>> [ZoneCheck] serviceable=${data["serviceable"]}, zone=${data["zone"]}');
+      
+      // Trust the backend's resolved zone first
+      Map<String, dynamic> found = asMap(data['zone']);
+      
+      if (found.isNotEmpty) {
+        print('>>> [ZoneCheck] Backend matched: ${found["name"]} (id=${found["id"]})');
+      } else {
+        print('>>> [ZoneCheck] Backend found no zone. Attempting local polygon check...');
+        final allZones = asList(data['zones']);
+        print('>>> [ZoneCheck] Local check against ${allZones.length} zones');
+        for (var z in allZones) {
+          final zone = asMap(z);
+          final poly = asList(zone['polygon_coords']);
+          print('>>> [ZoneCheck]   Zone "${zone["name"]}" has ${poly.length} polygon points');
+          if (poly.isNotEmpty && isPointInPolygon(lat, lng, poly)) {
             found = zone;
+            print('>>> [ZoneCheck] Local match: ${found["name"]}');
             break;
           }
-        } catch (_) {}
+        }
+        if (found.isEmpty) {
+          print('>>> [ZoneCheck] WARNING: No zone matched for ($lat, $lng). Not serviceable.');
+        }
       }
 
-      _detectedZone = found ?? {};
-    } catch (e) { }
+      if (mounted) setState(() => _detectedZone = found);
+    } catch (e, stack) { 
+      print('>>> [ZoneCheck] ERROR: $e');
+      print('>>> [ZoneCheck] Stack: $stack');
+    }
   }
 
 
   void _onSaveAll() {
-    if (_lat == null) return;
     Navigator.pop(context, PickedLocation(
       lat: _lat!, lng: _lng!,
       address: _detectedAddress,
@@ -364,6 +496,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       state:    _stateCtrl.text.trim(),
       pincode:  _pincodeCtrl.text.trim(),
       zone:     _detectedZone,
+      geofenceId: asInt(_detectedZone['id']),
     ));
   }
 
@@ -372,14 +505,17 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * (_step == 1 ? 0.95 : 0.9)),
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (_step != 1) ...[
-          const SizedBox(height: 12),
-          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 12),
-        ],
-        Flexible(child: AnimatedSwitcher(duration: 300.ms, child: _renderStep())),
-      ]),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_step != 1) ...[
+            const SizedBox(height: 12),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 12),
+          ],
+          Flexible(child: AnimatedSwitcher(duration: 300.ms, child: _renderStep())),
+        ]),
+      ),
     );
   }
 
@@ -410,8 +546,8 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
           const SizedBox(width: 12),
           Expanded(child: TextField(
             controller: _searchCtrl,
-            onChanged: _searchAddress,
-            decoration: const InputDecoration(hintText: 'Search for colony, street...', border: InputBorder.none, isDense: true),
+            onChanged: _onSearchChanged,
+            decoration: const InputDecoration(hintText: 'Search area, colony, landmark...', border: InputBorder.none, isDense: true),
             style: p(14, w: FontWeight.w600),
           )),
           if (_searching) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)),
@@ -443,20 +579,27 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       const SizedBox(height: 20),
 
       _LocTile(
-        icon: Icons.my_location_rounded, 
-        text: _gpsLoading ? 'Detecting via GPS...' : (_detectedAddress.isNotEmpty ? _detectedAddress : 'Use Current Location'),
-        onTap: _detectGPS,
+        icon: _gpsLoading ? Icons.gps_fixed : Icons.my_location_rounded,
+        text: _gpsLoading
+            ? 'Detecting your location...'
+            : _geocoding
+                ? 'Fetching address...'
+                : _detectedAddress.isNotEmpty
+                    ? _detectedAddress
+                    : 'Use Current Location',
+        onTap: _gpsLoading ? null : _detectGPS,
       ),
 
-      const SizedBox(height: 28),
-      if (_detectedAddress.isNotEmpty) ...[
-        if (!_isServiceable && !_geocoding && !_gpsLoading)
-          _Badge(icon: Icons.error_outline_rounded, color: Colors.orange, text: 'This area is currently not serviceable'),
+      const SizedBox(height: 20),
+      if (_detectedAddress.isNotEmpty && !_gpsLoading && !_geocoding) ...[
+        if (!_isServiceable)
+          _Badge(icon: Icons.info_outline_rounded, color: Colors.orange, text: 'This area may not be serviceable. You can still pin your location on the map.'),
         const SizedBox(height: 16),
         GBtn(
-          label: 'Continue with this Location', 
-          bg: _isServiceable ? C.forest : Colors.black12, 
-          onTap: _isServiceable ? () => setState(() => _step = 1) : null
+          label: 'Confirm on Map',
+          icon: Icons.map_rounded,
+          bg: C.forest,
+          onTap: () => setState(() => _step = 1),
         ),
       ],
       const SizedBox(height: 24),
@@ -515,25 +658,29 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32)), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -5))]),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (_isServiceable)
-          _Badge(icon: Icons.check_circle_rounded, color: C.green, text: 'We are serviceable in ${asStr(_detectedZone['name'])}')
+        if (_geocoding)
+          _Badge(icon: Icons.sync_rounded, color: C.t3, text: 'Finding address for this location...')
+        else if (_isServiceable)
+          _Badge(icon: Icons.check_circle_rounded, color: C.green, text: 'Serviceable in ${asStr(_detectedZone['name'])} · Tap Confirm to continue')
         else
-          _Badge(icon: Icons.info_outline_rounded, color: Colors.orange, text: 'We are not serviceable here. Please move the pin to a serviceable zone.'),
-        
+          _Badge(icon: Icons.info_outline_rounded, color: Colors.orange, text: 'Move the pin to your exact location for best results'),
+
         const SizedBox(height: 20),
         GBtn(
-          label: 'Confirm Selection', 
-          onTap: _isServiceable ? () => setState(() => _step = 2) : null,
-          bg: _isServiceable ? C.forest : C.t4.withOpacity(0.3),
+          label: _geocoding ? 'Locating...' : 'Confirm Location',
+          icon: Icons.check_rounded,
+          onTap: (_lat != null && _lng != null && !_geocoding) ? () => setState(() => _step = 2) : null,
+          bg: (_lat != null && !_geocoding) ? C.forest : C.t4.withOpacity(0.3),
         ),
       ]),
     ),
   ]);
 
   // ── Step 2: Address Details ─────────────────────────────────────────────────
-  Widget _buildDetailsStep() => Padding(
+  Widget _buildDetailsStep() => SingleChildScrollView(
+    key: const ValueKey(2),
     padding: EdgeInsets.fromLTRB(24, 8, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-    child: Column(key: const ValueKey(2), mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         GestureDetector(onTap: () => setState(() => _step = 1), child: const Icon(Icons.arrow_back_rounded, color: C.t1)),
         const SizedBox(width: 14),
@@ -555,7 +702,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       ]),
       const SizedBox(height: 28),
       GBtn(label: 'Save Address', onTap: _onSaveAll, bg: C.forest),
-      const SizedBox(height: 8),
+      const SizedBox(height: 120), // Extra space for keyboard
     ]),
   );
 }

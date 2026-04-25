@@ -12,11 +12,12 @@ import '../../widgets/widgets.dart';
 
 class PlantopediaScreen extends StatefulWidget {
   final VoidCallback? onClose;
-  const PlantopediaScreen({super.key, this.onClose});
+  final bool isVisible;
+  const PlantopediaScreen({super.key, this.onClose, this.isVisible = true});
   @override State<PlantopediaScreen> createState() => _PlantState();
 }
 
-class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStateMixin {
+class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _api = Api();
   final _picker = ImagePicker();
   
@@ -33,25 +34,82 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadHistory();
-    _initCamera();
+    if (widget.isVisible) {
+      _initCamera();
+    }
     _anim = AnimationController(vsync: this, duration: 2.seconds)..repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(PlantopediaScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isVisible != oldWidget.isVisible) {
+      if (widget.isVisible) {
+        if (_camera == null || !_camera!.value.isInitialized) {
+          _initCamera();
+        } else {
+          _camera!.resumePreview().catchError((e) {
+            print('>>> [Plantopedia] Resume error, re-initializing: $e');
+            _initCamera();
+          });
+        }
+      } else {
+        _camera?.pausePreview();
+      }
+    }
   }
 
   Future<void> _initCamera() async {
     try {
+      print('>>> [Plantopedia] Initializing camera...');
       final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
-      _camera = CameraController(cameras.first, ResolutionPreset.high, enableAudio: false);
+      if (cameras.isEmpty) {
+        print('>>> [Plantopedia] No cameras available on device');
+        return;
+      }
+      print('>>> [Plantopedia] Found ${cameras.length} camera(s). Using: ${cameras.first.name}');
+      _camera = CameraController(
+        cameras.first, 
+        ResolutionPreset.medium, // medium is more compatible across Android devices
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
       await _camera!.initialize();
-      if (mounted) setState(() => _camInit = true);
+      if (mounted) {
+        print('>>> [Plantopedia] Camera initialized successfully');
+        setState(() => _camInit = true);
+      }
     } catch (e) {
-      debugPrint('Camera error: $e');
+      print('>>> [Plantopedia] Camera initialization ERROR: $e');
+      if (mounted) {
+        setState(() => _camInit = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Camera unavailable: ${e.toString().split(':').first}'),
+            action: SnackBarAction(label: 'Retry', onPressed: _initCamera),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _camera;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      ctrl.pausePreview();
+    } else if (state == AppLifecycleState.resumed) {
+      ctrl.resumePreview();
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _anim.dispose();
     _camera?.dispose();
     super.dispose();
@@ -118,7 +176,7 @@ class _PlantState extends State<PlantopediaScreen> with SingleTickerProviderStat
       backgroundColor: Colors.black,
       body: Stack(children: [
         // Camera Preview
-        Positioned.fill(child: _camInit 
+        Positioned.fill(child: (_camInit && widget.isVisible)
           ? CameraPreview(_camera!) 
           : Container(color: Colors.black, child: const Center(child: CircularProgressIndicator(color: Colors.white24)))),
         

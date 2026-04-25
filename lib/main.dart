@@ -13,7 +13,6 @@ import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/bookings/bookings_screen.dart';
 import 'presentation/screens/bookings/book_screen.dart';
 import 'presentation/screens/shop/shop_screen.dart';
-import 'presentation/screens/wallet/wallet_screen.dart';
 import 'presentation/screens/plantopedia/plantopedia_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/subscriptions/subscriptions_screen.dart';
@@ -64,7 +63,6 @@ class GkmApp extends StatelessWidget {
       case '/plans':          return _slide(const PlansScreen(), s);
       case '/shop':           page = const ShopScreen(); break;
       case '/shop/orders':    return _slide(const MyOrdersScreen(), s);
-      case '/wallet':         page = const WalletScreen(); break;
       case '/plantopedia':    page = const PlantopediaScreen(); break;
       case '/notifications':  return _slide(const NotificationsScreen(), s);
       case '/complaints':     return _slide(const ComplaintsScreen(), s);
@@ -144,9 +142,13 @@ class _ShellState extends State<_Shell> {
   @override
   void initState() {
     super.initState();
-    // Refresh profile from server so phone/name/wallet are always current
+    // Refresh profile and auto-detect location
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('>>> [Shell] Initializing...');
       context.read<AuthProvider>().refreshProfile();
+      
+      // Always refresh GPS location on every app open (Swiggy/Zepto style)
+      context.read<LocationProvider>().autoDetect();
     });
   }
 
@@ -162,7 +164,12 @@ class _ShellState extends State<_Shell> {
     final pages = [
       HomeScreen(navTo: (i) => setState(() => _idx = i)),
       const BookingsScreen(),
-      PlantopediaScreen(onClose: () => setState(() => _idx = 0)),
+      // Plantopedia: handle visibility to pause/resume camera
+      PlantopediaScreen(
+        isVisible: _idx == 2,
+        onClose: () => setState(() => _idx = 0),
+      ),
+
       const ShopScreen(),
       ProfileScreen(onLogout: _onLogout),
     ];
@@ -175,13 +182,15 @@ class _ShellState extends State<_Shell> {
   }
 }
 
+
 class _Splash extends StatelessWidget {
   const _Splash();
+
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: Colors.white,
     body: Center(
-      child: Image.asset('assets/images/logo-icon.png', width: 140)
+      child: Image.asset('assets/images/logo.png', width: 140)
         .animate().fadeIn(duration: 800.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1), curve: Curves.easeOutBack),
     ),
   );

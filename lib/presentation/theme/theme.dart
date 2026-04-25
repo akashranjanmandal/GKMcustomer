@@ -30,37 +30,22 @@ class C {
   static const amber   = Color(0xFFD97706);
   static const blue    = Color(0xFF2563EB);
 
-  // Status pair
-  static Color statusBg(String s) {
-    switch (s) {
-      case 'pending':     return const Color(0xFFEDCF87).withOpacity(0.22);
-      case 'assigned':    return const Color(0xFF2563EB).withOpacity(0.10);
-      case 'en_route':    return const Color(0xFF2563EB).withOpacity(0.10);
-      case 'arrived':     return const Color(0xFFD97706).withOpacity(0.12);
-      case 'in_progress': return const Color(0xFFD97706).withOpacity(0.12);
-      case 'completed':   return const Color(0xFF16A34A).withOpacity(0.10);
-      case 'cancelled':   return const Color(0xFF808285).withOpacity(0.14);
-      case 'failed':      return const Color(0xFFDC2626).withOpacity(0.10);
-      case 'active':      return const Color(0xFF16A34A).withOpacity(0.10);
-      case 'paused':      return const Color(0xFFD97706).withOpacity(0.12);
-      case 'expired':     return const Color(0xFFDC2626).withOpacity(0.10);
-      default:            return const Color(0xFF808285).withOpacity(0.14);
-    }
-  }
+  // Status badge always uses white background so it's readable on any surface
+  static Color statusBg(String s) => const Color(0xFFFFFFFF);
 
   static Color statusFg(String s) {
     switch (s) {
-      case 'pending':     return const Color(0xFF7A4D00);
-      case 'assigned':    return const Color(0xFF1D4ED8);
+      case 'pending':     return const Color(0xFFB45309); // amber-700
+      case 'assigned':    return const Color(0xFF1D4ED8); // blue-700
       case 'en_route':    return const Color(0xFF1D4ED8);
-      case 'arrived':     return const Color(0xFF92400E);
-      case 'in_progress': return const Color(0xFF92400E);
-      case 'completed':   return const Color(0xFF14532D);
-      case 'cancelled':   return const Color(0xFF6B7280);
-      case 'failed':      return const Color(0xFF7F1D1D);
-      case 'active':      return const Color(0xFF14532D);
-      case 'paused':      return const Color(0xFF92400E);
-      case 'expired':     return const Color(0xFF7F1D1D);
+      case 'arrived':     return const Color(0xFFD97706); // amber-600
+      case 'in_progress': return const Color(0xFFD97706);
+      case 'completed':   return const Color(0xFF16A34A); // green-600
+      case 'cancelled':   return const Color(0xFF6B7280); // gray-500
+      case 'failed':      return const Color(0xFFDC2626); // red-600
+      case 'active':      return const Color(0xFF16A34A);
+      case 'paused':      return const Color(0xFFD97706);
+      case 'expired':     return const Color(0xFFDC2626);
       default:            return const Color(0xFF6B7280);
     }
   }

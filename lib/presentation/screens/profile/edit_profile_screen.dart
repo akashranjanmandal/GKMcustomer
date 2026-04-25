@@ -40,6 +40,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (f != null) setState(() => _newImg = File(f.path));
   }
 
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
   Future<void> _save() async {
     final name  = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
@@ -47,11 +51,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       showMsg(context, 'Name cannot be empty', err: true);
       return;
     }
+    if (email.isEmpty) {
+      showMsg(context, 'Email is required', err: true);
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      showMsg(context, 'Please enter a valid email address', err: true);
+      return;
+    }
     setState(() => _saving = true);
     try {
       final r = await _api.updateProfile(
         name:         name,
-        email:        email.isNotEmpty ? email : null,
+        email:        email,
         profileImage: _newImg,
       );
       if (!mounted) return;
@@ -133,7 +145,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SizedBox(height: 16),
 
           // Email
-          GField(ctrl: _emailCtrl, label: 'Email (optional)', hint: 'e.g. rahul@email.com', icon: Icons.email_rounded, keyboard: TextInputType.emailAddress),
+          GField(ctrl: _emailCtrl, label: 'Email', hint: 'e.g. rahul@email.com', icon: Icons.email_rounded, keyboard: TextInputType.emailAddress),
 
           const SizedBox(height: 40),
 

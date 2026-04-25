@@ -566,6 +566,12 @@ class _MyOrdersState extends State<MyOrdersScreen> {
       if (mounted) setState(() { _orders = asList(r); _loading = false; });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
+  String _cleanAddr(String s) {
+    final reg = RegExp(r'-?\d{1,3}\.\d{4,}');
+    if (reg.allMatches(s).length >= 2) return 'Service Location';
+    return s.isEmpty ? '—' : s;
+  }
+
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: C.bg, 
@@ -586,6 +592,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
             : SliverList(delegate: SliverChildBuilderDelegate((_, i) { 
                 final o = asMap(_orders[i]); 
                 final status = asStr(o['status'], 'pending'); 
+                final dateStr = asStr(o['createdAt'] ?? o['created_at'], '');
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12), 
                   child: GCard(
@@ -597,9 +604,12 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                         GBadge(status)
                       ]), 
                       const SizedBox(height: 8), 
-                      Text('₹${asDouble(o['total_amount']).toStringAsFixed(0)}', style: p(16, w: FontWeight.w800, color: C.green)), 
-                      const SizedBox(height: 4), 
-                      Text(asStr(o['shipping_address'] ?? o['delivery_address'], '—'), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('₹${asDouble(o['total_amount']).toStringAsFixed(0)}', style: p(16, w: FontWeight.w800, color: C.green)), 
+                        Text(dateStr.length >= 10 ? dateStr.substring(0,10) : '—', style: p(11, color: C.t4)),
+                      ]),
+                      const SizedBox(height: 6), 
+                      Text(_cleanAddr(asStr(o['shipping_address'] ?? o['delivery_address'], '—')), style: p(11, color: C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)
                     ])
                   )
                 ).animate().fadeIn(delay: Duration(milliseconds: i * 40)); 
@@ -613,10 +623,17 @@ class OrderDetailScreen extends StatelessWidget {
   final Map<String, dynamic> order;
   const OrderDetailScreen({super.key, required this.order});
 
+  String _cleanAddr(String s) {
+    final reg = RegExp(r'-?\d{1,3}\.\d{4,}');
+    if (reg.allMatches(s).length >= 2) return 'Service Location';
+    return s.isEmpty ? '—' : s;
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final items = asList(order['items']);
     final status = asStr(order['status'], 'pending');
+    final dateStr = asStr(order['createdAt'] ?? order['created_at'], '');
     
     return Scaffold(
       backgroundColor: C.bg,
@@ -645,8 +662,8 @@ class OrderDetailScreen extends StatelessWidget {
                 Text('ORDER DETAILS', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
               ]),
               const SizedBox(height: 16),
-              GDetailRow(icon: Icons.location_on_rounded, label: 'ADDRESS', value: asStr(order['shipping_address'] ?? order['delivery_address'], '—')),
-              GDetailRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: asStr(order['created_at'], '—').length >= 10 ? asStr(order['created_at']).substring(0,10) : '—'),
+              GDetailRow(icon: Icons.location_on_rounded, label: 'ADDRESS', value: _cleanAddr(asStr(order['shipping_address'] ?? order['delivery_address'], '—'))),
+              GDetailRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: dateStr.length >= 10 ? dateStr.substring(0,10) : '—'),
               GDetailRow(icon: Icons.payments_rounded, label: 'METHOD', value: asStr(order['payment_method'], 'COD').toUpperCase()),
               GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL', value: '₹${asDouble(order['total_amount']).toStringAsFixed(0)}'),
             ])),
