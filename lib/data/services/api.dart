@@ -221,6 +221,9 @@ class Api {
 
   Future<dynamic> trackBooking(int bookingId) => req('GET', '/bookings/track/$bookingId');
 
+  Future<dynamic> checkAvailability({required String date, required int geofenceId}) =>
+      req('GET', '/bookings/check-availability', query: {'date': date, 'geofence_id': geofenceId.toString()});
+
   Future<dynamic> rescheduleBooking(int bookingId, String newDate, {String? newTime}) =>
       req('POST', '/payments/reschedule', body: {
         'booking_id': bookingId,

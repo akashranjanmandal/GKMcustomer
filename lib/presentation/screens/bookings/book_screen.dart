@@ -32,6 +32,8 @@ class _BookState extends State<BookScreen> {
   bool _autoRenew = true;
 
   static const _slots = ['08:00','09:00','10:00','11:00','14:00','15:00','16:00'];
+  List<String> _availableSlots = [];
+  bool _loadingSlots = false, _slotsLoaded = false, _noGardenersInZone = false;
 
   bool get _isSub => asStr(_selectedPlan?['plan_type']) == 'subscription';
   bool get _planPreSelected => widget.planId != null;
@@ -123,6 +125,26 @@ class _BookState extends State<BookScreen> {
         _loading = false;
       });
     } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
+
+  Future<void> _loadAvailability(String date) async {
+    final zoneId = _zone != null ? asInt(_zone!['id']) : 0;
+    if (zoneId == 0) return;
+    setState(() { _loadingSlots = true; _slotsLoaded = false; _noGardenersInZone = false; });
+    try {
+      final res = await _api.checkAvailability(date: date, geofenceId: zoneId);
+      if (!mounted) return;
+      final slots = asList(res is Map ? (res['available_slots'] ?? res['slots'] ?? res) : res)
+          .map((s) => s.toString()).toList();
+      setState(() {
+        _availableSlots = slots;
+        _noGardenersInZone = (res is Map && res['no_gardeners_in_zone'] == true) || slots.isEmpty;
+        _slotsLoaded = true;
+        _loadingSlots = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() { _loadingSlots = false; _slotsLoaded = false; });
+    }
   }
 
   Future<void> _openPicker() async {
@@ -359,7 +381,7 @@ class _BookState extends State<BookScreen> {
       final ds = '${d.year}-${d.month.toString().padLeft(2,"0")}-${d.day.toString().padLeft(2,"0")}';
       final sel = _date == ds;
       return GestureDetector(
-        onTap: () => setState(() => _date = ds),
+        onTap: () { setState(() { _date = ds; _slotsLoaded = false; _availableSlots = []; _noGardenersInZone = false; }); _loadAvailability(ds); },
         child: AnimatedContainer(duration: 200.ms, width: 70, margin: const EdgeInsets.only(right: 12), decoration: BoxDecoration(color: sel ? C.forest : const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(18), border: Border.all(color: sel ? C.forest : Colors.transparent)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(['MON','TUE','WED','THU','FRI','SAT','SUN'][d.weekday-1], style: p(10, w: FontWeight.w800, color: sel ? Colors.white70 : Colors.black38)),
           const SizedBox(height: 4),
@@ -370,13 +392,28 @@ class _BookState extends State<BookScreen> {
     const SizedBox(height: 32),
     GSec('Preferred Time'),
     const SizedBox(height: 16),
-    Wrap(spacing: 12, runSpacing: 12, children: _slots.map((t) {
-      final sel = _time == t;
-      return GestureDetector(
-        onTap: () => setState(() => _time = t),
-        child: Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12), decoration: BoxDecoration(color: sel ? C.forest : const Color(0xFFF9F9F9), borderRadius: BorderRadius.circular(14), border: Border.all(color: sel ? C.forest : Colors.transparent)), child: Text(t, style: p(14, w: FontWeight.w700, color: sel ? Colors.white : Colors.black54))),
-      );
-    }).toList()),
+    if (_loadingSlots)
+      const Padding(padding: EdgeInsets.only(bottom: 16), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest))))
+    else if (_slotsLoaded && _noGardenersInZone)
+      Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: const Color(0xFFFFF8E1), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFF5C842))),
+        child: Row(children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFF7A5C00), size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text('No gardeners available in your area for this date. Please try another date.', style: p(13, w: FontWeight.w600, color: const Color(0xFF7A5C00)))),
+        ]),
+      )
+    else
+      Wrap(spacing: 12, runSpacing: 12, children: _slots.map((t) {
+        final sel = _time == t;
+        final available = !_slotsLoaded || _availableSlots.contains(t);
+        return GestureDetector(
+          onTap: available ? () => setState(() => _time = t) : null,
+          child: AnimatedContainer(duration: 200.ms, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12), decoration: BoxDecoration(color: sel ? C.forest : available ? const Color(0xFFF9F9F9) : const Color(0xFFEEEEEE), borderRadius: BorderRadius.circular(14), border: Border.all(color: sel ? C.forest : Colors.transparent)), child: Text(t, style: p(14, w: FontWeight.w700, color: sel ? Colors.white : available ? Colors.black54 : Colors.black26))),
+        );
+      }).toList()),
     const SizedBox(height: 32),
     GSec('Instructions'),
     const SizedBox(height: 12),
