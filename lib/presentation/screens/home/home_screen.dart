@@ -87,6 +87,8 @@ class _HomeState extends State<HomeScreen> {
             SliverToBoxAdapter(child: Column(children: [
               const SizedBox(height: 24),
               _buildBookingSection(ctx),
+              const SizedBox(height: 20),
+              _buildGreenMakeoverBanner(ctx),
               const SizedBox(height: 32),
               _buildQuickActions(ctx),
               const SizedBox(height: 32),
@@ -193,6 +195,44 @@ class _HomeState extends State<HomeScreen> {
     ]),
   );
 
+  Widget _buildGreenMakeoverBanner(BuildContext ctx) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: GestureDetector(
+      onTap: () => Navigator.pushNamed(ctx, '/green-makeover'),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: C.forest,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [BoxShadow(color: C.gold.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
+          image: DecorationImage(
+            image: const NetworkImage('https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&h=400&fit=crop'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(C.forest.withOpacity(0.85), BlendMode.srcOver),
+          ),
+        ),
+        child: Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(8)),
+              child: Text('PREMIUM', style: p(9, w: FontWeight.w900, color: C.forest, ls: 1)),
+            ),
+            const SizedBox(height: 8),
+            Text('Green Makeover', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text('Complete plant setups starting ₹20k', style: p(12, w: FontWeight.w500, color: Colors.white70)),
+          ])),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle),
+            child: const Icon(Icons.auto_awesome, color: C.forest, size: 20),
+          ),
+        ]),
+      ),
+    ),
+  );
+
   Widget _buildQuickActions(BuildContext ctx) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -204,6 +244,7 @@ class _HomeState extends State<HomeScreen> {
          childAspectRatio: 0.9,
          children: [
             _Feature(icon: Icons.yard_rounded, title: 'Plantopedia', onTap: () => widget.navTo(2)),
+            _Feature(icon: Icons.auto_awesome, title: 'Makeover', onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
             _Feature(icon: Icons.shopping_bag_rounded, title: 'My Orders', onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
             _Feature(icon: Icons.support_agent_rounded, title: 'Support', onTap: () => Navigator.pushNamed(ctx, '/complaints')),
             _Feature(icon: Icons.local_florist_rounded, title: 'Store', onTap: () => widget.navTo(3)),
