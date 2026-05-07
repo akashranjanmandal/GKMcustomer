@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -405,6 +406,12 @@ class _BkDetailState extends State<BookingDetailScreen> {
               ])).animate().fadeIn(delay: 80.ms),
             ],
 
+            // Visit report (before/after photos + checklist)
+            if (_status == 'completed') ...[
+              const SizedBox(height: 12),
+              _VisitReportCard(bk: _bk!).animate().fadeIn(delay: 100.ms),
+            ],
+
             // Rating display
             if (hasRating) ...[
               const SizedBox(height: 12),
@@ -435,6 +442,118 @@ class _BkDetailState extends State<BookingDetailScreen> {
         ),
       ]),
     );
+  }
+}
+
+// ─── Visit Report Card ────────────────────────────────────────────────────────
+class _VisitReportCard extends StatelessWidget {
+  final Map<String, dynamic> bk;
+  const _VisitReportCard({required this.bk});
+
+  @override
+  Widget build(BuildContext context) {
+    final beforeImg = bk['before_image'] as String?;
+    final afterImg  = bk['after_image']  as String?;
+    final hasPhotos = (beforeImg?.isNotEmpty == true) || (afterImg?.isNotEmpty == true);
+
+    // Parse checklist from gardener_notes JSON
+    List<String> tasks = [];
+    String? notes;
+    final raw = bk['gardener_notes'];
+    if (raw != null && raw.toString().startsWith('{')) {
+      try {
+        final parsed = jsonDecode(raw.toString()) as Map<String, dynamic>;
+        tasks = List<String>.from(parsed['tasks'] as List? ?? []);
+        notes = parsed['notes'] as String?;
+      } catch (_) {}
+    } else if (raw != null && raw.toString().isNotEmpty) {
+      notes = raw.toString();
+    }
+
+    if (!hasPhotos && tasks.isEmpty && (notes == null || notes.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
+    return GCard(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 4, height: 16, decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(99))),
+        const SizedBox(width: 8),
+        Text('VISIT REPORT', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
+      ]),
+
+      // Before / After photos
+      if (hasPhotos) ...[
+        const SizedBox(height: 14),
+        Row(children: [
+          if (beforeImg != null && beforeImg.isNotEmpty)
+            Expanded(child: _ReportPhoto(url: beforeImg, label: 'Before')),
+          if (beforeImg != null && beforeImg.isNotEmpty && afterImg != null && afterImg.isNotEmpty)
+            const SizedBox(width: 10),
+          if (afterImg != null && afterImg.isNotEmpty)
+            Expanded(child: _ReportPhoto(url: afterImg, label: 'After')),
+        ]),
+      ],
+
+      // Checklist
+      if (tasks.isNotEmpty) ...[
+        const SizedBox(height: 14),
+        Text('Tasks Completed', style: p(12, w: FontWeight.w700, color: C.t1)),
+        const SizedBox(height: 8),
+        ...tasks.map((t) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(children: [
+            const Icon(Icons.check_circle_rounded, size: 15, color: C.green),
+            const SizedBox(width: 8),
+            Expanded(child: Text(t, style: p(13, color: C.t2))),
+          ]),
+        )),
+      ],
+
+      // Gardener notes
+      if (notes != null && notes.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: C.subtle, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.border)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.sticky_note_2_outlined, size: 14, color: C.t4),
+            const SizedBox(width: 8),
+            Expanded(child: Text(notes, style: p(12, color: C.t3, h: 1.5))),
+          ]),
+        ),
+      ],
+    ]));
+  }
+}
+
+class _ReportPhoto extends StatelessWidget {
+  final String url;
+  final String label;
+  const _ReportPhoto({required this.url, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.5)),
+      const SizedBox(height: 6),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          url,
+          height: 120, width: double.infinity, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            height: 120,
+            decoration: BoxDecoration(color: C.subtle, borderRadius: BorderRadius.circular(12)),
+            child: const Center(child: Icon(Icons.broken_image_rounded, color: C.t4, size: 28)),
+          ),
+          loadingBuilder: (_, child, progress) => progress == null ? child : Container(
+            height: 120,
+            decoration: BoxDecoration(color: C.subtle, borderRadius: BorderRadius.circular(12)),
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 

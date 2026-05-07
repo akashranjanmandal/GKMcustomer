@@ -185,10 +185,12 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
   void dispose() { _descCtrl.dispose(); _bookingCtrl.dispose(); super.dispose(); }
 
   Future<void> _submit() async {
+    if (_bookingCtrl.text.trim().isEmpty) { showMsg(context, 'Order ID is required', err: true); return; }
+    final bookingId = int.tryParse(_bookingCtrl.text.trim());
+    if (bookingId == null) { showMsg(context, 'Please enter a valid Order ID', err: true); return; }
     if (_descCtrl.text.trim().isEmpty) { showMsg(context, 'Please describe your issue', err: true); return; }
     setState(() => _submitting = true);
     try {
-      final bookingId = int.tryParse(_bookingCtrl.text.trim());
       await widget.api.createComplaint(
         type: _type,
         description: _descCtrl.text.trim(),
@@ -249,11 +251,11 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
       ]),
       const SizedBox(height: 18),
 
-      GSec('Booking ID (optional)'),
+      GSec('Order ID *'),
       const SizedBox(height: 10),
       TextField(controller: _bookingCtrl, keyboardType: TextInputType.number,
         style: p(14, color: C.t2),
-        decoration: const InputDecoration(hintText: 'Enter booking ID if related to a booking')),
+        decoration: const InputDecoration(hintText: 'Enter your booking / order ID (required)')),
       const SizedBox(height: 18),
 
       GSec('Describe Your Issue'),
