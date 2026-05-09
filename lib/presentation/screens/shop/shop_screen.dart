@@ -454,6 +454,12 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   final _api = Api(); bool _busy = false;
+  bool _applyGst = false;
+  String _gstState = 'Uttar Pradesh';
+  final _gstinCtrl = TextEditingController();
+  final _bizCtrl = TextEditingController();
+
+  @override void dispose() { _gstinCtrl.dispose(); _bizCtrl.dispose(); super.dispose(); }
 
   String _getImageUrl(Map<String, dynamic> prod) {
     if (prod['images'] is List && (prod['images'] as List).isNotEmpty) {
@@ -520,12 +526,114 @@ class _CheckoutPageState extends State<CheckoutPage> {
            Text('Order Total', style: p(18, w: FontWeight.w900)),
            Text('₹${totalValue.toStringAsFixed(0)}', style: p(24, w: FontWeight.w900, color: C.green)),
          ]),
-         const SizedBox(height: 60),
+         const SizedBox(height: 24),
+
+         // ── GST section ──────────────────────────────────────────────────
+         Container(
+           padding: const EdgeInsets.all(16),
+           decoration: BoxDecoration(
+             color: const Color(0xFFF3F7F0),
+             borderRadius: BorderRadius.circular(16),
+             border: Border.all(color: C.border, width: 1.2),
+           ),
+           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+             Row(children: [
+               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                 Text('Claim GST Invoice', style: p(14, w: FontWeight.w800, color: C.t1)),
+                 Text('For business purchases only', style: p(11, color: C.t3)),
+               ])),
+               GestureDetector(
+                 onTap: () => setState(() => _applyGst = !_applyGst),
+                 child: AnimatedContainer(
+                   duration: const Duration(milliseconds: 200),
+                   width: 46, height: 26,
+                   padding: const EdgeInsets.all(3),
+                   decoration: BoxDecoration(
+                     borderRadius: BorderRadius.circular(13),
+                     color: _applyGst ? C.forest : Colors.black26,
+                   ),
+                   child: AnimatedAlign(
+                     duration: const Duration(milliseconds: 200),
+                     alignment: _applyGst ? Alignment.centerRight : Alignment.centerLeft,
+                     child: Container(width: 20, height: 20, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                   ),
+                 ),
+               ),
+             ]),
+             if (_applyGst) ...[
+               const SizedBox(height: 16),
+               Text('State of Supply', style: p(12, w: FontWeight.w700, color: C.t2)),
+               const SizedBox(height: 6),
+               Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 12),
+                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.border)),
+                 child: DropdownButtonHideUnderline(
+                   child: DropdownButton<String>(
+                     value: _gstState,
+                     isExpanded: true,
+                     style: p(13, color: C.t1),
+                     items: const [
+                       DropdownMenuItem(value: 'Uttar Pradesh', child: Text('Uttar Pradesh')),
+                       DropdownMenuItem(value: 'Delhi', child: Text('Delhi')),
+                       DropdownMenuItem(value: 'Maharashtra', child: Text('Maharashtra')),
+                       DropdownMenuItem(value: 'Karnataka', child: Text('Karnataka')),
+                       DropdownMenuItem(value: 'Tamil Nadu', child: Text('Tamil Nadu')),
+                       DropdownMenuItem(value: 'Gujarat', child: Text('Gujarat')),
+                       DropdownMenuItem(value: 'Rajasthan', child: Text('Rajasthan')),
+                       DropdownMenuItem(value: 'West Bengal', child: Text('West Bengal')),
+                       DropdownMenuItem(value: 'Haryana', child: Text('Haryana')),
+                       DropdownMenuItem(value: 'Bihar', child: Text('Bihar')),
+                       DropdownMenuItem(value: 'Other', child: Text('Other State')),
+                     ],
+                     onChanged: (v) => setState(() => _gstState = v ?? _gstState),
+                   ),
+                 ),
+               ),
+               const SizedBox(height: 8),
+               Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                 decoration: BoxDecoration(color: _gstState == 'Uttar Pradesh' ? C.green.withValues(alpha: 0.08) : Colors.orange.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+                 child: Text(
+                   _gstState == 'Uttar Pradesh' ? 'SGST + CGST will be applied (intra-state)' : 'IGST will be applied (inter-state)',
+                   style: p(11, w: FontWeight.w600, color: _gstState == 'Uttar Pradesh' ? C.forest : Colors.orange.shade800),
+                 ),
+               ),
+               const SizedBox(height: 12),
+               _buildGstField(label: 'GSTIN', ctrl: _gstinCtrl, hint: 'e.g. 09AAAAA0000A1Z5'),
+               const SizedBox(height: 8),
+               _buildGstField(label: 'Business Name', ctrl: _bizCtrl, hint: 'Registered business name'),
+             ],
+           ]),
+         ),
+
+         const SizedBox(height: 32),
          GBtn(label: 'Confirm Order', loading: _busy, onTap: (loc.hasLocation && !_busy) ? _place : null, bg: C.forest),
          if (!loc.hasLocation) Padding(padding: const EdgeInsets.only(top: 12), child: Center(child: Text('Please select an address first', style: p(12, color: Colors.red[400], w: FontWeight.w600)))),
       ])),
     );
   }
+
+  Widget _buildGstField({required String label, required TextEditingController ctrl, required String hint}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: p(12, w: FontWeight.w700, color: C.t2)),
+      const SizedBox(height: 4),
+      TextField(
+        controller: ctrl,
+        style: p(13, color: C.t1),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: C.t4, fontSize: 12),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: C.border)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: C.border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: C.forest)),
+        ),
+      ),
+    ],
+  );
 
   Future<void> _place() async {
     final loc = context.read<LocationProvider>();
@@ -539,6 +647,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
         pincode: loc.pincode,
         lat: loc.lat, lng: loc.lng,
         zoneId: loc.zoneId,
+        applyGst: _applyGst,
+        shippingState: _applyGst ? _gstState : null,
+        billingGstin: _applyGst ? _gstinCtrl.text.trim() : null,
+        billingBusinessName: _applyGst ? _bizCtrl.text.trim() : null,
       );
       widget.onOrdered();
       if (mounted) {
@@ -629,22 +741,73 @@ class OrderDetailScreen extends StatelessWidget {
     return s.isEmpty ? '—' : s;
   }
 
+  void _showBill(BuildContext ctx) {
+    final items = asList(order['items']);
+    final gstAmt = asDouble(order['gst_amount']);
+    final total = asDouble(order['total_amount']);
+    final subtotal = total - gstAmt;
+    final applyGst = order['apply_gst'] == true || order['apply_gst'] == 1;
+    final state = asStr(order['shipping_state'], '');
+    final isUP = state.toLowerCase().contains('uttar') || state.toLowerCase() == 'up';
+
+    // Determine GST rate from first item's product
+    int gstRate = 0;
+    if (items.isNotEmpty) {
+      gstRate = asInt(asMap(asMap(items.first)['product'])['gst_rate']);
+    }
+
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _BillSheet(
+        order: order,
+        items: items,
+        subtotal: subtotal,
+        gstAmt: gstAmt,
+        total: total,
+        applyGst: applyGst,
+        isUP: isUP,
+        gstRate: gstRate,
+        cleanAddr: _cleanAddr,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final items = asList(order['items']);
     final status = asStr(order['status'], 'pending');
     final dateStr = asStr(order['createdAt'] ?? order['created_at'], '');
-    
+    final gstAmt = asDouble(order['gst_amount']);
+    final applyGst = order['apply_gst'] == true || order['apply_gst'] == 1;
+    final state = asStr(order['shipping_state'], '');
+    final isUP = state.toLowerCase().contains('uttar') || state.toLowerCase() == 'up';
+
     return Scaffold(
       backgroundColor: C.bg,
       body: CustomScrollView(slivers: [
         SliverToBoxAdapter(child: GHeader(pb: 52, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          GestureDetector(onTap: () => Navigator.pop(ctx),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white70),
-              const SizedBox(width: 4),
-              Text('My Orders', style: p(13, color: Colors.white70)),
-            ])),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            GestureDetector(onTap: () => Navigator.pop(ctx),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white70),
+                const SizedBox(width: 4),
+                Text('My Orders', style: p(13, color: Colors.white70)),
+              ])),
+            GestureDetector(
+              onTap: () => _showBill(ctx),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.receipt_long_rounded, size: 14, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text('Bill', style: p(12, w: FontWeight.w700, color: Colors.white)),
+                ]),
+              ),
+            ),
+          ]),
           const SizedBox(height: 16),
           Text(asStr(order['order_number'], '#${order['id']}'), style: p(20, w: FontWeight.w800, color: Colors.white)),
           const SizedBox(height: 8),
@@ -665,6 +828,14 @@ class OrderDetailScreen extends StatelessWidget {
               GDetailRow(icon: Icons.location_on_rounded, label: 'ADDRESS', value: _cleanAddr(asStr(order['shipping_address'] ?? order['delivery_address'], '—'))),
               GDetailRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: dateStr.length >= 10 ? dateStr.substring(0,10) : '—'),
               GDetailRow(icon: Icons.payments_rounded, label: 'METHOD', value: asStr(order['payment_method'], 'COD').toUpperCase()),
+              if (applyGst && gstAmt > 0) ...[
+                GDetailRow(icon: Icons.inventory_2_rounded, label: 'SUBTOTAL', value: '₹${(asDouble(order['total_amount']) - gstAmt).toStringAsFixed(0)}'),
+                if (isUP) ...[
+                  GDetailRow(icon: Icons.percent_rounded, label: 'SGST', value: '₹${(gstAmt / 2).toStringAsFixed(2)}'),
+                  GDetailRow(icon: Icons.percent_rounded, label: 'CGST', value: '₹${(gstAmt / 2).toStringAsFixed(2)}'),
+                ] else
+                  GDetailRow(icon: Icons.percent_rounded, label: 'IGST', value: '₹${gstAmt.toStringAsFixed(2)}'),
+              ],
               GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL', value: '₹${asDouble(order['total_amount']).toStringAsFixed(0)}'),
             ])),
 
@@ -685,9 +856,121 @@ class OrderDetailScreen extends StatelessWidget {
                    Text('₹${(asDouble(item['price']) * asInt(item['quantity'])).toStringAsFixed(0)}', style: p(14, w: FontWeight.w800, color: C.t1)),
                 ])),
               );
-            }).toList(),
+            }),
           ])),
         ),
+      ]),
+    );
+  }
+}
+
+class _BillSheet extends StatelessWidget {
+  final Map<String, dynamic> order;
+  final List<dynamic> items;
+  final double subtotal, gstAmt, total;
+  final bool applyGst, isUP;
+  final int gstRate;
+  final String Function(String) cleanAddr;
+
+  const _BillSheet({
+    required this.order, required this.items,
+    required this.subtotal, required this.gstAmt, required this.total,
+    required this.applyGst, required this.isUP, required this.gstRate,
+    required this.cleanAddr,
+  });
+
+  Widget _row(String label, String value, {bool bold = false, Color? color}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: p(13, w: bold ? FontWeight.w800 : FontWeight.w500, color: color ?? C.t2)),
+      Text(value, style: p(13, w: bold ? FontWeight.w900 : FontWeight.w600, color: color ?? C.t1)),
+    ]),
+  );
+
+  @override
+  Widget build(BuildContext ctx) {
+    final dateStr = asStr(order['createdAt'] ?? order['created_at'], '');
+    final gstin = asStr(order['billing_gstin'], '');
+    final bizName = asStr(order['billing_business_name'], '');
+
+    return Container(
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).padding.bottom + 24),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Handle
+        Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(99)))),
+        const SizedBox(height: 20),
+
+        // Header
+        Row(children: [
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: C.forest.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.receipt_long_rounded, color: C.forest, size: 22)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Tax Invoice', style: p(16, w: FontWeight.w900, color: C.t1)),
+            Text('GharKaMali — GSTIN: 09AAAAA0000A1Z5', style: p(10, color: C.t3)),
+          ])),
+        ]),
+        const SizedBox(height: 20),
+        const Divider(height: 1),
+        const SizedBox(height: 16),
+
+        // Customer / order meta
+        if (bizName.isNotEmpty) Text(bizName, style: p(14, w: FontWeight.w800, color: C.t1)),
+        if (gstin.isNotEmpty) Text('GSTIN: $gstin', style: p(12, color: C.t3)),
+        const SizedBox(height: 4),
+        Text('Order: ${asStr(order['order_number'], '#${order['id']}')}', style: p(12, color: C.t3)),
+        Text('Date: ${dateStr.length >= 10 ? dateStr.substring(0, 10) : '—'}', style: p(12, color: C.t3)),
+        Text('Supply to: ${isUP ? 'Uttar Pradesh (Intra-state)' : 'Inter-state'}', style: p(12, color: C.t3)),
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+
+        // Items
+        ...items.map((i) {
+          final item = asMap(i);
+          final product = asMap(item['product']);
+          final lineTotal = asDouble(item['price']) * asInt(item['quantity']);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(asStr(product['name'] ?? item['product_name']), style: p(13, w: FontWeight.w700, color: C.t1)),
+                Text('${item['quantity']} x ₹${asDouble(item['price']).toStringAsFixed(2)}', style: p(11, color: C.t3)),
+              ])),
+              Text('₹${lineTotal.toStringAsFixed(2)}', style: p(13, w: FontWeight.w700)),
+            ]),
+          );
+        }),
+
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+
+        // Totals
+        _row('Subtotal', '₹${subtotal.toStringAsFixed(2)}'),
+        if (applyGst && gstAmt > 0) ...[
+          if (isUP) ...[
+            _row('SGST @ ${gstRate ~/ 2}%', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
+            _row('CGST @ ${gstRate ~/ 2}%', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
+          ] else
+            _row('IGST @ $gstRate%', '₹${gstAmt.toStringAsFixed(2)}', color: C.forest),
+        ],
+        const Divider(height: 24),
+        _row('Total', '₹${total.toStringAsFixed(2)}', bold: true, color: C.green),
+
+        if (!applyGst || gstAmt == 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+            child: Text('GST was not claimed for this order. To get a GST invoice, enable the GST option at checkout.', style: p(11, color: Colors.orange.shade800)),
+          ),
+        ],
+
+        const SizedBox(height: 20),
+        // Footer note
+        Center(child: Text('This is a computer-generated invoice.\nCIN: U01500UP2024PTC000001', style: p(10, color: C.t4), textAlign: TextAlign.center)),
       ]),
     );
   }

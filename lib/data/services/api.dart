@@ -296,6 +296,10 @@ class Api {
     required double lng,
     String paymentMethod = 'wallet',
     int? zoneId,
+    bool applyGst = false,
+    String? shippingState,
+    String? billingGstin,
+    String? billingBusinessName,
   }) => req('POST', '/shop/orders', body: {
     'items': items,
     'shipping_address': shippingAddress,
@@ -306,6 +310,10 @@ class Api {
     'payment_method': paymentMethod,
     if (zoneId != null) 'zone_id': zoneId,
     if (zoneId != null) 'geofence_id': zoneId,
+    'apply_gst': applyGst,
+    if (applyGst && shippingState != null) 'shipping_state': shippingState,
+    if (applyGst && billingGstin != null && billingGstin.isNotEmpty) 'billing_gstin': billingGstin,
+    if (applyGst && billingBusinessName != null && billingBusinessName.isNotEmpty) 'billing_business_name': billingBusinessName,
   });
 
   Future<dynamic> getMyShopOrders({int page = 1, int limit = 10}) =>
