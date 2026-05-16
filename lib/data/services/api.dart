@@ -354,20 +354,61 @@ class Api {
   Future<dynamic> markNotificationRead(int id) => req('PUT', '/notifications/$id/read');
   Future<dynamic> markAllNotificationsRead() => req('PUT', '/notifications/read-all');
 
-  // ─── COMPLAINTS ───────────────────────────────────────────────────────────
+  // ─── COMPLAINTS / TICKETING ──────────────────────────────────────────────
   Future<dynamic> createComplaint({
     required String type,
     required String description,
     int? bookingId,
     String priority = 'medium',
-  }) => req('POST', '/complaints', body: {
-    'type': type,
-    'description': description,
-    'priority': priority,
-    if (bookingId != null) 'booking_id': bookingId,
-  });
+    String? subject,
+    int? departmentId,
+    List<File>? attachments,
+  }) async {
+    final headers = await _headers(auth: true, isJson: false);
+    final r = http.MultipartRequest('POST', Uri.parse('$kBase/complaints'))
+      ..headers.addAll(headers)
+      ..fields['type'] = type
+      ..fields['description'] = description
+      ..fields['priority'] = priority;
+    if (bookingId != null) r.fields['booking_id'] = '$bookingId';
+    if (subject != null && subject.isNotEmpty) r.fields['subject'] = subject;
+    if (departmentId != null) r.fields['department_id'] = '$departmentId';
+    if (attachments != null) {
+      for (final f in attachments) {
+        r.files.add(await http.MultipartFile.fromPath('attachments', f.path));
+      }
+    }
+    final stream = await r.send().timeout(const Duration(seconds: 40));
+    final res = await http.Response.fromStream(stream);
+    final json = jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 200 && res.statusCode < 300) return json is Map && json.containsKey('data') ? json['data'] : json;
+    throw ApiError(json is Map ? (json['message'] ?? 'Failed') : 'Failed', res.statusCode);
+  }
 
   Future<dynamic> getMyComplaints() => req('GET', '/complaints/my');
+  Future<dynamic> getComplaintDetail(int id) => req('GET', '/complaints/$id');
+  Future<dynamic> getComplaintDepartments() => req('GET', '/complaints/departments');
+
+  Future<dynamic> addComplaintComment({
+    required int complaintId,
+    String? comment,
+    List<File>? attachments,
+  }) async {
+    final headers = await _headers(auth: true, isJson: false);
+    final r = http.MultipartRequest('POST', Uri.parse('$kBase/complaints/$complaintId/comments'))
+      ..headers.addAll(headers);
+    if (comment != null && comment.isNotEmpty) r.fields['comment'] = comment;
+    if (attachments != null) {
+      for (final f in attachments) {
+        r.files.add(await http.MultipartFile.fromPath('attachments', f.path));
+      }
+    }
+    final stream = await r.send().timeout(const Duration(seconds: 40));
+    final res = await http.Response.fromStream(stream);
+    final json = jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 200 && res.statusCode < 300) return json is Map && json.containsKey('data') ? json['data'] : json;
+    throw ApiError(json is Map ? (json['message'] ?? 'Failed') : 'Failed', res.statusCode);
+  }
 
   // ─── ADDRESSES ────────────────────────────────────────────────────────────
   Future<dynamic> getMyAddresses() => req('GET', '/addresses');
