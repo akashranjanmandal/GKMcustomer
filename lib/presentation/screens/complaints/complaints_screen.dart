@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
+import '../../../utils/validators.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import 'complaint_detail_screen.dart';
@@ -199,10 +200,12 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
   void dispose() { _descCtrl.dispose(); _bookingCtrl.dispose(); super.dispose(); }
 
   Future<void> _submit() async {
-    if (_bookingCtrl.text.trim().isEmpty) { showMsg(context, 'Order ID is required', err: true); return; }
-    final bookingId = int.tryParse(_bookingCtrl.text.trim());
-    if (bookingId == null) { showMsg(context, 'Please enter a valid Order ID', err: true); return; }
-    if (_descCtrl.text.trim().isEmpty) { showMsg(context, 'Please describe your issue', err: true); return; }
+    final err = Validators.firstError([
+      Validators.integer(_bookingCtrl.text, field: 'Order ID', min: 1),
+      Validators.text(_descCtrl.text, field: 'Description', min: 5, max: 2000),
+    ]);
+    if (err != null) { showMsg(context, err, err: true); return; }
+    final bookingId = int.parse(_bookingCtrl.text.trim());
     setState(() => _submitting = true);
     try {
       await widget.api.createComplaint(

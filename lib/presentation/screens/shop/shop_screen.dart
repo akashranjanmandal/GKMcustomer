@@ -745,14 +745,24 @@ class OrderDetailScreen extends StatelessWidget {
     final items = asList(order['items']);
     final gstAmt = asDouble(order['gst_amount']);
     final total = asDouble(order['total_amount']);
-    final subtotal = total - gstAmt;
+    // Real product subtotal from line items — NOT total - gstAmt (services break that).
+    double productSubtotal = 0;
+    for (final i in items) {
+      final m = asMap(i);
+      productSubtotal += asDouble(m['price']) * asInt(m['quantity']);
+    }
+    // Anything left (total - products - GST) belongs to service bookings on the order.
+    final serviceTotal = (total - productSubtotal - gstAmt).clamp(0, double.infinity).toDouble();
     final applyGst = order['apply_gst'] == true || order['apply_gst'] == 1;
     final state = asStr(order['shipping_state'], '');
     final isUP = state.toLowerCase().contains('uttar') || state.toLowerCase() == 'up';
 
-    // Determine GST rate from first item's product
+    // Effective GST rate: prefer recomputing from gstAmt/productSubtotal so mixed-rate
+    // carts still render a sensible value. Fall back to first product's gst_rate.
     int gstRate = 0;
-    if (items.isNotEmpty) {
+    if (gstAmt > 0 && productSubtotal > 0) {
+      gstRate = ((gstAmt / productSubtotal) * 100).round();
+    } else if (items.isNotEmpty) {
       gstRate = asInt(asMap(asMap(items.first)['product'])['gst_rate']);
     }
 
@@ -763,7 +773,8 @@ class OrderDetailScreen extends StatelessWidget {
       builder: (_) => _BillSheet(
         order: order,
         items: items,
-        subtotal: subtotal,
+        subtotal: productSubtotal,
+        serviceTotal: serviceTotal,
         gstAmt: gstAmt,
         total: total,
         applyGst: applyGst,
@@ -829,7 +840,13 @@ class OrderDetailScreen extends StatelessWidget {
               GDetailRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: dateStr.length >= 10 ? dateStr.substring(0,10) : '—'),
               GDetailRow(icon: Icons.payments_rounded, label: 'METHOD', value: asStr(order['payment_method'], 'COD').toUpperCase()),
               if (applyGst && gstAmt > 0) ...[
-                GDetailRow(icon: Icons.inventory_2_rounded, label: 'SUBTOTAL', value: '₹${(asDouble(order['total_amount']) - gstAmt).toStringAsFixed(0)}'),
+                GDetailRow(
+                  icon: Icons.inventory_2_rounded, label: 'SUBTOTAL',
+                  value: '₹${items.fold<double>(0, (acc, it) {
+                    final m = asMap(it);
+                    return acc + asDouble(m['price']) * asInt(m['quantity']);
+                  }).toStringAsFixed(0)}',
+                ),
                 if (isUP) ...[
                   GDetailRow(icon: Icons.percent_rounded, label: 'SGST', value: '₹${(gstAmt / 2).toStringAsFixed(2)}'),
                   GDetailRow(icon: Icons.percent_rounded, label: 'CGST', value: '₹${(gstAmt / 2).toStringAsFixed(2)}'),
@@ -867,14 +884,15 @@ class OrderDetailScreen extends StatelessWidget {
 class _BillSheet extends StatelessWidget {
   final Map<String, dynamic> order;
   final List<dynamic> items;
-  final double subtotal, gstAmt, total;
+  final double subtotal, serviceTotal, gstAmt, total;
   final bool applyGst, isUP;
   final int gstRate;
   final String Function(String) cleanAddr;
 
   const _BillSheet({
     required this.order, required this.items,
-    required this.subtotal, required this.gstAmt, required this.total,
+    required this.subtotal, required this.serviceTotal,
+    required this.gstAmt, required this.total,
     required this.applyGst, required this.isUP, required this.gstRate,
     required this.cleanAddr,
   });
@@ -948,13 +966,14 @@ class _BillSheet extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Totals
-        _row('Subtotal', '₹${subtotal.toStringAsFixed(2)}'),
+        _row('Products subtotal', '₹${subtotal.toStringAsFixed(2)}'),
+        if (serviceTotal > 0) _row('Services / Mali booking', '₹${serviceTotal.toStringAsFixed(2)}'),
         if (applyGst && gstAmt > 0) ...[
           if (isUP) ...[
-            _row('SGST @ ${gstRate ~/ 2}%', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
-            _row('CGST @ ${gstRate ~/ 2}%', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
+            _row('SGST${gstRate > 0 ? ' @ ${(gstRate / 2).toStringAsFixed(gstRate.isOdd ? 1 : 0)}%' : ''}', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
+            _row('CGST${gstRate > 0 ? ' @ ${(gstRate / 2).toStringAsFixed(gstRate.isOdd ? 1 : 0)}%' : ''}', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
           ] else
-            _row('IGST @ $gstRate%', '₹${gstAmt.toStringAsFixed(2)}', color: C.forest),
+            _row('IGST${gstRate > 0 ? ' @ $gstRate%' : ''}', '₹${gstAmt.toStringAsFixed(2)}', color: C.forest),
         ],
         const Divider(height: 24),
         _row('Total', '₹${total.toStringAsFixed(2)}', bold: true, color: C.green),
