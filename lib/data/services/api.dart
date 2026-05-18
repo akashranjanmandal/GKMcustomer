@@ -225,6 +225,13 @@ class Api {
   Future<dynamic> checkAvailability({required String date, required int geofenceId}) =>
       req('GET', '/bookings/check-availability', query: {'date': date, 'geofence_id': geofenceId.toString()});
 
+  // Time-extension addon (on-demand only). Block size + price are zone-configured.
+  Future<dynamic> getTimeAddons(int bookingId) =>
+      req('GET', '/bookings/$bookingId/time-addons');
+
+  Future<dynamic> requestTimeAddon(int bookingId, {int blocks = 1}) =>
+      req('POST', '/bookings/$bookingId/time-addon', body: {'blocks': blocks});
+
   Future<dynamic> rescheduleBooking(int bookingId, String newDate, {String? newTime}) =>
       req('POST', '/payments/reschedule', body: {
         'booking_id': bookingId,

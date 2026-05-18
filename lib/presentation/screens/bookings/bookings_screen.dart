@@ -180,7 +180,8 @@ class _BkDetailState extends State<BookingDetailScreen> {
   final _api = Api();
   Map<String, dynamic>? _bk;
   List<dynamic> _addons = [];
-  bool _loading = true, _cancelling = false, _rating = false;
+  Map<String, dynamic>? _timeAddonInfo;
+  bool _loading = true, _cancelling = false, _rating = false, _addingTime = false;
   Timer? _timer;
   int _stars = 5;
   final _reviewCtrl = TextEditingController();
@@ -233,7 +234,51 @@ class _BkDetailState extends State<BookingDetailScreen> {
       List<dynamic> addons = asList(results[1]);
       if (addons.isEmpty) addons = _extractAddons(bk);
       setState(() { _bk = bk; _addons = addons; _loading = false; });
+      _maybeLoadTimeAddon();
     } catch (_) { if (mounted && !quiet) setState(() => _loading = false); }
+  }
+
+  bool get _timeAddonEligible {
+    final bk = _bk;
+    if (bk == null) return false;
+    // Only after the customer has shared the OTP and the visit has started.
+    return asStr(bk['booking_type'], '') == 'ondemand'
+        && _status == 'in_progress'
+        && bk['otp_verified'] == true;
+  }
+
+  Future<void> _maybeLoadTimeAddon() async {
+    if (!_timeAddonEligible) {
+      if (_timeAddonInfo != null) setState(() => _timeAddonInfo = null);
+      return;
+    }
+    try {
+      final res = await _api.getTimeAddons(widget.id);
+      if (!mounted) return;
+      setState(() => _timeAddonInfo = asMap(res));
+    } catch (_) {}
+  }
+
+  Future<void> _addTime() async {
+    final cfg = asMap(_timeAddonInfo?['config']);
+    final mins = asInt(cfg['block_minutes']);
+    final price = asDouble(cfg['block_price']);
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('Add ${mins} minutes?', style: p(17, w: FontWeight.w700, color: C.t1)),
+      content: Text('₹${price.toStringAsFixed(0)} will be added to this visit. The gardener will be notified.', style: p(14, color: C.t3)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: p(14, color: C.t3))),
+        TextButton(onPressed: () => Navigator.pop(context, true),  child: Text('Confirm', style: p(14, w: FontWeight.w700, color: C.forest))),
+      ]));
+    if (ok != true) return;
+    setState(() => _addingTime = true);
+    try {
+      final res = asMap(await _api.requestTimeAddon(widget.id));
+      if (mounted) showMsg(context, asStr(res['message'], 'Extra time added'), ok: true);
+      await _load(quiet: true);
+    } on ApiError catch (e) { if (mounted) showMsg(context, e.message, err: true); }
+    finally { if (mounted) setState(() => _addingTime = false); }
   }
 
   String get _status => asStr(_bk?['status'], 'pending');
@@ -406,6 +451,16 @@ class _BkDetailState extends State<BookingDetailScreen> {
               ])).animate().fadeIn(delay: 80.ms),
             ],
 
+            // Time-extension addon — only after customer has shared OTP & visit started
+            if (_timeAddonEligible && _timeAddonInfo != null) ...[
+              const SizedBox(height: 12),
+              _TimeAddonCard(
+                info: _timeAddonInfo!,
+                loading: _addingTime,
+                onAdd: _addTime,
+              ).animate().fadeIn(delay: 90.ms),
+            ],
+
             // Visit report (before/after photos + checklist)
             if (_status == 'completed') ...[
               const SizedBox(height: 12),
@@ -442,6 +497,66 @@ class _BkDetailState extends State<BookingDetailScreen> {
         ),
       ]),
     );
+  }
+}
+
+// ─── Time-Extension Addon Card ────────────────────────────────────────────────
+class _TimeAddonCard extends StatelessWidget {
+  final Map<String, dynamic> info;
+  final bool loading;
+  final VoidCallback onAdd;
+  const _TimeAddonCard({required this.info, required this.loading, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = asMap(info['config']);
+    final totals = asMap(info['totals']);
+    final configured = cfg['configured'] == true;
+    final mins = asInt(cfg['block_minutes']);
+    final price = asDouble(cfg['block_price']);
+    final extraMins = asInt(totals['extra_time_minutes']);
+    final extraAmt = asDouble(totals['extra_time_amount']);
+
+    if (!configured) {
+      return GCard(padding: const EdgeInsets.all(16), child: Row(children: [
+        const Icon(Icons.access_time_rounded, size: 18, color: C.t4),
+        const SizedBox(width: 10),
+        Expanded(child: Text('Time extensions are not available in this zone.',
+            style: p(12, color: C.t3))),
+      ]));
+    }
+
+    return GCard(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.access_time_rounded, size: 18, color: C.forest),
+        const SizedBox(width: 8),
+        Text('NEED MORE TIME?', style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.8)),
+      ]),
+      const SizedBox(height: 10),
+      Text('Extend this visit in blocks of $mins min at ₹${price.toStringAsFixed(0)} per block.',
+          style: p(13, color: C.t2, h: 1.4)),
+      if (extraMins > 0) ...[
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: C.forest.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            const Icon(Icons.check_circle_outline_rounded, size: 14, color: C.forest),
+            const SizedBox(width: 6),
+            Text('Already added: $extraMins min  •  +₹${extraAmt.toStringAsFixed(0)}',
+                style: p(12, w: FontWeight.w600, color: C.forest)),
+          ])),
+      ],
+      const SizedBox(height: 14),
+      GBtn(
+        label: '+ Add $mins min  (₹${price.toStringAsFixed(0)})',
+        icon: Icons.add_rounded,
+        gold: true,
+        loading: loading,
+        onTap: onAdd),
+    ]));
   }
 }
 
