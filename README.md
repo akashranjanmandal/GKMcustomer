@@ -6,6 +6,7 @@ cd gkm_customer_app
 flutter pub get
 flutter run
 ```
+IMP: Change one line in booking.controller.js — replace DEFAULT_INSTANT_ETA_MINUTES reads with a per-gardener calculation (e.g. Haversine distance from gardener's last BookingTracking ping to the customer's lat/lng, divided by an assumed avg speed). Everything downstream — the customer UI, the is_instant flag, the 409 fallback — keeps working unchanged.
 
 ## Architecture
 ```

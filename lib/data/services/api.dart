@@ -162,13 +162,15 @@ class Api {
       req('POST', '/bookings/$bookingId/addons', body: {'addon_ids': addonIds});
 
   // ─── BOOKINGS ────────────────────────────────────────────────────────────
+  // Instant booking — server picks today + (now + zone.instant_eta_minutes).
+  // Pass `isInstant: true` and omit scheduledDate/Time; backend will compute them.
   Future<dynamic> createBooking({
     required int zoneId,
-    required String scheduledDate,
+    String? scheduledDate,
     required String serviceAddress,
     required double lat,
     required double lng,
-    String? flatNo, String? building, String? area, String? landmark, 
+    String? flatNo, String? building, String? area, String? landmark,
     String? city, String? state, String? pincode,
     String? scheduledTime,
     int? plantCount,
@@ -177,13 +179,15 @@ class Api {
     List<Map<String, dynamic>>? addons,
     double? totalAmount,
     int? geofenceId,
+    bool isInstant = false,
   }) => req('POST', '/bookings', body: {
     'zone_id': zoneId,
     'geofence_id': geofenceId ?? zoneId,
-    'scheduled_date': scheduledDate,
     'service_address': serviceAddress,
     'service_latitude': lat,
     'service_longitude': lng,
+    'is_instant': isInstant,
+    if (!isInstant && scheduledDate != null) 'scheduled_date': scheduledDate,
     if (flatNo != null) 'flat_no': flatNo,
     if (building != null) 'building': building,
     if (area != null) 'area': area,
@@ -191,13 +195,17 @@ class Api {
     if (city != null) 'city': city,
     if (state != null) 'state': state,
     if (pincode != null) 'pincode': pincode,
-    if (scheduledTime != null) 'scheduled_time': scheduledTime,
+    if (!isInstant && scheduledTime != null) 'scheduled_time': scheduledTime,
     if (plantCount != null) 'plant_count': plantCount,
     if (preferredGardenerId != null) 'preferred_gardener_id': preferredGardenerId,
     if (customerNotes != null && customerNotes.isNotEmpty) 'customer_notes': customerNotes,
     if (addons != null) 'addons': addons,
     if (totalAmount != null) 'total_amount': totalAmount,
   });
+
+  // Check zone-configured instant ETA + whether any gardener is free right now.
+  Future<dynamic> getInstantAvailability(int geofenceId) =>
+      req('GET', '/bookings/instant-availability', query: {'geofence_id': '$geofenceId'});
 
   Future<dynamic> getMyBookings({String? status, int page = 1, int limit = 10}) =>
       req('GET', '/bookings/my', query: {
