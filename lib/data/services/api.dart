@@ -315,6 +315,7 @@ class Api {
     String? shippingState,
     String? billingGstin,
     String? billingBusinessName,
+    String? couponCode,
   }) => req('POST', '/shop/orders', body: {
     'items': items,
     'shipping_address': shippingAddress,
@@ -329,7 +330,17 @@ class Api {
     if (applyGst && shippingState != null) 'shipping_state': shippingState,
     if (applyGst && billingGstin != null && billingGstin.isNotEmpty) 'billing_gstin': billingGstin,
     if (applyGst && billingBusinessName != null && billingBusinessName.isNotEmpty) 'billing_business_name': billingBusinessName,
+    if (couponCode != null && couponCode.isNotEmpty) 'coupon_code': couponCode,
   });
+
+  // ─── COUPONS ──────────────────────────────────────────────────────────────
+  // On success returns { code, discount_amount, ... }; on a (200) validation
+  // failure returns the { success:false, message } envelope.
+  Future<dynamic> validateCoupon(String code, double subtotal) =>
+      req('POST', '/coupons/validate', body: {'code': code, 'subtotal': subtotal});
+
+  // Coupons the customer can currently apply (returns a list).
+  Future<dynamic> getAvailableCoupons() => req('GET', '/coupons');
 
   Future<dynamic> getMyShopOrders({int page = 1, int limit = 10}) =>
       req('GET', '/shop/orders/my', query: {'page': '$page', 'limit': '$limit'});
