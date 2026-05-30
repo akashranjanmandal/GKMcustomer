@@ -531,6 +531,23 @@ class _OtpScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Enter the 6-digit code sent to +91 $phone',
                 style: p(14, color: Colors.black54)),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: onBack,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: C.forest.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: C.forest.withValues(alpha: 0.18), width: 1.2),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.chevron_left, size: 16, color: C.forest),
+                  const SizedBox(width: 4),
+                  Text('Change number', style: p(13, w: FontWeight.w700, color: C.forest)),
+                ]),
+              ),
+            ),
             const SizedBox(height: 48),
             Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

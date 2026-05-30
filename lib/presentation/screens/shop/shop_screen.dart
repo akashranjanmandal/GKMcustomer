@@ -105,7 +105,7 @@ class _ShopState extends State<ShopScreen> {
                   ),
           )),
         ]),
-        if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total),
+        if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total, cart.items.length),
       ]),
     );
   }
@@ -196,7 +196,7 @@ class _ShopState extends State<ShopScreen> {
     ]),
   );
 
-  Widget _buildCartBar(BuildContext ctx, int count, double total) => Positioned(left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
+  Widget _buildCartBar(BuildContext ctx, int count, double total, int distinct) => Positioned(left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
     child: GestureDetector(
       onTap: () {
         final cart = context.read<CartProvider>();
@@ -213,7 +213,7 @@ class _ShopState extends State<ShopScreen> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: Text('$count', style: p(14, w: FontWeight.w900, color: Colors.white))),
           const SizedBox(width: 12),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$count item${count == 1 ? '' : 's'} in cart', style: p(14, w: FontWeight.w800, color: Colors.white)),
+            Text(distinct == count ? '$count item${count == 1 ? '' : 's'} in cart' : '$distinct product${distinct == 1 ? '' : 's'} · $count items', style: p(14, w: FontWeight.w800, color: Colors.white)),
             Text('₹${total.toStringAsFixed(0)} total', style: p(11, color: Colors.white70)),
           ])),
           Container(
