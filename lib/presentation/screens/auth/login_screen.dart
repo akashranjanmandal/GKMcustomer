@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../data/services/api.dart';
+import '../../../utils/validators.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 
@@ -48,9 +49,9 @@ class _LoginState extends State<LoginScreen> {
   }
 
   Future<void> _sendOtp() async {
-    final p = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
-    if (p.length != 10)
-      return showMsg(context, 'Enter a valid 10-digit number', err: true);
+    final phoneErr = Validators.phone(_phoneCtrl.text);
+    if (phoneErr != null) return showMsg(context, phoneErr, err: true);
+    final p = Validators.normalizePhone(_phoneCtrl.text);
     setState(() => _busy = true);
     try {
       await _api.sendOtp(p);
@@ -69,10 +70,10 @@ class _LoginState extends State<LoginScreen> {
   }
 
   Future<void> _verifyOtp() async {
-    final p = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     final code = _otpCtrls.map((c) => c.text).join();
-    if (code.length != 6)
-      return showMsg(context, 'Enter 6-digit OTP', err: true);
+    final otpErr = Validators.otp(code, min: 6, max: 6);
+    if (otpErr != null) return showMsg(context, otpErr, err: true);
+    final p = Validators.normalizePhone(_phoneCtrl.text);
     setState(() => _busy = true);
     try {
       final res = await _api.verifyOtp(p, code);
@@ -94,11 +95,12 @@ class _LoginState extends State<LoginScreen> {
   }
 
   Future<void> _submitName() async {
+    final nameErr = Validators.name(_nameCtrl.text);
+    if (nameErr != null) return showMsg(context, nameErr, err: true);
     final n = _nameCtrl.text.trim();
-    if (n.isEmpty) return showMsg(context, 'Enter your name', err: true);
     setState(() => _busy = true);
     try {
-      final p = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
+      final p = Validators.normalizePhone(_phoneCtrl.text);
       final code = _otpCtrls.map((c) => c.text).join();
       await _api.verifyOtp(p, code, name: n);
       if (mounted) widget.onLoggedIn();
@@ -529,6 +531,23 @@ class _OtpScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Enter the 6-digit code sent to +91 $phone',
                 style: p(14, color: Colors.black54)),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: onBack,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: C.forest.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: C.forest.withValues(alpha: 0.18), width: 1.2),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.chevron_left, size: 16, color: C.forest),
+                  const SizedBox(width: 4),
+                  Text('Change number', style: p(13, w: FontWeight.w700, color: C.forest)),
+                ]),
+              ),
+            ),
             const SizedBox(height: 48),
             Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

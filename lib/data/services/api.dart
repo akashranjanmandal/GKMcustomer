@@ -162,13 +162,15 @@ class Api {
       req('POST', '/bookings/$bookingId/addons', body: {'addon_ids': addonIds});
 
   // ─── BOOKINGS ────────────────────────────────────────────────────────────
+  // Instant booking — server picks today + (now + zone.instant_eta_minutes).
+  // Pass `isInstant: true` and omit scheduledDate/Time; backend will compute them.
   Future<dynamic> createBooking({
     required int zoneId,
-    required String scheduledDate,
+    String? scheduledDate,
     required String serviceAddress,
     required double lat,
     required double lng,
-    String? flatNo, String? building, String? area, String? landmark, 
+    String? flatNo, String? building, String? area, String? landmark,
     String? city, String? state, String? pincode,
     String? scheduledTime,
     int? plantCount,
@@ -177,13 +179,15 @@ class Api {
     List<Map<String, dynamic>>? addons,
     double? totalAmount,
     int? geofenceId,
+    bool isInstant = false,
   }) => req('POST', '/bookings', body: {
     'zone_id': zoneId,
     'geofence_id': geofenceId ?? zoneId,
-    'scheduled_date': scheduledDate,
     'service_address': serviceAddress,
     'service_latitude': lat,
     'service_longitude': lng,
+    'is_instant': isInstant,
+    if (!isInstant && scheduledDate != null) 'scheduled_date': scheduledDate,
     if (flatNo != null) 'flat_no': flatNo,
     if (building != null) 'building': building,
     if (area != null) 'area': area,
@@ -191,13 +195,17 @@ class Api {
     if (city != null) 'city': city,
     if (state != null) 'state': state,
     if (pincode != null) 'pincode': pincode,
-    if (scheduledTime != null) 'scheduled_time': scheduledTime,
+    if (!isInstant && scheduledTime != null) 'scheduled_time': scheduledTime,
     if (plantCount != null) 'plant_count': plantCount,
     if (preferredGardenerId != null) 'preferred_gardener_id': preferredGardenerId,
     if (customerNotes != null && customerNotes.isNotEmpty) 'customer_notes': customerNotes,
     if (addons != null) 'addons': addons,
     if (totalAmount != null) 'total_amount': totalAmount,
   });
+
+  // Check zone-configured instant ETA + whether any gardener is free right now.
+  Future<dynamic> getInstantAvailability(int geofenceId) =>
+      req('GET', '/bookings/instant-availability', query: {'geofence_id': '$geofenceId'});
 
   Future<dynamic> getMyBookings({String? status, int page = 1, int limit = 10}) =>
       req('GET', '/bookings/my', query: {
@@ -224,6 +232,13 @@ class Api {
 
   Future<dynamic> checkAvailability({required String date, required int geofenceId}) =>
       req('GET', '/bookings/check-availability', query: {'date': date, 'geofence_id': geofenceId.toString()});
+
+  // Time-extension addon (on-demand only). Block size + price are zone-configured.
+  Future<dynamic> getTimeAddons(int bookingId) =>
+      req('GET', '/bookings/$bookingId/time-addons');
+
+  Future<dynamic> requestTimeAddon(int bookingId, {int blocks = 1}) =>
+      req('POST', '/bookings/$bookingId/time-addon', body: {'blocks': blocks});
 
   Future<dynamic> rescheduleBooking(int bookingId, String newDate, {String? newTime}) =>
       req('POST', '/payments/reschedule', body: {
@@ -300,6 +315,7 @@ class Api {
     String? shippingState,
     String? billingGstin,
     String? billingBusinessName,
+    String? couponCode,
   }) => req('POST', '/shop/orders', body: {
     'items': items,
     'shipping_address': shippingAddress,
@@ -314,7 +330,17 @@ class Api {
     if (applyGst && shippingState != null) 'shipping_state': shippingState,
     if (applyGst && billingGstin != null && billingGstin.isNotEmpty) 'billing_gstin': billingGstin,
     if (applyGst && billingBusinessName != null && billingBusinessName.isNotEmpty) 'billing_business_name': billingBusinessName,
+    if (couponCode != null && couponCode.isNotEmpty) 'coupon_code': couponCode,
   });
+
+  // ─── COUPONS ──────────────────────────────────────────────────────────────
+  // On success returns { code, discount_amount, ... }; on a (200) validation
+  // failure returns the { success:false, message } envelope.
+  Future<dynamic> validateCoupon(String code, double subtotal) =>
+      req('POST', '/coupons/validate', body: {'code': code, 'subtotal': subtotal});
+
+  // Coupons the customer can currently apply (returns a list).
+  Future<dynamic> getAvailableCoupons() => req('GET', '/coupons');
 
   Future<dynamic> getMyShopOrders({int page = 1, int limit = 10}) =>
       req('GET', '/shop/orders/my', query: {'page': '$page', 'limit': '$limit'});
@@ -354,20 +380,61 @@ class Api {
   Future<dynamic> markNotificationRead(int id) => req('PUT', '/notifications/$id/read');
   Future<dynamic> markAllNotificationsRead() => req('PUT', '/notifications/read-all');
 
-  // ─── COMPLAINTS ───────────────────────────────────────────────────────────
+  // ─── COMPLAINTS / TICKETING ──────────────────────────────────────────────
   Future<dynamic> createComplaint({
     required String type,
     required String description,
     int? bookingId,
     String priority = 'medium',
-  }) => req('POST', '/complaints', body: {
-    'type': type,
-    'description': description,
-    'priority': priority,
-    if (bookingId != null) 'booking_id': bookingId,
-  });
+    String? subject,
+    int? departmentId,
+    List<File>? attachments,
+  }) async {
+    final headers = await _headers(auth: true, isJson: false);
+    final r = http.MultipartRequest('POST', Uri.parse('$kBase/complaints'))
+      ..headers.addAll(headers)
+      ..fields['type'] = type
+      ..fields['description'] = description
+      ..fields['priority'] = priority;
+    if (bookingId != null) r.fields['booking_id'] = '$bookingId';
+    if (subject != null && subject.isNotEmpty) r.fields['subject'] = subject;
+    if (departmentId != null) r.fields['department_id'] = '$departmentId';
+    if (attachments != null) {
+      for (final f in attachments) {
+        r.files.add(await http.MultipartFile.fromPath('attachments', f.path));
+      }
+    }
+    final stream = await r.send().timeout(const Duration(seconds: 40));
+    final res = await http.Response.fromStream(stream);
+    final json = jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 200 && res.statusCode < 300) return json is Map && json.containsKey('data') ? json['data'] : json;
+    throw ApiError(json is Map ? (json['message'] ?? 'Failed') : 'Failed', res.statusCode);
+  }
 
   Future<dynamic> getMyComplaints() => req('GET', '/complaints/my');
+  Future<dynamic> getComplaintDetail(int id) => req('GET', '/complaints/$id');
+  Future<dynamic> getComplaintDepartments() => req('GET', '/complaints/departments');
+
+  Future<dynamic> addComplaintComment({
+    required int complaintId,
+    String? comment,
+    List<File>? attachments,
+  }) async {
+    final headers = await _headers(auth: true, isJson: false);
+    final r = http.MultipartRequest('POST', Uri.parse('$kBase/complaints/$complaintId/comments'))
+      ..headers.addAll(headers);
+    if (comment != null && comment.isNotEmpty) r.fields['comment'] = comment;
+    if (attachments != null) {
+      for (final f in attachments) {
+        r.files.add(await http.MultipartFile.fromPath('attachments', f.path));
+      }
+    }
+    final stream = await r.send().timeout(const Duration(seconds: 40));
+    final res = await http.Response.fromStream(stream);
+    final json = jsonDecode(utf8.decode(res.bodyBytes));
+    if (res.statusCode >= 200 && res.statusCode < 300) return json is Map && json.containsKey('data') ? json['data'] : json;
+    throw ApiError(json is Map ? (json['message'] ?? 'Failed') : 'Failed', res.statusCode);
+  }
 
   // ─── ADDRESSES ────────────────────────────────────────────────────────────
   Future<dynamic> getMyAddresses() => req('GET', '/addresses');

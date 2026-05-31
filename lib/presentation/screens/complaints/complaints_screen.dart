@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
+import '../../../utils/validators.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
+import 'complaint_detail_screen.dart';
 
 class ComplaintsScreen extends StatefulWidget {
   const ComplaintsScreen({super.key});
@@ -75,9 +77,21 @@ class _ComplaintsState extends State<ComplaintsScreen> {
             : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 itemCount: _complaints.length,
-                itemBuilder: (_, i) => _ComplaintCard(c: _complaints[i])
-                  .animate().fadeIn(delay: Duration(milliseconds: i * 40))
-                  .slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 40))),
+                itemBuilder: (_, i) {
+                  final c = _complaints[i] as Map<String, dynamic>;
+                  final cid = c['id'] is int ? c['id'] as int : int.tryParse('${c['id']}') ?? 0;
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () async {
+                      await Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => ComplaintDetailScreen(complaintId: cid)));
+                      _load();
+                    },
+                    child: _ComplaintCard(c: c)
+                      .animate().fadeIn(delay: Duration(milliseconds: i * 40))
+                      .slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 40)),
+                  );
+                }),
       ),
     ),
   );
@@ -115,7 +129,8 @@ class _ComplaintCard extends StatelessWidget {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(type.replaceAll('_', ' ').toUpperCase(),
                 style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.5)),
-              Text(asStr(c['id'] != null ? '#${c['id']}' : 'Complaint'), style: p(13, w: FontWeight.w700, color: C.t1)),
+              Text(asStr(c['subject'], asStr(c['ticket_number'], c['id'] != null ? '#${c['id']}' : 'Complaint')),
+                style: p(13, w: FontWeight.w700, color: C.t1), maxLines: 1, overflow: TextOverflow.ellipsis),
             ])),
             GBadge(status),
           ]),
@@ -185,10 +200,12 @@ class _NewComplaintSheetState extends State<_NewComplaintSheet> {
   void dispose() { _descCtrl.dispose(); _bookingCtrl.dispose(); super.dispose(); }
 
   Future<void> _submit() async {
-    if (_bookingCtrl.text.trim().isEmpty) { showMsg(context, 'Order ID is required', err: true); return; }
-    final bookingId = int.tryParse(_bookingCtrl.text.trim());
-    if (bookingId == null) { showMsg(context, 'Please enter a valid Order ID', err: true); return; }
-    if (_descCtrl.text.trim().isEmpty) { showMsg(context, 'Please describe your issue', err: true); return; }
+    final err = Validators.firstError([
+      Validators.integer(_bookingCtrl.text, field: 'Order ID', min: 1),
+      Validators.text(_descCtrl.text, field: 'Description', min: 5, max: 2000),
+    ]);
+    if (err != null) { showMsg(context, err, err: true); return; }
+    final bookingId = int.parse(_bookingCtrl.text.trim());
     setState(() => _submitting = true);
     try {
       await widget.api.createComplaint(

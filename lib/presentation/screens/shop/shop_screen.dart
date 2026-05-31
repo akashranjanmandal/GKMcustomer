@@ -105,7 +105,7 @@ class _ShopState extends State<ShopScreen> {
                   ),
           )),
         ]),
-        if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total),
+        if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total, cart.items.length),
       ]),
     );
   }
@@ -196,7 +196,7 @@ class _ShopState extends State<ShopScreen> {
     ]),
   );
 
-  Widget _buildCartBar(BuildContext ctx, int count, double total) => Positioned(left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
+  Widget _buildCartBar(BuildContext ctx, int count, double total, int distinct) => Positioned(left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
     child: GestureDetector(
       onTap: () {
         final cart = context.read<CartProvider>();
@@ -213,7 +213,7 @@ class _ShopState extends State<ShopScreen> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: Text('$count', style: p(14, w: FontWeight.w900, color: Colors.white))),
           const SizedBox(width: 12),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$count item${count == 1 ? '' : 's'} in cart', style: p(14, w: FontWeight.w800, color: Colors.white)),
+            Text(distinct == count ? '$count item${count == 1 ? '' : 's'} in cart' : '$distinct product${distinct == 1 ? '' : 's'} · $count items', style: p(14, w: FontWeight.w800, color: Colors.white)),
             Text('₹${total.toStringAsFixed(0)} total', style: p(11, color: Colors.white70)),
           ])),
           Container(
@@ -459,7 +459,50 @@ class _CheckoutPageState extends State<CheckoutPage> {
   final _gstinCtrl = TextEditingController();
   final _bizCtrl = TextEditingController();
 
-  @override void dispose() { _gstinCtrl.dispose(); _bizCtrl.dispose(); super.dispose(); }
+  // Discount coupon
+  final _couponCtrl = TextEditingController();
+  String? _appliedCode;
+  double _discount = 0;
+  String? _couponMsg;
+  bool _couponBusy = false;
+  List<dynamic> _availableCoupons = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCoupons();
+  }
+
+  Future<void> _loadCoupons() async {
+    try {
+      final res = await _api.getAvailableCoupons();
+      if (res is List && mounted) setState(() => _availableCoupons = res);
+    } catch (_) {/* non-critical */}
+  }
+
+  double get _subtotal => widget.cart.fold<double>(0.0, (s, e) => s + asDouble(asMap(e['product'])['price']) * asInt(e['qty']));
+
+  Future<void> _applyCoupon([String? codeArg]) async {
+    final code = (codeArg ?? _couponCtrl.text).trim().toUpperCase();
+    if (code.isEmpty) { setState(() => _couponMsg = 'Enter a coupon code'); return; }
+    setState(() { _couponBusy = true; _couponMsg = null; _couponCtrl.text = code; });
+    try {
+      final res = await _api.validateCoupon(code, _subtotal);
+      if (res is Map && res['code'] != null && res['discount_amount'] != null) {
+        setState(() { _appliedCode = asStr(res['code']); _discount = asDouble(res['discount_amount']); _couponMsg = null; });
+        if (mounted) showMsg(context, 'Coupon ${res['code']} applied', ok: true);
+      } else {
+        final msg = (res is Map ? asStr(res['message']) : '');
+        setState(() { _appliedCode = null; _discount = 0; _couponMsg = msg.isEmpty ? 'Invalid coupon code' : msg; });
+      }
+    } on ApiError catch (e) {
+      setState(() { _appliedCode = null; _discount = 0; _couponMsg = e.message; });
+    } finally { if (mounted) setState(() => _couponBusy = false); }
+  }
+
+  void _removeCoupon() => setState(() { _appliedCode = null; _discount = 0; _couponCtrl.clear(); _couponMsg = null; });
+
+  @override void dispose() { _gstinCtrl.dispose(); _bizCtrl.dispose(); _couponCtrl.dispose(); super.dispose(); }
 
   String _getImageUrl(Map<String, dynamic> prod) {
     if (prod['images'] is List && (prod['images'] as List).isNotEmpty) {
@@ -522,9 +565,26 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ]));
          }),
          const Divider(height: 48),
+
+         // ── Coupon ───────────────────────────────────────────────────────
+         _couponSection(),
+         const SizedBox(height: 20),
+
+         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+           Text('Subtotal', style: p(13, color: C.t2)),
+           Text('₹${totalValue.toStringAsFixed(0)}', style: p(13, w: FontWeight.w700, color: C.t1)),
+         ]),
+         if (_discount > 0) ...[
+           const SizedBox(height: 8),
+           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+             Text('Discount (${_appliedCode ?? ''})', style: p(13, color: C.green, w: FontWeight.w700)),
+             Text('− ₹${_discount.toStringAsFixed(0)}', style: p(13, w: FontWeight.w800, color: C.green)),
+           ]),
+         ],
+         const SizedBox(height: 12),
          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
            Text('Order Total', style: p(18, w: FontWeight.w900)),
-           Text('₹${totalValue.toStringAsFixed(0)}', style: p(24, w: FontWeight.w900, color: C.green)),
+           Text('₹${(totalValue - _discount).clamp(0, double.infinity).toStringAsFixed(0)}', style: p(24, w: FontWeight.w900, color: C.green)),
          ]),
          const SizedBox(height: 24),
 
@@ -635,6 +695,107 @@ class _CheckoutPageState extends State<CheckoutPage> {
     ],
   );
 
+  Widget _couponSection() {
+    if (_appliedCode != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: C.green.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: C.green.withValues(alpha: 0.5), width: 1.2),
+        ),
+        child: Row(children: [
+          const Icon(Icons.local_offer_rounded, color: C.green, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text('$_appliedCode applied', style: p(14, w: FontWeight.w800, color: C.green))),
+          GestureDetector(onTap: _removeCoupon, child: Text('REMOVE', style: p(12, w: FontWeight.w800, color: C.t3))),
+        ]),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: TextField(
+          controller: _couponCtrl,
+          textCapitalization: TextCapitalization.characters,
+          style: p(14, w: FontWeight.w700, color: C.t1),
+          decoration: InputDecoration(
+            hintText: 'COUPON CODE',
+            hintStyle: TextStyle(color: C.t4, fontSize: 13, letterSpacing: 1),
+            filled: true, fillColor: const Color(0xFFF9F9F9),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: C.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: C.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: C.forest)),
+          ),
+          onChanged: (_) { if (_couponMsg != null) setState(() => _couponMsg = null); },
+        )),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: _couponBusy ? null : () => _applyCoupon(),
+          child: Container(
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(12)),
+            child: _couponBusy
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text('Apply', style: p(14, w: FontWeight.w800, color: Colors.white)),
+          ),
+        ),
+      ]),
+      if (_couponMsg != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_couponMsg!, style: p(12, w: FontWeight.w600, color: Colors.red[400]))),
+      if (_availableCoupons.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        Text('AVAILABLE COUPONS', style: p(11, w: FontWeight.w800, color: C.t3)),
+        const SizedBox(height: 8),
+        ..._availableCoupons.map((c) => _availableCouponCard(asMap(c))),
+      ],
+    ]);
+  }
+
+  Widget _availableCouponCard(Map<String, dynamic> c) {
+    final type = asStr(c['discount_type']);
+    final val = asDouble(c['discount_value']);
+    final maxDisc = c['max_discount'] == null ? null : asDouble(c['max_discount']);
+    final min = asDouble(c['min_order_amount']);
+    final eligible = _subtotal >= min;
+    final code = asStr(c['code']);
+    final desc = asStr(c['description']);
+    final label = type == 'percentage'
+        ? '${val.toStringAsFixed(val % 1 == 0 ? 0 : 1)}% OFF${maxDisc != null && maxDisc > 0 ? ' up to ₹${maxDisc.toStringAsFixed(0)}' : ''}'
+        : '₹${val.toStringAsFixed(0)} OFF';
+    final shortfall = min - _subtotal;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: eligible ? C.green.withValues(alpha: 0.05) : const Color(0xFFF3F7F0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: C.border),
+      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Flexible(child: Text(code, style: p(13, w: FontWeight.w800, color: C.forest), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 8),
+            Text(label, style: p(11, w: FontWeight.w800, color: C.green)),
+          ]),
+          if (desc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(desc, style: p(11, color: C.t3))),
+          if (!eligible) Padding(padding: const EdgeInsets.only(top: 2), child: Text('Add ₹${shortfall.toStringAsFixed(0)} more to apply', style: p(11, w: FontWeight.w600, color: Colors.orange.shade800))),
+        ])),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: (eligible && !_couponBusy) ? () => _applyCoupon(code) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: eligible ? C.forest : C.border, borderRadius: BorderRadius.circular(8)),
+            child: Text('APPLY', style: p(11, w: FontWeight.w800, color: eligible ? Colors.white : C.t3)),
+          ),
+        ),
+      ]),
+    );
+  }
+
   Future<void> _place() async {
     final loc = context.read<LocationProvider>();
     setState(() => _busy = true);
@@ -651,6 +812,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         shippingState: _applyGst ? _gstState : null,
         billingGstin: _applyGst ? _gstinCtrl.text.trim() : null,
         billingBusinessName: _applyGst ? _bizCtrl.text.trim() : null,
+        couponCode: _appliedCode,
       );
       widget.onOrdered();
       if (mounted) {
@@ -745,14 +907,24 @@ class OrderDetailScreen extends StatelessWidget {
     final items = asList(order['items']);
     final gstAmt = asDouble(order['gst_amount']);
     final total = asDouble(order['total_amount']);
-    final subtotal = total - gstAmt;
+    // Real product subtotal from line items — NOT total - gstAmt (services break that).
+    double productSubtotal = 0;
+    for (final i in items) {
+      final m = asMap(i);
+      productSubtotal += asDouble(m['price']) * asInt(m['quantity']);
+    }
+    // Anything left (total - products - GST) belongs to service bookings on the order.
+    final serviceTotal = (total - productSubtotal - gstAmt).clamp(0, double.infinity).toDouble();
     final applyGst = order['apply_gst'] == true || order['apply_gst'] == 1;
     final state = asStr(order['shipping_state'], '');
     final isUP = state.toLowerCase().contains('uttar') || state.toLowerCase() == 'up';
 
-    // Determine GST rate from first item's product
+    // Effective GST rate: prefer recomputing from gstAmt/productSubtotal so mixed-rate
+    // carts still render a sensible value. Fall back to first product's gst_rate.
     int gstRate = 0;
-    if (items.isNotEmpty) {
+    if (gstAmt > 0 && productSubtotal > 0) {
+      gstRate = ((gstAmt / productSubtotal) * 100).round();
+    } else if (items.isNotEmpty) {
       gstRate = asInt(asMap(asMap(items.first)['product'])['gst_rate']);
     }
 
@@ -763,7 +935,8 @@ class OrderDetailScreen extends StatelessWidget {
       builder: (_) => _BillSheet(
         order: order,
         items: items,
-        subtotal: subtotal,
+        subtotal: productSubtotal,
+        serviceTotal: serviceTotal,
         gstAmt: gstAmt,
         total: total,
         applyGst: applyGst,
@@ -829,7 +1002,13 @@ class OrderDetailScreen extends StatelessWidget {
               GDetailRow(icon: Icons.calendar_today_rounded, label: 'DATE', value: dateStr.length >= 10 ? dateStr.substring(0,10) : '—'),
               GDetailRow(icon: Icons.payments_rounded, label: 'METHOD', value: asStr(order['payment_method'], 'COD').toUpperCase()),
               if (applyGst && gstAmt > 0) ...[
-                GDetailRow(icon: Icons.inventory_2_rounded, label: 'SUBTOTAL', value: '₹${(asDouble(order['total_amount']) - gstAmt).toStringAsFixed(0)}'),
+                GDetailRow(
+                  icon: Icons.inventory_2_rounded, label: 'SUBTOTAL',
+                  value: '₹${items.fold<double>(0, (acc, it) {
+                    final m = asMap(it);
+                    return acc + asDouble(m['price']) * asInt(m['quantity']);
+                  }).toStringAsFixed(0)}',
+                ),
                 if (isUP) ...[
                   GDetailRow(icon: Icons.percent_rounded, label: 'SGST', value: '₹${(gstAmt / 2).toStringAsFixed(2)}'),
                   GDetailRow(icon: Icons.percent_rounded, label: 'CGST', value: '₹${(gstAmt / 2).toStringAsFixed(2)}'),
@@ -867,14 +1046,15 @@ class OrderDetailScreen extends StatelessWidget {
 class _BillSheet extends StatelessWidget {
   final Map<String, dynamic> order;
   final List<dynamic> items;
-  final double subtotal, gstAmt, total;
+  final double subtotal, serviceTotal, gstAmt, total;
   final bool applyGst, isUP;
   final int gstRate;
   final String Function(String) cleanAddr;
 
   const _BillSheet({
     required this.order, required this.items,
-    required this.subtotal, required this.gstAmt, required this.total,
+    required this.subtotal, required this.serviceTotal,
+    required this.gstAmt, required this.total,
     required this.applyGst, required this.isUP, required this.gstRate,
     required this.cleanAddr,
   });
@@ -948,13 +1128,14 @@ class _BillSheet extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Totals
-        _row('Subtotal', '₹${subtotal.toStringAsFixed(2)}'),
+        _row('Products subtotal', '₹${subtotal.toStringAsFixed(2)}'),
+        if (serviceTotal > 0) _row('Services / Mali booking', '₹${serviceTotal.toStringAsFixed(2)}'),
         if (applyGst && gstAmt > 0) ...[
           if (isUP) ...[
-            _row('SGST @ ${gstRate ~/ 2}%', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
-            _row('CGST @ ${gstRate ~/ 2}%', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
+            _row('SGST${gstRate > 0 ? ' @ ${(gstRate / 2).toStringAsFixed(gstRate.isOdd ? 1 : 0)}%' : ''}', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
+            _row('CGST${gstRate > 0 ? ' @ ${(gstRate / 2).toStringAsFixed(gstRate.isOdd ? 1 : 0)}%' : ''}', '₹${(gstAmt / 2).toStringAsFixed(2)}', color: C.forest),
           ] else
-            _row('IGST @ $gstRate%', '₹${gstAmt.toStringAsFixed(2)}', color: C.forest),
+            _row('IGST${gstRate > 0 ? ' @ $gstRate%' : ''}', '₹${gstAmt.toStringAsFixed(2)}', color: C.forest),
         ],
         const Divider(height: 24),
         _row('Total', '₹${total.toStringAsFixed(2)}', bold: true, color: C.green),

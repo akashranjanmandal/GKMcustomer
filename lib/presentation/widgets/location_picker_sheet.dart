@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -689,7 +690,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       const SizedBox(height: 8),
       Padding(padding: const EdgeInsets.only(left: 38), child: Text('Precisely selected on map', style: p(12, w: FontWeight.w600, color: C.forest))),
       const SizedBox(height: 20),
-      _SheetField(ctrl: _flatCtrl,     label: 'Flat / House No.',      hint: 'e.g. 101 or B-402',         icon: Icons.home_rounded),
+      _SheetField(ctrl: _flatCtrl,     label: 'Flat / House No.',      hint: 'e.g. 101 or B-402',         icon: Icons.home_rounded, maxLength: 10),
       const SizedBox(height: 12),
       _SheetField(ctrl: _buildingCtrl, label: 'Building / Apartment',  hint: 'e.g. Green Valley Apts',    icon: Icons.apartment_rounded),
       const SizedBox(height: 12),
@@ -711,7 +712,8 @@ class _SheetField extends StatelessWidget {
   final TextEditingController ctrl;
   final String label, hint;
   final IconData icon;
-  const _SheetField({required this.ctrl, required this.label, required this.hint, required this.icon});
+  final int? maxLength;
+  const _SheetField({required this.ctrl, required this.label, required this.hint, required this.icon, this.maxLength});
 
   @override
   Widget build(BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -731,6 +733,7 @@ class _SheetField extends StatelessWidget {
         Expanded(child: TextField(
           controller: ctrl,
           style: p(14, w: FontWeight.w600, color: C.t1),
+          inputFormatters: maxLength != null ? [LengthLimitingTextInputFormatter(maxLength)] : null,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: C.t4, fontSize: 13),
