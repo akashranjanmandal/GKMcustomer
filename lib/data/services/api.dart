@@ -289,7 +289,7 @@ class Api {
       req('POST', '/subscriptions/$id/select-dates', body: {'dates': dates});
 
   // ─── CONTENT & SETTINGS ──────────────────────────────────────────────────
-  Future<dynamic> getActiveTaglines() => req('GET', '/taglines/active', auth: false);
+  Future<dynamic> getActiveTaglines() => req('GET', '/taglines', auth: false);
 
   // ─── SHOP ─────────────────────────────────────────────────────────────────
   Future<dynamic> getShopCategories() => req('GET', '/shop/categories', auth: false);
