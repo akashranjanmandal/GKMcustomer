@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/location_provider.dart';
+import '../../../data/services/razorpay_service.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/location_picker_sheet.dart';
@@ -244,7 +245,7 @@ class _BookState extends State<BookScreen> {
       final totalAmount = _total;
 
       if (_isSub) {
-        await _api.createSubscription(
+        final sub = await _api.createSubscription(
           planId: _planId!,
           zoneId: zoneId,
           geofenceId: _picked?.geofenceId,
@@ -257,16 +258,20 @@ class _BookState extends State<BookScreen> {
           autoRenew: _autoRenew,
           addons: addonsPayload,
           totalAmount: totalAmount,
+          paymentMethod: 'razorpay',
         );
+        final subId = asInt(asMap(sub)['id']);
+        final pay = await RazorpayService().pay(type: 'subscription', subscriptionId: subId);
         if (!mounted) return;
         setState(() => _submitting = false);
-        showMsg(context, 'Subscription created! Schedule visits from My Profile.', ok: true);
-        await Future.delayed(1200.ms);
+        showMsg(context, pay.ok ? 'Subscription activated!' : (pay.cancelled ? 'Subscription created — complete payment from My Plans.' : (pay.message ?? 'Payment failed')), ok: pay.ok, err: !pay.ok && !pay.cancelled);
+        await Future.delayed(1000.ms);
         if (mounted) { Navigator.pop(context, true); Navigator.pushNamed(context, '/subscriptions'); }
       } else {
         final isInstant = _mode == 'instant';
+        dynamic booking;
         try {
-          await _api.createBooking(
+          booking = await _api.createBooking(
             zoneId: zoneId,
             geofenceId: _picked?.geofenceId,
             isInstant: isInstant,
@@ -293,13 +298,14 @@ class _BookState extends State<BookScreen> {
           }
           rethrow;
         }
+        final bookingId = asInt(asMap(booking)['id']);
+        final pay = await RazorpayService().pay(type: 'booking', bookingId: bookingId);
         if (!mounted) return;
         setState(() => _submitting = false);
-        showMsg(context, 'Booking confirmed!', ok: true);
+        showMsg(context, pay.ok ? 'Booking confirmed & paid!' : (pay.cancelled ? 'Booking created — pay from My Bookings to confirm.' : (pay.message ?? 'Payment failed')), ok: pay.ok, err: !pay.ok && !pay.cancelled);
         await Future.delayed(800.ms);
         if (mounted) {
           BookingsScreen.needsReload = true;
-          showMsg(context, 'Booking successful!', ok: true);
           Navigator.pushNamedAndRemoveUntil(context, '/bookings', (r) => r.isFirst);
         }
       }
