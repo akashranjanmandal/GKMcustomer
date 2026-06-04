@@ -323,9 +323,14 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   GoogleMapController? _mapCtrl;
   LatLng? _mapTarget;
-  // Google Maps key for place search (Geocoding API). Pass at build time:
+  // Google Maps key for place search (Places API).
+  // Defaults to the same key as the AndroidManifest map key, so a plain
+  // `flutter build apk` works. Override per-build with:
   //   flutter build/run --dart-define=GOOGLE_MAPS_KEY=AIza...
-  static const _gKey = String.fromEnvironment('GOOGLE_MAPS_KEY');
+  static const _gKey = String.fromEnvironment(
+    'GOOGLE_MAPS_KEY',
+    defaultValue: 'AIzaSyDIR7WEJoxM7do0k3vWqL__CcSP2JgOrq8',
+  );
 
   Timer? _mapIdleTimer;
   Timer? _searchDebounce;
