@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/cart_provider.dart';
 import '../../../data/services/location_provider.dart';
+import '../../../data/services/razorpay_service.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/location_picker_sheet.dart';
@@ -801,24 +802,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
     setState(() => _busy = true);
     try {
       final items = widget.cart.map((e) => {'product_id': asInt(asMap(e['product'])['id']), 'quantity': asInt(e['qty'])}).toList();
-      await _api.createShopOrder(
+      final res = await _api.createShopOrder(
         items: items,
         shippingAddress: loc.fullAddress,
         city: loc.city,
         pincode: loc.pincode,
         lat: loc.lat, lng: loc.lng,
         zoneId: loc.zoneId,
+        paymentMethod: 'razorpay',
         applyGst: _applyGst,
         shippingState: _applyGst ? _gstState : null,
         billingGstin: _applyGst ? _gstinCtrl.text.trim() : null,
         billingBusinessName: _applyGst ? _bizCtrl.text.trim() : null,
         couponCode: _appliedCode,
       );
-      widget.onOrdered();
-      if (mounted) {
-        showMsg(context, 'Order placed successfully!', ok: true);
-        Navigator.pop(context);
-      }
+      // Order is created pending; pay for it via Razorpay.
+      final orderId = asInt(asMap(res)['order_id']);
+      final pay = await RazorpayService().pay(type: 'order', orderId: orderId);
+      if (!mounted) return;
+      widget.onOrdered(); // order exists (pending) — clear the cart
+      showMsg(context, pay.ok ? 'Payment successful — order placed!' : (pay.cancelled ? 'Order saved as pending. Pay from My Orders to confirm.' : (pay.message ?? 'Payment failed')), ok: pay.ok || pay.cancelled, err: !pay.ok && !pay.cancelled);
+      Navigator.pop(context);
     } on ApiError catch (e) {
       if (mounted) showMsg(context, e.message, err: true);
     } finally { if (mounted) setState(() => _busy = false); }

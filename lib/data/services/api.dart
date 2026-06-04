@@ -261,6 +261,7 @@ class Api {
     List<Map<String, dynamic>>? addons,
     double? totalAmount,
     int? geofenceId,
+    String? paymentMethod,
   }) => req('POST', '/subscriptions', body: {
     'plan_id': planId,
     'zone_id': zoneId,
@@ -279,6 +280,7 @@ class Api {
     'auto_renew': autoRenew,
     if (addons != null) 'addons': addons,
     if (totalAmount != null) 'total_amount': totalAmount,
+    if (paymentMethod != null) 'payment_method': paymentMethod,
   });
 
   Future<dynamic> getMySubscriptions() => req('GET', '/subscriptions/my');
@@ -346,14 +348,6 @@ class Api {
       req('GET', '/shop/orders/my', query: {'page': '$page', 'limit': '$limit'});
 
   // ─── PAYMENTS / WALLET ────────────────────────────────────────────────────
-  Future<dynamic> initiatePayment({required String type, int? bookingId, int? subscriptionId, required double amount}) =>
-      req('POST', '/payments/initiate', body: {
-        'type': type,
-        if (bookingId != null) 'booking_id': bookingId,
-        if (subscriptionId != null) 'subscription_id': subscriptionId,
-        'amount': amount,
-      });
-
   Future<dynamic> getMyPayments({int page = 1, int limit = 20}) =>
       req('GET', '/payments/my', query: {'page': '$page', 'limit': '$limit'});
 
@@ -362,6 +356,24 @@ class Api {
 
   Future<dynamic> getPaymentStatus(String txnId) =>
       req('GET', '/payments/status/$txnId');
+
+  // ─── RAZORPAY ──────────────────────────────────────────────────────────────
+  Future<dynamic> createRazorpayOrder({String? type, double? amount, int? bookingId, int? subscriptionId, int? orderId, int? geofenceId}) =>
+      req('POST', '/payments/razorpay/order', body: {
+        if (type != null) 'type': type,
+        if (amount != null) 'amount': amount,
+        if (bookingId != null) 'booking_id': bookingId,
+        if (subscriptionId != null) 'subscription_id': subscriptionId,
+        if (orderId != null) 'order_id': orderId,
+        if (geofenceId != null) 'geofence_id': geofenceId,
+      });
+
+  Future<dynamic> verifyRazorpayPayment({required String razorpayOrderId, required String razorpayPaymentId, required String razorpaySignature}) =>
+      req('POST', '/payments/razorpay/verify', body: {
+        'razorpay_order_id': razorpayOrderId,
+        'razorpay_payment_id': razorpayPaymentId,
+        'razorpay_signature': razorpaySignature,
+      });
 
   // ─── PLANTOPEDIA ──────────────────────────────────────────────────────────
   Future<dynamic> identifyPlant(File image) =>

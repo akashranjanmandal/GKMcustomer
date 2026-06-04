@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/auth.dart';
+import '../../../data/services/razorpay_service.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 
@@ -41,18 +42,16 @@ class _WalletState extends State<WalletScreen> {
     if (amt < 100) { showMsg(context, 'Minimum top-up is ₹100', err: true); return; }
     setState(() => _topping = true);
     try {
-      final res = await _api.walletTopup(amt);
-      final url = asStr(asMap(res)['payu_url']);
-      if (url.isNotEmpty) {
-        showMsg(context, 'Redirecting to payment gateway…', ok: true);
-        // In production: launch url via url_launcher
-      } else {
-        showMsg(context, '₹${amt.toStringAsFixed(0)} top-up initiated!', ok: true);
+      final res = await RazorpayService().pay(type: 'wallet_topup', amount: amt);
+      if (!mounted) return;
+      if (res.ok) {
+        showMsg(context, '₹${amt.toStringAsFixed(0)} added to your wallet!', ok: true);
         setState(() { _preset = 0; _customCtrl.clear(); });
         await _load();
+      } else if (!res.cancelled) {
+        showMsg(context, res.message ?? 'Payment failed', err: true);
       }
-    } on ApiError catch (e) { if (mounted) showMsg(context, e.message, err: true); }
-    finally { if (mounted) setState(() => _topping = false); }
+    } finally { if (mounted) setState(() => _topping = false); }
   }
 
   @override
