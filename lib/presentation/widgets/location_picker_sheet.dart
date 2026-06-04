@@ -389,23 +389,18 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchAddress(query));
   }
 
-  // Place search via Google Maps Geocoding API. Keeps the {lat, lon, display_name}
-  // result shape so the existing result list + _selectSearchResult work unchanged.
+  // Live place suggestions via Google Places Autocomplete (India-restricted).
   Future<void> _searchAddress(String query) async {
     if (_gKey.isEmpty) { if (mounted) setState(() => _searching = false); return; }
     try {
-      final uri = Uri.parse('https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(query)}&components=country:in&key=$_gKey');
+      final uri = Uri.parse('https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&components=country:in&key=$_gKey');
       final res = await http.get(uri).timeout(const Duration(seconds: 8));
       final j   = jsonDecode(res.body) as Map<String, dynamic>;
-      final results = (j['results'] as List? ?? []).map((r) {
-        final loc = asMap(asMap(r['geometry'])['location']);
-        return {
-          'lat': asDouble(loc['lat']).toString(),
-          'lon': asDouble(loc['lng']).toString(),
-          'display_name': asStr(r['formatted_address']),
-        };
+      final preds = (j['predictions'] as List? ?? []).map((p) {
+        final m = asMap(p);
+        return {'description': asStr(m['description']), 'place_id': asStr(m['place_id'])};
       }).toList();
-      if (mounted) setState(() { _searchResults = results; _searching = false; });
+      if (mounted) setState(() { _searchResults = preds; _searching = false; });
     } catch (_) {
       if (mounted) setState(() => _searching = false);
     }
@@ -413,14 +408,24 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   Future<void> _selectSearchResult(dynamic item) async {
     final m = asMap(item);
-    _lat = double.tryParse(asStr(m['lat']));
-    _lng = double.tryParse(asStr(m['lon']));
-    _detectedAddress = asStr(m['display_name']);
-    if (_lat != null && _lng != null) {
-      _mapTarget = LatLng(_lat!, _lng!);
-      setState(() { _step = 1; _searchResults = []; _searchCtrl.clear(); _geocoding = true; });
-      await _reverseGeocode(_lat!, _lng!);
-    }
+    final placeId = asStr(m['place_id']);
+    if (placeId.isEmpty || _gKey.isEmpty) return;
+    try {
+      // Resolve the picked prediction → coordinates via Place Details.
+      final uri = Uri.parse('https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&fields=geometry,formatted_address&key=$_gKey');
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      final j   = jsonDecode(res.body) as Map<String, dynamic>;
+      final result = asMap(j['result']);
+      final loc = asMap(asMap(result['geometry'])['location']);
+      _lat = asDouble(loc['lat']);
+      _lng = asDouble(loc['lng']);
+      _detectedAddress = asStr(result['formatted_address']);
+      if (_lat != 0 && _lng != 0) {
+        _mapTarget = LatLng(_lat!, _lng!);
+        setState(() { _step = 1; _searchResults = []; _searchCtrl.clear(); _geocoding = true; });
+        await _reverseGeocode(_lat!, _lng!);
+      }
+    } catch (_) {/* ignore */}
   }
 
   Future<void> _reverseGeocode(double lat, double lng) async {
@@ -580,7 +585,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               final res = _searchResults[i];
               return ListTile(
                 leading: const Icon(Icons.location_on_outlined, size: 18),
-                title: Text(asStr(res['display_name']), style: p(12, w: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
+                title: Text(asStr(res['description']), style: p(12, w: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
                 onTap: () => _selectSearchResult(res),
               );
             },
