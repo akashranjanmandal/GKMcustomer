@@ -114,7 +114,7 @@ class _WalletState extends State<WalletScreen> {
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.lock_rounded, size: 13, color: C.t4),
                   const SizedBox(width: 5),
-                  Text('Secured by PayU payment gateway', style: p(11, color: C.t4)),
+                  Text('Secured by Razorpay', style: p(11, color: C.t4)),
                 ]),
               ])).animate().fadeIn(),
 
