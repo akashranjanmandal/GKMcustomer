@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../data/services/api.dart';
 import '../../data/services/location_provider.dart';
@@ -321,8 +321,11 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   final _pincodeCtrl  = TextEditingController();
   List<dynamic> _searchResults = [];
 
-  final _mapCtrl = MapController();
+  GoogleMapController? _mapCtrl;
   LatLng? _mapTarget;
+  // Google Maps key for place search (Geocoding API). Pass at build time:
+  //   flutter build/run --dart-define=GOOGLE_MAPS_KEY=AIza...
+  static const _gKey = String.fromEnvironment('GOOGLE_MAPS_KEY');
 
   Timer? _mapIdleTimer;
   Timer? _searchDebounce;
@@ -340,7 +343,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     _cityCtrl.dispose();
     _stateCtrl.dispose();
     _pincodeCtrl.dispose();
-    _mapCtrl.dispose();
+    _mapCtrl?.dispose();
     super.dispose();
   }
 
@@ -364,7 +367,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       if (!mounted || pos == null) { setState(() => _gpsLoading = false); return; }
       _lat = pos.latitude; _lng = pos.longitude;
       _mapTarget = LatLng(_lat!, _lng!);
-      if (_step == 1) _mapCtrl.move(_mapTarget!, 17);
+      if (_step == 1) _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(_mapTarget!, 17));
       setState(() { _gpsLoading = false; _geocoding = true; });
       await _reverseGeocode(_lat!, _lng!);
       // Auto-advance to map step when GPS succeeds in the search step
@@ -386,12 +389,23 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchAddress(query));
   }
 
+  // Place search via Google Maps Geocoding API. Keeps the {lat, lon, display_name}
+  // result shape so the existing result list + _selectSearchResult work unchanged.
   Future<void> _searchAddress(String query) async {
+    if (_gKey.isEmpty) { if (mounted) setState(() => _searching = false); return; }
     try {
-      final uri = Uri.parse('https://nominatim.openstreetmap.org/search?format=jsonv2&q=${Uri.encodeComponent(query)}&limit=8&addressdetails=1&countrycodes=in');
-      final res = await http.get(uri, headers: {'Accept-Language': 'en', 'User-Agent': 'GharKaMali/1.0'}).timeout(const Duration(seconds: 8));
-      final j   = jsonDecode(res.body) as List;
-      if (mounted) setState(() { _searchResults = j; _searching = false; });
+      final uri = Uri.parse('https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(query)}&components=country:in&key=$_gKey');
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      final j   = jsonDecode(res.body) as Map<String, dynamic>;
+      final results = (j['results'] as List? ?? []).map((r) {
+        final loc = asMap(asMap(r['geometry'])['location']);
+        return {
+          'lat': asDouble(loc['lat']).toString(),
+          'lon': asDouble(loc['lng']).toString(),
+          'display_name': asStr(r['formatted_address']),
+        };
+      }).toList();
+      if (mounted) setState(() { _searchResults = results; _searching = false; });
     } catch (_) {
       if (mounted) setState(() => _searching = false);
     }
@@ -412,16 +426,15 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   Future<void> _reverseGeocode(double lat, double lng) async {
     final zoneFuture = _checkZone(lat, lng);
     try {
-      final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&zoom=18');
-      final res = await http.get(uri, headers: {'Accept-Language': 'en', 'User-Agent': 'GharKaMali/1.0'}).timeout(const Duration(seconds: 8));
-      final j   = jsonDecode(res.body) as Map<String, dynamic>;
-      final a   = (j['address'] as Map?)?.cast<String, dynamic>() ?? {};
+      // Native platform geocoding (no API key needed).
+      final placemarks = await geo.placemarkFromCoordinates(lat, lng);
+      final p = placemarks.isNotEmpty ? placemarks.first : null;
 
-      final road     = (a['road'] ?? a['footway'] ?? '').toString().trim();
-      final suburb   = (a['suburb'] ?? a['neighbourhood'] ?? a['quarter'] ?? '').toString().trim();
-      final city     = (a['city'] ?? a['town'] ?? a['village'] ?? a['county'] ?? '').toString().trim();
-      final state    = (a['state'] ?? '').toString().trim();
-      final postcode = (a['postcode'] ?? '').toString().trim();
+      final road     = (p?.thoroughfare?.isNotEmpty == true ? p!.thoroughfare! : (p?.street ?? '')).trim();
+      final suburb   = (p?.subLocality ?? '').trim();
+      final city     = (p?.locality?.isNotEmpty == true ? p!.locality! : (p?.subAdministrativeArea ?? '')).trim();
+      final state    = (p?.administrativeArea ?? '').trim();
+      final postcode = (p?.postalCode ?? '').trim();
 
       // Build a clean human-readable address without coordinates
       final addrParts = <String>[
@@ -610,31 +623,21 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   // ── Step 1: Map (Precise Selection) ──────────────────────────────────────────
   Widget _buildMapStep() => Column(key: const ValueKey(1), children: [
     Expanded(child: Stack(children: [
-      FlutterMap(
-        mapController: _mapCtrl,
-        options: MapOptions(
-          initialCenter: _mapTarget ?? LatLng(22.5726, 88.3639),
-          initialZoom: 17,
-          onPositionChanged: (camera, hasGesture) {
-            if (hasGesture) {
-              _mapTarget = camera.center;
-              _mapIdleTimer?.cancel();
-              _mapIdleTimer = Timer(const Duration(milliseconds: 500), () async {
-                if (_mapTarget != null && mounted) {
-                  setState(() => _geocoding = true);
-                  _lat = _mapTarget!.latitude; _lng = _mapTarget!.longitude;
-                  await _reverseGeocode(_lat!, _lng!);
-                }
-              });
-            }
-          },
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.gharkamali.customer',
-          ),
-        ],
+      GoogleMap(
+        onMapCreated: (c) => _mapCtrl = c,
+        initialCameraPosition: CameraPosition(target: _mapTarget ?? const LatLng(22.5726, 88.3639), zoom: 17),
+        myLocationButtonEnabled: false,
+        zoomControlsEnabled: false,
+        mapToolbarEnabled: false,
+        // Center-pin pattern: track the map centre as it moves, geocode when idle.
+        onCameraMove: (pos) { _mapTarget = pos.target; },
+        onCameraIdle: () async {
+          if (_mapTarget != null && mounted) {
+            setState(() => _geocoding = true);
+            _lat = _mapTarget!.latitude; _lng = _mapTarget!.longitude;
+            await _reverseGeocode(_lat!, _lng!);
+          }
+        },
       ),
       // Center Pin
       Center(child: Padding(padding: const EdgeInsets.only(bottom: 35), child: Icon(Icons.location_on_rounded, color: C.forest, size: 45))),

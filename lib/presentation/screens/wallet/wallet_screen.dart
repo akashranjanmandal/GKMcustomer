@@ -39,7 +39,7 @@ class _WalletState extends State<WalletScreen> {
 
   Future<void> _topUp() async {
     final amt = _customCtrl.text.isNotEmpty ? double.tryParse(_customCtrl.text) ?? 0 : _preset.toDouble();
-    if (amt < 100) { showMsg(context, 'Minimum top-up is ₹100', err: true); return; }
+    if (amt < 1) { showMsg(context, 'Minimum top-up is ₹1', err: true); return; }
     setState(() => _topping = true);
     try {
       final res = await RazorpayService().pay(type: 'wallet_topup', amount: amt);
@@ -105,7 +105,7 @@ class _WalletState extends State<WalletScreen> {
                   style: p(16, w: FontWeight.w600, color: C.t1),
                   onChanged: (_) => setState(() => _preset = 0),
                   decoration: InputDecoration(
-                    hintText: 'Custom amount (min ₹100)',
+                    hintText: 'Custom amount (min ₹1)',
                     prefixText: '₹ ',
                     prefixStyle: p(16, w: FontWeight.w600, color: C.t3))),
                 const SizedBox(height: 16),
