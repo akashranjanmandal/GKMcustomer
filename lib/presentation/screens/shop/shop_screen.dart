@@ -820,9 +820,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final orderId = asInt(asMap(res)['order_id']);
       final pay = await RazorpayService().pay(type: 'order', orderId: orderId);
       if (!mounted) return;
-      widget.onOrdered(); // order exists (pending) — clear the cart
-      showMsg(context, pay.ok ? 'Payment successful — order placed!' : (pay.cancelled ? 'Order saved as pending. Pay from My Orders to confirm.' : (pay.message ?? 'Payment failed')), ok: pay.ok || pay.cancelled, err: !pay.ok && !pay.cancelled);
-      Navigator.pop(context);
+      if (pay.ok) {
+        widget.onOrdered(); // paid — clear the cart
+        showMsg(context, 'Payment successful — order placed!', ok: true);
+        Navigator.pop(context);
+      } else {
+        // Cancel/failure: the backend voided the unpaid order (stock + coupon
+        // restored). Keep the cart intact so the customer can retry payment.
+        showMsg(context, pay.cancelled ? 'Payment cancelled — order not placed.' : (pay.message ?? 'Payment failed'), err: !pay.cancelled);
+      }
     } on ApiError catch (e) {
       if (mounted) showMsg(context, e.message, err: true);
     } finally { if (mounted) setState(() => _busy = false); }

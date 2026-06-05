@@ -63,6 +63,9 @@ class RazorpayService {
       }
     });
     razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse r) {
+      // No payment captured (user dismissed or it failed) → void the unpaid
+      // order/booking/subscription so it isn't left lingering in "pending".
+      _api.cancelRazorpayPayment(razorpayOrderId: asStr(order['order_id'])).catchError((_) => null);
       if (!completer.isCompleted) {
         completer.complete(RazorpayResult(false, cancelled: r.code == Razorpay.PAYMENT_CANCELLED, message: r.message ?? 'Payment failed'));
       }
