@@ -375,6 +375,11 @@ class Api {
         'razorpay_signature': razorpaySignature,
       });
 
+  // Void a dismissed/unpaid payment so its order/booking/subscription is
+  // cancelled (stock + coupon restored) instead of lingering in "pending".
+  Future<dynamic> cancelRazorpayPayment({required String razorpayOrderId}) =>
+      req('POST', '/payments/razorpay/cancel', body: {'razorpay_order_id': razorpayOrderId});
+
   // ─── PLANTOPEDIA ──────────────────────────────────────────────────────────
   Future<dynamic> identifyPlant(File image) =>
       upload('POST', '/plants/identify', fields: {}, files: {'image': image});
