@@ -320,6 +320,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   final _stateCtrl    = TextEditingController();
   final _pincodeCtrl  = TextEditingController();
   List<dynamic> _searchResults = [];
+  List<dynamic> _geofences = [];
+  String? _selectedGfId;
+  double? _pendingZoom; // applied in onMapCreated when entering from the area dropdown
 
   GoogleMapController? _mapCtrl;
   LatLng? _mapTarget;
@@ -337,7 +340,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   bool get _isServiceable => _detectedZone.isNotEmpty && asInt(_detectedZone['id']) > 0;
 
-  @override void initState() { super.initState(); _detectGPS(); }
+  @override void initState() { super.initState(); _detectGPS(); _loadGeofences(); }
   @override void dispose() {
     _mapIdleTimer?.cancel();
     _searchDebounce?.cancel();
@@ -502,10 +505,51 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       }
 
       if (mounted) setState(() => _detectedZone = found);
-    } catch (e, stack) { 
+    } catch (e, stack) {
       print('>>> [ZoneCheck] ERROR: $e');
       print('>>> [ZoneCheck] Stack: $stack');
     }
+  }
+
+  Future<void> _loadGeofences() async {
+    try {
+      final r = await _api.getGeofences();
+      if (mounted) setState(() => _geofences = asList(r));
+    } catch (_) {/* ignore */}
+  }
+
+  // Area dropdown → centre the map on the chosen geofence; user pans to fine-tune.
+  void _pickGeofence(String id) {
+    final g = _geofences.map((e) => asMap(e)).firstWhere((e) => asStr(e['id']) == id, orElse: () => <String, dynamic>{});
+    if (g.isEmpty) return;
+    final c = _polyCentroid(_parsePolygon(g['polygon_coords']));
+    if (c == null) return;
+    _selectedGfId = id;
+    _lat = c.latitude; _lng = c.longitude;
+    _mapTarget = c;
+    _pendingZoom = 13; // open at area level, not street level
+    setState(() { _step = 1; _searchResults = []; _searchCtrl.clear(); _geocoding = true; _detectedZone = g; });
+    _reverseGeocode(c.latitude, c.longitude);
+  }
+
+  List<List<double>> _parsePolygon(dynamic raw) {
+    try {
+      final arr = raw is String ? jsonDecode(raw) : raw;
+      if (arr is List) {
+        return arr
+            .where((p) => p is List && p.length >= 2)
+            .map<List<double>>((p) => [asDouble(p[0]), asDouble(p[1])])
+            .toList();
+      }
+    } catch (_) {/* ignore */}
+    return [];
+  }
+
+  LatLng? _polyCentroid(List<List<double>> pts) {
+    if (pts.isEmpty) return null;
+    double la = 0, ln = 0;
+    for (final p in pts) { la += p[0]; ln += p[1]; }
+    return LatLng(la / pts.length, ln / pts.length);
   }
 
 
@@ -560,6 +604,36 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       const SizedBox(height: 4),
       Text('Find your location to check serviceability', style: p(13, color: C.t3)),
       const SizedBox(height: 24),
+
+      // Serviceable-area dropdown → centre the map on that geofence
+      if (_geofences.isNotEmpty) ...[
+        Container(
+          height: 54, padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(color: const Color(0xFFF3F7F0), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.border)),
+          child: Row(children: [
+            const Icon(Icons.place_rounded, color: C.forest, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: _selectedGfId,
+                hint: Text('Choose your area', style: p(14, w: FontWeight.w600, color: C.t3)),
+                style: p(14, w: FontWeight.w600, color: C.t1),
+                items: _geofences.map<DropdownMenuItem<String>>((g) {
+                  final m = asMap(g);
+                  final name = asStr(m['name']);
+                  final city = asStr(m['city']);
+                  return DropdownMenuItem(value: asStr(m['id']), child: Text(city.isNotEmpty ? '$name — $city' : name, maxLines: 1, overflow: TextOverflow.ellipsis));
+                }).toList(),
+                onChanged: (v) { if (v != null) _pickGeofence(v); },
+              ),
+            )),
+          ]),
+        ),
+        const SizedBox(height: 16),
+        Center(child: Text('OR', style: p(11, w: FontWeight.w800, color: C.t4))),
+        const SizedBox(height: 16),
+      ],
 
       // Search Box
       Container(
@@ -634,7 +708,13 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   Widget _buildMapStep() => Column(key: const ValueKey(1), children: [
     Expanded(child: Stack(children: [
       GoogleMap(
-        onMapCreated: (c) => _mapCtrl = c,
+        onMapCreated: (c) {
+          _mapCtrl = c;
+          if (_pendingZoom != null && _mapTarget != null) {
+            c.moveCamera(CameraUpdate.newLatLngZoom(_mapTarget!, _pendingZoom!));
+            _pendingZoom = null;
+          }
+        },
         initialCameraPosition: CameraPosition(target: _mapTarget ?? const LatLng(22.5726, 88.3639), zoom: 17),
         myLocationButtonEnabled: false,
         zoomControlsEnabled: false,

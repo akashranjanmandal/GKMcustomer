@@ -322,7 +322,8 @@ class _BookState extends State<BookScreen> {
       case 'Schedule':
         if (_isSub) return true;
         if (_mode == 'instant') return _instantInfo != null && _instantInfo!['available'] == true;
-        return _date.isNotEmpty;
+        // scheduled: need a date, slots loaded, gardeners available, and a valid selected slot
+        return _date.isNotEmpty && !_loadingSlots && !_noGardenersInZone && _availableSlots.contains(_time);
       default:         return true;
     }
   }
