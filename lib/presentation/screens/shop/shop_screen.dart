@@ -25,36 +25,106 @@ class _ShopState extends State<ShopScreen> {
   bool _loading = true;
   String _selectedCat = 'All';
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   Timer? _debounce;
+  int _page = 1, _pages = 1, _total = 0;
 
   @override void initState() { super.initState(); _load(); }
-  @override void dispose() { _searchCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
+  @override void dispose() { _searchCtrl.dispose(); _scrollCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final r = await Future.wait([
-        _api.getShopCategories().catchError((_) => []),
-        _api.getShopProducts().catchError((_) => []),
-      ]);
-      if (mounted) setState(() { 
-        _categories = ['All', ...asList(r[0]).map((e) => asStr(asMap(e)['name']))];
-        _products = asList(r[1]); 
-        _loading = false; 
+      final cats = await _api.getShopCategories().catchError((_) => []);
+      if (mounted) setState(() => _categories = ['All', ...asList(cats).map((e) => asStr(asMap(e)['name']))]);
+    } catch (_) {}
+    _page = 1;
+    await _fetch();
+  }
+
+  // Fetch the current page (server-paginated + server-sorted).
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final r = await _api.getShopProductsPaged(
+        category: _selectedCat == 'All' ? null : _selectedCat,
+        search: _searchCtrl.text.trim().isNotEmpty ? _searchCtrl.text.trim() : null,
+        page: _page,
+        limit: 24,
+      );
+      if (mounted) setState(() {
+        _products = asList(r['items']);
+        _total = asInt(r['total']);
+        _pages = asInt(r['pages']);
+        _loading = false;
       });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
-  Future<void> _filter() async {
-    setState(() => _loading = true);
-    try {
-      final r = await _api.getShopProducts(
-        category: _selectedCat == 'All' ? null : _selectedCat,
-        search: _searchCtrl.text.trim().isNotEmpty ? _searchCtrl.text.trim() : null,
-      );
-      if (mounted) setState(() { _products = asList(r); _loading = false; });
-    } catch (_) { if (mounted) setState(() => _loading = false); }
+  // Any filter/search change resets to page 1.
+  void _filter() { _page = 1; _fetch(); }
+
+  void _goPage(int n) {
+    if (n < 1 || n > _pages || n == _page) return;
+    setState(() => _page = n);
+    if (_scrollCtrl.hasClients) _scrollCtrl.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    _fetch();
   }
+
+  // Windowed page list: 1 … (cur-1) cur (cur+1) … last  (-1 = ellipsis marker)
+  List<int> _pageNumbers(int cur, int total) {
+    final out = <int>[];
+    for (int i = 1; i <= total; i++) {
+      if (i == 1 || i == total || (i >= cur - 1 && i <= cur + 1)) {
+        out.add(i);
+      } else if (out.isNotEmpty && out.last != -1) {
+        out.add(-1);
+      }
+    }
+    return out;
+  }
+
+  Widget _buildPagination() {
+    if (_pages <= 1) return const SizedBox.shrink();
+    final btns = <Widget>[
+      _pageBtn('‹', onTap: _page > 1 ? () => _goPage(_page - 1) : null),
+    ];
+    for (final n in _pageNumbers(_page, _pages)) {
+      if (n == -1) {
+        btns.add(Padding(padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text('…', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: Colors.black45))));
+      } else {
+        btns.add(_pageBtn('$n', active: n == _page, onTap: () => _goPage(n)));
+      }
+    }
+    btns.add(_pageBtn('›', onTap: _page < _pages ? () => _goPage(_page + 1) : null));
+    return Column(children: [
+      Text('Page $_page of $_pages · $_total items',
+        style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 10),
+      Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: btns),
+    ]);
+  }
+
+  Widget _pageBtn(String label, {VoidCallback? onTap, bool active = false}) => Material(
+    color: active ? C.forest : Colors.white,
+    borderRadius: BorderRadius.circular(10),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: active ? C.forest : const Color(0x22000000)),
+        ),
+        child: Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 14,
+          color: onTap == null ? Colors.black26 : (active ? Colors.white : C.forest))),
+      ),
+    ),
+  );
 
   void _onSearch(String _) {
     _debounce?.cancel();
@@ -87,22 +157,38 @@ class _ShopState extends State<ShopScreen> {
               ? GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.75), itemCount: 6, itemBuilder: (_,__) => const GSkelCard())
               : _products.isEmpty
                 ? const GEmpty(title: 'No items found', sub: 'Try a different category or search term', icon: Icons.shopping_bag_outlined)
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2, 
-                      crossAxisSpacing: 10, 
-                      mainAxisSpacing: 10, 
-                      childAspectRatio: 0.65, // Increased height ratio for small screens
-                    ),
-                    itemCount: _products.length,
-                    itemBuilder: (_, i) => _ProductTile(
-                      pData: asMap(_products[i]),
-                      qty: cart.qty(asInt(_products[i]['id'])),
-                      onAdd: () => _addToCart(asMap(_products[i])),
-                      onRemove: () => _removeFromCart(asInt(_products[i]['id'])),
-                      onTap: () => _showDetail(asMap(_products[i])),
-                    ).animate().fadeIn(delay: Duration(milliseconds: i * 30)).slideY(begin: 0.05, end: 0),
+                : CustomScrollView(
+                    controller: _scrollCtrl,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        sliver: SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 0.65,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) => _ProductTile(
+                              pData: asMap(_products[i]),
+                              qty: cart.qty(asInt(_products[i]['id'])),
+                              onAdd: () => _addToCart(asMap(_products[i])),
+                              onRemove: () => _removeFromCart(asInt(_products[i]['id'])),
+                              onTap: () => _showDetail(asMap(_products[i])),
+                            ).animate().fadeIn(delay: Duration(milliseconds: (i % 24) * 30)).slideY(begin: 0.05, end: 0),
+                            childCount: _products.length,
+                          ),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
+                          child: _buildPagination(),
+                        ),
+                      ),
+                    ],
                   ),
           )),
         ]),

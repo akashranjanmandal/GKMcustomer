@@ -43,6 +43,7 @@ class Api {
     bool auth = true,
     Map<String, dynamic>? body,
     Map<String, String>? query,
+    bool raw = false, // return the full {success,data,...} envelope instead of just data
   }) async {
     var uri = Uri.parse('$kBase$path');
     if (query != null && query.isNotEmpty) {
@@ -78,7 +79,7 @@ class Api {
     try { json = jsonDecode(utf8.decode(res.bodyBytes)); } catch (_) { json = {}; }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      if (json is Map && json.containsKey('data')) return json['data'];
+      if (!raw && json is Map && json.containsKey('data')) return json['data'];
       return json;
     }
     final msg = (json is Map ? json['message'] : null) as String? ?? 'Error ${res.statusCode}';
@@ -296,12 +297,33 @@ class Api {
   // ─── SHOP ─────────────────────────────────────────────────────────────────
   Future<dynamic> getShopCategories() => req('GET', '/shop/categories', auth: false);
 
-  Future<dynamic> getShopProducts({String? category, String? search, int page = 1, int limit = 20}) =>
+  Future<dynamic> getShopProducts({String? category, String? search, int page = 1, int limit = 500}) =>
       req('GET', '/shop/products', auth: false, query: {
         if (category != null && category.isNotEmpty) 'category': category,
         if (search != null && search.isNotEmpty) 'search': search,
         'page': '$page', 'limit': '$limit',
       });
+
+  // Paginated variant — returns {items, total, page, pages, limit} (reads the
+  // full envelope via raw:true, which req() would otherwise strip to data).
+  Future<Map<String, dynamic>> getShopProductsPaged({String? category, String? search, String? sort, int page = 1, int limit = 24}) async {
+    final res = await req('GET', '/shop/products', auth: false, raw: true, query: {
+      if (category != null && category.isNotEmpty) 'category': category,
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (sort != null && sort.isNotEmpty) 'sort': sort,
+      'page': '$page', 'limit': '$limit',
+    });
+    final map = (res is Map) ? res : <String, dynamic>{};
+    final items = (map['data'] is List) ? map['data'] as List : <dynamic>[];
+    int asI(dynamic v, int d) => (v is num) ? v.toInt() : (int.tryParse('$v') ?? d);
+    return {
+      'items': items,
+      'total': asI(map['total'], items.length),
+      'page': asI(map['page'], page),
+      'pages': asI(map['pages'], 1),
+      'limit': asI(map['limit'], limit),
+    };
+  }
 
   Future<dynamic> getShopProduct(int id) => req('GET', '/shop/products/$id', auth: false);
 
