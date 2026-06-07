@@ -167,9 +167,22 @@ class _BookState extends State<BookScreen> {
         _plans  = asList(r[0]);
         _addons = asList(r[1]);
         if (_planId == null && _plans.isNotEmpty) _planId = asInt(_plans.first['id']);
+        // Start the plant counter at the selected plan's coverage (max_plants).
+        final selPlan = _plans.where((e) => asInt(e['id']) == _planId).firstOrNull;
+        final maxP = selPlan == null ? 0 : asInt(asMap(selPlan)['max_plants']);
+        if (maxP > 0) _plantCount = maxP;
         _loading = false;
       });
     } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
+
+  // Selecting a plan starts the plant counter at that plan's coverage (max_plants).
+  void _selectPlan(Map<String, dynamic> pl) {
+    final maxPlants = asInt(pl['max_plants']);
+    setState(() {
+      _planId = asInt(pl['id']);
+      if (maxPlants > 0) _plantCount = maxPlants;
+    });
   }
 
   Future<void> _loadAvailability(String date) async {
@@ -441,13 +454,13 @@ class _BookState extends State<BookScreen> {
     if (_subPlans.isNotEmpty) ...[
       GSec('Subscription Plans'),
       const SizedBox(height: 12),
-      ..._subPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => setState(() => _planId = asInt(pl['id'])), displayPrice: _odPrice(Map<String, dynamic>.from(pl as Map)))),
+      ..._subPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => _selectPlan(Map<String, dynamic>.from(pl)), displayPrice: _odPrice(Map<String, dynamic>.from(pl as Map)))),
     ],
     if (_odPlans.isNotEmpty) ...[
       if (_subPlans.isNotEmpty) const SizedBox(height: 32),
       GSec('One-Time Visit'),
       const SizedBox(height: 12),
-      ..._odPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => setState(() => _planId = asInt(pl['id'])), displayPrice: _odPrice(Map<String, dynamic>.from(pl as Map)))),
+      ..._odPlans.map((pl) => _PlanItem(plan: pl, sel: _planId == asInt(pl['id']), onTap: () => _selectPlan(Map<String, dynamic>.from(pl)), displayPrice: _odPrice(Map<String, dynamic>.from(pl as Map)))),
     ],
   ]));
 
