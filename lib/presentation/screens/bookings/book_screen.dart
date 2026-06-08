@@ -27,7 +27,7 @@ class _BookState extends State<BookScreen> {
 
   final _notesCtrl = TextEditingController();
   int? _planId;
-  int _plantCount = 5;
+  int _plantCount = 0; // additional plants beyond the plan's coverage (optional)
   String _date = '', _time = '09:00';
   final Set<int> _selectedAddons = {};
   bool _autoRenew = true;
@@ -47,10 +47,11 @@ class _BookState extends State<BookScreen> {
   bool get _planPreSelected => widget.planId != null;
 
   List<String> get _labels {
+    // Add-ons step removed from the flow for now (re-add 'Add-ons' to re-enable).
     if (_planPreSelected) {
-      return _isSub ? ['Location', 'Checkout'] : ['Location', 'Plants', 'Add-ons', 'Schedule', 'Checkout'];
+      return _isSub ? ['Location', 'Checkout'] : ['Location', 'Plants', 'Schedule', 'Checkout'];
     } else {
-      return _isSub ? ['Location', 'Plan', 'Checkout'] : ['Location', 'Plan', 'Plants', 'Add-ons', 'Schedule', 'Checkout'];
+      return _isSub ? ['Location', 'Plan', 'Checkout'] : ['Location', 'Plan', 'Plants', 'Schedule', 'Checkout'];
     }
   }
 
@@ -79,27 +80,18 @@ class _BookState extends State<BookScreen> {
   }
 
   double get _total {
-    double t = asDouble(_selectedPlan?['price']);
-    
-    // If it's an on-demand visit, use geofence specific pricing if available
-    if (!_isSub && _picked != null && _zone != null && _zone!.containsKey('base_price')) {
-      final base = asDouble(_zone!['base_price']);
-      if (base > 0) {
-        final ppp = asDouble(_zone!['price_per_plant']);
-        final min = asInt(_zone!['min_plants']);
-        final surge = asDouble(_zone!['surge_multiplier']) > 0 ? asDouble(_zone!['surge_multiplier']) : 1.0;
-        
-        t = base;
-        if (_plantCount > min) t += (_plantCount - min) * ppp;
-        t *= surge;
-      }
+    // Base = zone base price for on-demand, plan price for subscriptions.
+    double base = asDouble(_selectedPlan?['price']);
+    if (!_isSub && _picked != null && _zone != null && asDouble(_zone!['base_price']) > 0) {
+      base = asDouble(_zone!['base_price']);
     }
-
+    // Additional plants are optional, ₹25 each, on top of the plan's free coverage.
+    double t = base + (_plantCount * 25);
     for (final id in _selectedAddons) {
       final a = _addons.where((x) => asInt(x['id']) == id).firstOrNull;
       t += asDouble(a?['price']);
     }
-    return t;
+    return t * 1.18; // + 18% GST
   }
 
   bool _zoneChecking = false;
@@ -167,22 +159,13 @@ class _BookState extends State<BookScreen> {
         _plans  = asList(r[0]);
         _addons = asList(r[1]);
         if (_planId == null && _plans.isNotEmpty) _planId = asInt(_plans.first['id']);
-        // Start the plant counter at the selected plan's coverage (max_plants).
-        final selPlan = _plans.where((e) => asInt(e['id']) == _planId).firstOrNull;
-        final maxP = selPlan == null ? 0 : asInt(asMap(selPlan)['max_plants']);
-        if (maxP > 0) _plantCount = maxP;
         _loading = false;
       });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
-  // Selecting a plan starts the plant counter at that plan's coverage (max_plants).
   void _selectPlan(Map<String, dynamic> pl) {
-    final maxPlants = asInt(pl['max_plants']);
-    setState(() {
-      _planId = asInt(pl['id']);
-      if (maxPlants > 0) _plantCount = maxPlants;
-    });
+    setState(() => _planId = asInt(pl['id']));
   }
 
   Future<void> _loadAvailability(String date) async {
@@ -267,7 +250,7 @@ class _BookState extends State<BookScreen> {
           flatNo: _picked!.flatNo, building: _picked!.building,
           area: _picked!.area, landmark: _picked!.landmark,
           city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
-          plantCount: null,
+          plantCount: _plantCount,
           autoRenew: _autoRenew,
           addons: addonsPayload,
           totalAmount: totalAmount,
@@ -464,17 +447,34 @@ class _BookState extends State<BookScreen> {
     ],
   ]));
 
-  Widget _stepPlants() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-    Text('How many plants?', style: p(24, w: FontWeight.w900, color: Colors.black)),
-    const SizedBox(height: 40),
-    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      _CounterBtn(icon: Icons.remove, enabled: _plantCount > 1, onTap: () => setState(() => _plantCount--)),
-      SizedBox(width: 140, child: Center(child: Text('$_plantCount', style: GoogleFonts.poppins(fontSize: 80, fontWeight: FontWeight.w900, color: C.forest)))),
-      _CounterBtn(icon: Icons.add, enabled: _plantCount < 200, onTap: () => setState(() => _plantCount++)),
-    ]),
-    const SizedBox(height: 16),
-    Text('Up to 200 plants supported', style: p(13, color: Colors.black38, w: FontWeight.w600)),
-  ]));
+  Widget _stepPlants() {
+    final freePlants = asInt(_selectedPlan?['max_plants']);
+    return Center(child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('Additional Plants', style: p(24, w: FontWeight.w900, color: Colors.black)),
+        const SizedBox(height: 10),
+        Text(
+          freePlants > 0
+              ? 'Your plan already covers up to $freePlants plants. Add extra only if you need more — ₹25 each (optional).'
+              : 'Add extra plants beyond your plan — ₹25 each (optional).',
+          textAlign: TextAlign.center,
+          style: p(13, color: Colors.black54, w: FontWeight.w600, h: 1.5),
+        ),
+        const SizedBox(height: 32),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          _CounterBtn(icon: Icons.remove, enabled: _plantCount > 0, onTap: () => setState(() => _plantCount--)),
+          SizedBox(width: 140, child: Center(child: Text('$_plantCount', style: GoogleFonts.poppins(fontSize: 80, fontWeight: FontWeight.w900, color: C.forest)))),
+          _CounterBtn(icon: Icons.add, enabled: _plantCount < 200, onTap: () => setState(() => _plantCount++)),
+        ]),
+        const SizedBox(height: 16),
+        Text(
+          _plantCount == 0 ? 'No additional plants (plan only)' : '$_plantCount extra plants · +₹${_plantCount * 25}',
+          style: p(14, color: C.forest, w: FontWeight.w700),
+        ),
+      ]),
+    ));
+  }
 
   Widget _stepAddons() => SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     GSec('Optional Add-ons'),
@@ -619,7 +619,7 @@ class _BookState extends State<BookScreen> {
         _RowInfo(label: 'Location', value: prov.label),
         _RowInfo(label: 'Address', value: _cleanAddr(prov.fullAddress), isBold: false),
         _RowInfo(label: 'Plan', value: asStr(_selectedPlan?['name'])),
-        if (!_isSub) _RowInfo(label: 'Plants', value: '$_plantCount plants'),
+        _RowInfo(label: 'Additional Plants', value: _plantCount == 0 ? 'None (plan only)' : '$_plantCount × ₹25 = +₹${_plantCount * 25}'),
         if (!_isSub) ...[
           if (_mode == 'instant')
             _RowInfo(label: 'When', value: '⚡ Instant — within ~${asInt(_instantInfo?['eta_minutes'])} min')
@@ -630,6 +630,16 @@ class _BookState extends State<BookScreen> {
         ],
         if (!_isSub && _selectedAddons.isNotEmpty) _RowInfo(label: 'Add-ons', value: _selectedAddons.length.toString()),
         const Divider(height: 48),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('Subtotal (excl. GST)', style: p(13, color: Colors.black54, w: FontWeight.w600)),
+          Text('₹${(_total / 1.18).toStringAsFixed(0)}', style: p(13, color: Colors.black54, w: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('GST (18%)', style: p(13, color: Colors.black54, w: FontWeight.w600)),
+          Text('₹${(_total - _total / 1.18).toStringAsFixed(0)}', style: p(13, color: Colors.black54, w: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 16),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('Total Amount', style: p(16, w: FontWeight.w700)),
           Text('₹${_total.toStringAsFixed(0)}', style: p(24, w: FontWeight.w900, color: C.green)),
