@@ -49,7 +49,6 @@ class PickedLocation {
       if (city?.isNotEmpty == true) city!,
     ];
     if (parts.isNotEmpty) return parts.join(', ');
-    // Fallback to address if no structured fields
     return address.isNotEmpty ? address : 'Current Location';
   }
 
@@ -61,16 +60,12 @@ class PickedLocation {
   }
 }
 
-// Utility for point-in-polygon check
 bool isPointInPolygon(double lat, double lng, List<dynamic> poly) {
   if (poly.isEmpty) return false;
-
-  // Recursively find the actual points array (handles standard GeoJSON [[[lng, lat], ...]])
   List<dynamic> points = poly;
   while (points.isNotEmpty && points[0] is List && points[0].isNotEmpty && points[0][0] is List) {
     points = points[0] as List;
   }
-
   if (points.isEmpty || points.length < 3) return false;
 
   bool check(double y, double x, List<dynamic> p, int yIdx, int xIdx) {
@@ -78,74 +73,49 @@ bool isPointInPolygon(double lat, double lng, List<dynamic> poly) {
     final n = p.length;
     for (int i = 0, j = n - 1; i < n; j = i++) {
       final vi = p[i] as List; final vj = p[j] as List;
-      // Safety checks for point data
       if (vi.length <= yIdx || vi.length <= xIdx || vj.length <= yIdx || vj.length <= xIdx) continue;
-      
       final yi = (vi[yIdx] as num).toDouble();
       final xi = (vi[xIdx] as num).toDouble();
       final yj = (vj[yIdx] as num).toDouble();
       final xj = (vj[xIdx] as num).toDouble();
-      
-      final intersect = ((yi > y) != (yj > y)) && 
-                        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      final intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
       if (intersect) inside = !inside;
     }
     return inside;
   }
 
-  // Try GeoJSON [lng, lat] (Standard)
   if (check(lat, lng, points, 1, 0)) return true;
-  // Fallback to [lat, lng]
   return check(lat, lng, points, 0, 1);
 }
 
 Future<PickedLocation?> detectCurrentLocation() async {
   try {
-    print('>>> [LocationDetection] Starting detection...');
     final svcOn = await Geolocator.isLocationServiceEnabled();
-    if (!svcOn) {
-      print('>>> [LocationDetection] FAILED: Location services are disabled on device');
-      return null;
-    }
+    if (!svcOn) return null;
 
     var perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) {
-      print('>>> [LocationDetection] Permission denied, requesting...');
-      perm = await Geolocator.requestPermission();
-    }
-    if (![LocationPermission.whileInUse, LocationPermission.always].contains(perm)) {
-      print('>>> [LocationDetection] FAILED: Location permission not granted ($perm)');
-      return null;
-    }
+    if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+    if (![LocationPermission.whileInUse, LocationPermission.always].contains(perm)) return null;
 
     Position pos;
     try {
-      print('>>> [LocationDetection] Getting current position...');
       pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 10));
     } catch (e) {
-      print('>>> [LocationDetection] getCurrentPosition failed ($e), trying last known...');
       final last = await Geolocator.getLastKnownPosition();
       if (last != null) {
         pos = last;
       } else {
-        print('>>> [LocationDetection] No last known position, trying low accuracy...');
         pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low, timeLimit: const Duration(seconds: 10));
       }
     }
 
-    print('>>> [LocationDetection] Found coordinates: ${pos.latitude}, ${pos.longitude}');
-    
     final uri = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.latitude}&lon=${pos.longitude}&zoom=18');
-    print('>>> [LocationDetection] Fetching address from Nominatim...');
     final res = await http.get(uri, headers: {'Accept-Language': 'en', 'User-Agent': 'GharKaMali/1.0'}).timeout(const Duration(seconds: 8));
-
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     final a = (j['address'] as Map?)?.cast<String, dynamic>() ?? {};
-
     final road   = (a['road'] ?? a['footway'] ?? '').toString().trim();
     final suburb = (a['suburb'] ?? a['neighbourhood'] ?? a['quarter'] ?? '').toString().trim();
     final city   = (a['city'] ?? a['town'] ?? a['village'] ?? a['county'] ?? '').toString().trim();
-
     final addrParts = <String>[
       if (road.isNotEmpty) road,
       if (suburb.isNotEmpty) suburb,
@@ -154,50 +124,35 @@ Future<PickedLocation?> detectCurrentLocation() async {
     String addr = addrParts.isNotEmpty ? addrParts.join(', ') : (suburb.isNotEmpty ? suburb : city.isNotEmpty ? city : 'Current Location');
 
     final api = Api();
-    print('>>> [LocationDetection] Checking serviceability for: ${pos.latitude}, ${pos.longitude}');
     final sRes = await api.checkServiceability(pos.latitude, pos.longitude);
     final data = asMap(sRes);
-    
-    // Trust the backend's resolved zone first
     Map<String, dynamic> found = asMap(data['zone']);
-    if (found.isNotEmpty) {
-      print('>>> [LocationDetection] Backend matched zone: ${found['name']} (ID: ${found['id']})');
-    } else {
-      print('>>> [LocationDetection] Backend found NO matching zone. Attempting local fallback check...');
+    if (found.isEmpty) {
       final allZones = data['zones'] as List? ?? [];
       for (var z in allZones) {
         final zone = asMap(z);
         final poly = asList(zone['polygon_coords']);
         if (poly.isNotEmpty && isPointInPolygon(pos.latitude, pos.longitude, poly)) {
-          found = zone;
-          print('>>> [LocationDetection] Local fallback matched: ${found['name']}');
-          break;
+          found = zone; break;
         }
       }
     }
 
-    if (found.isEmpty) {
-      print('>>> [LocationDetection] WARNING: No matching zone found for these coordinates.');
-    }
-
     return PickedLocation(
-      lat: pos.latitude, lng: pos.longitude,
-      address: addr,
-      city:    city,
-      area:    suburb.isNotEmpty ? suburb : road,
-      pincode: (a['postcode'] ?? '').toString(),
-      state:   (a['state'] ?? '').toString(),
-      zone:    found,
+      lat: pos.latitude, lng: pos.longitude, address: addr,
+      city: city, area: suburb.isNotEmpty ? suburb : road,
+      pincode: (a['postcode'] ?? '').toString(), state: (a['state'] ?? '').toString(), zone: found,
     );
-  } catch (e) { 
-    print('>>> [LocationDetection] CRITICAL ERROR: $e');
-    return null; 
-  }
+  } catch (e) { return null; }
 }
 
 Future<PickedLocation?> showLocationPicker(BuildContext context) {
   return showModalBottomSheet<PickedLocation>(
-    context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    isDismissible: false,
+    enableDrag: false,
     builder: (_) => const _LocationPickerSheet(),
   );
 }
@@ -227,21 +182,15 @@ class _SavedLocationsSheet extends StatelessWidget {
           IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded, color: C.t3)),
         ]),
         const SizedBox(height: 16),
-        
-        // Add New Address Button
         GestureDetector(
           onTap: () async {
             final res = await showLocationPicker(ctx);
-            if (res != null && ctx.mounted) {
-              lp.save(res);
-              Navigator.pop(ctx, res);
-            }
+            if (res != null && ctx.mounted) { lp.save(res); Navigator.pop(ctx, res); }
           },
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              color: Colors.white, borderRadius: BorderRadius.circular(16),
               border: Border.all(color: C.forest.withOpacity(0.3), width: 1.5, style: BorderStyle.solid),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -252,7 +201,6 @@ class _SavedLocationsSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-
         Flexible(child: ListView.builder(
           shrinkWrap: true, itemCount: lp.locations.length,
           itemBuilder: (_, i) {
@@ -288,10 +236,7 @@ class _SavedLocationsSheet extends StatelessWidget {
           const SizedBox(height: 12),
           GBtn(label: 'Choose from Map', icon: Icons.map_rounded, onTap: () async {
             final res = await showLocationPicker(ctx);
-            if (res != null && ctx.mounted) {
-              lp.save(res);
-              Navigator.pop(ctx, res);
-            }
+            if (res != null && ctx.mounted) { lp.save(res); Navigator.pop(ctx, res); }
           }, bg: C.forest),
         ],
       ]),
@@ -306,7 +251,7 @@ class _LocationPickerSheet extends StatefulWidget {
 
 class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   final _api = Api();
-  int  _step      = 0; // 0: Search, 1: Map, 2: Details
+  int  _step       = 0;
   bool _gpsLoading = false, _geocoding = false, _searching = false;
   double? _lat, _lng;
   String _detectedAddress = '';
@@ -324,26 +269,34 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   String? _selectedGfId;
   double? _pendingZoom; // applied in onMapCreated when entering from the area dropdown
 
+  // Map-level search
+  final _mapSearchCtrl   = TextEditingController();
+  List<dynamic> _mapSearchResults = [];
+  bool _mapSearching     = false;
+  bool _mapSearchVisible = false;
+  final FocusNode _mapSearchFocus = FocusNode();
+
   GoogleMapController? _mapCtrl;
   LatLng? _mapTarget;
-  // Google Maps key for place search (Places API).
-  // Defaults to the same key as the AndroidManifest map key, so a plain
-  // `flutter build apk` works. Override per-build with:
-  //   flutter build/run --dart-define=GOOGLE_MAPS_KEY=AIza...
+  MapType _mapType = MapType.normal;
+
+  Timer? _searchDebounce;
+  Timer? _mapSearchDebounce;
+
   static const _gKey = String.fromEnvironment(
     'GOOGLE_MAPS_KEY',
     defaultValue: 'AIzaSyDIR7WEJoxM7do0k3vWqL__CcSP2JgOrq8',
   );
 
-  Timer? _mapIdleTimer;
-  Timer? _searchDebounce;
-
   bool get _isServiceable => _detectedZone.isNotEmpty && asInt(_detectedZone['id']) > 0;
 
-  @override void initState() { super.initState(); _detectGPS(); _loadGeofences(); }
-  @override void dispose() {
-    _mapIdleTimer?.cancel();
+  @override
+  void initState() { super.initState(); _detectGPS(); }
+
+  @override
+  void dispose() {
     _searchDebounce?.cancel();
+    _mapSearchDebounce?.cancel();
     _searchCtrl.dispose();
     _flatCtrl.dispose();
     _buildingCtrl.dispose();
@@ -351,6 +304,8 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     _cityCtrl.dispose();
     _stateCtrl.dispose();
     _pincodeCtrl.dispose();
+    _mapSearchCtrl.dispose();
+    _mapSearchFocus.dispose();
     _mapCtrl?.dispose();
     super.dispose();
   }
@@ -378,10 +333,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       if (_step == 1) _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(_mapTarget!, 17));
       setState(() { _gpsLoading = false; _geocoding = true; });
       await _reverseGeocode(_lat!, _lng!);
-      // Auto-advance to map step when GPS succeeds in the search step
-      if (mounted && _step == 0 && _isServiceable) {
-        setState(() => _step = 1);
-      }
+      if (mounted && _step == 0 && _isServiceable) setState(() => _step = 1);
     } catch (_) {
       if (mounted) setState(() { _gpsLoading = false; _geocoding = false; });
     }
@@ -389,17 +341,20 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   void _onSearchChanged(String query) {
     _searchDebounce?.cancel();
-    if (query.length < 3) {
-      if (_searchResults.isNotEmpty) setState(() => _searchResults = []);
-      return;
-    }
+    if (query.length < 3) { if (_searchResults.isNotEmpty) setState(() => _searchResults = []); return; }
     setState(() => _searching = true);
-    _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchAddress(query));
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () => _searchAddress(query, map: false));
   }
 
-  // Live place suggestions via Google Places Autocomplete (India-restricted).
-  Future<void> _searchAddress(String query) async {
-    if (_gKey.isEmpty) { if (mounted) setState(() => _searching = false); return; }
+  void _onMapSearchChanged(String query) {
+    _mapSearchDebounce?.cancel();
+    if (query.length < 3) { if (_mapSearchResults.isNotEmpty) setState(() => _mapSearchResults = []); return; }
+    setState(() => _mapSearching = true);
+    _mapSearchDebounce = Timer(const Duration(milliseconds: 500), () => _searchAddress(query, map: true));
+  }
+
+  Future<void> _searchAddress(String query, {required bool map}) async {
+    if (_gKey.isEmpty) { if (mounted) setState(() { if (map) _mapSearching = false; else _searching = false; }); return; }
     try {
       final uri = Uri.parse('https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&components=country:in&key=$_gKey');
       final res = await http.get(uri).timeout(const Duration(seconds: 8));
@@ -408,30 +363,39 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
         final m = asMap(p);
         return {'description': asStr(m['description']), 'place_id': asStr(m['place_id'])};
       }).toList();
-      if (mounted) setState(() { _searchResults = preds; _searching = false; });
+      if (mounted) setState(() {
+        if (map) { _mapSearchResults = preds; _mapSearching = false; }
+        else { _searchResults = preds; _searching = false; }
+      });
     } catch (_) {
-      if (mounted) setState(() => _searching = false);
+      if (mounted) setState(() { if (map) _mapSearching = false; else _searching = false; });
     }
   }
 
-  Future<void> _selectSearchResult(dynamic item) async {
+  Future<void> _selectSearchResult(dynamic item, {bool fromMap = false}) async {
     final m = asMap(item);
     final placeId = asStr(m['place_id']);
     if (placeId.isEmpty || _gKey.isEmpty) return;
     try {
-      // Resolve the picked prediction → coordinates via Place Details.
       final uri = Uri.parse('https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&fields=geometry,formatted_address&key=$_gKey');
       final res = await http.get(uri).timeout(const Duration(seconds: 8));
-      final j   = jsonDecode(res.body) as Map<String, dynamic>;
+      final j      = jsonDecode(res.body) as Map<String, dynamic>;
       final result = asMap(j['result']);
-      final loc = asMap(asMap(result['geometry'])['location']);
+      final loc    = asMap(asMap(result['geometry'])['location']);
       _lat = asDouble(loc['lat']);
       _lng = asDouble(loc['lng']);
       _detectedAddress = asStr(result['formatted_address']);
       if (_lat != 0 && _lng != 0) {
         _mapTarget = LatLng(_lat!, _lng!);
-        setState(() { _step = 1; _searchResults = []; _searchCtrl.clear(); _geocoding = true; });
-        await _reverseGeocode(_lat!, _lng!);
+        if (fromMap) {
+          // Stay on map, just move camera and update
+          setState(() { _mapSearchResults = []; _mapSearchCtrl.clear(); _mapSearchVisible = false; _geocoding = true; });
+          _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(_mapTarget!, 17));
+          await _reverseGeocode(_lat!, _lng!);
+        } else {
+          setState(() { _step = 1; _searchResults = []; _searchCtrl.clear(); _geocoding = true; });
+          await _reverseGeocode(_lat!, _lng!);
+        }
       }
     } catch (_) {/* ignore */}
   }
@@ -439,24 +403,19 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   Future<void> _reverseGeocode(double lat, double lng) async {
     final zoneFuture = _checkZone(lat, lng);
     try {
-      // Native platform geocoding (no API key needed).
       final placemarks = await geo.placemarkFromCoordinates(lat, lng);
       final p = placemarks.isNotEmpty ? placemarks.first : null;
-
       final road     = (p?.thoroughfare?.isNotEmpty == true ? p!.thoroughfare! : (p?.street ?? '')).trim();
       final suburb   = (p?.subLocality ?? '').trim();
       final city     = (p?.locality?.isNotEmpty == true ? p!.locality! : (p?.subAdministrativeArea ?? '')).trim();
       final state    = (p?.administrativeArea ?? '').trim();
       final postcode = (p?.postalCode ?? '').trim();
-
-      // Build a clean human-readable address without coordinates
       final addrParts = <String>[
         if (road.isNotEmpty) road,
         if (suburb.isNotEmpty) suburb,
         if (city.isNotEmpty) city,
       ].where((s) => s.isNotEmpty).toList();
       final addr = addrParts.isNotEmpty ? addrParts.join(', ') : (suburb.isNotEmpty ? suburb : city.isNotEmpty ? city : 'Current Location');
-
       await zoneFuture;
       if (mounted) setState(() {
         _detectedAddress = addr;
@@ -474,89 +433,24 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   Future<void> _checkZone(double lat, double lng) async {
     try {
-      print('>>> [ZoneCheck] Checking: $lat, $lng');
       final sRes = await _api.checkServiceability(lat, lng);
       final data = asMap(sRes);
-      print('>>> [ZoneCheck] Backend raw response keys: ${data.keys.toList()}');
-      print('>>> [ZoneCheck] serviceable=${data["serviceable"]}, zone=${data["zone"]}');
-      
-      // Trust the backend's resolved zone first
       Map<String, dynamic> found = asMap(data['zone']);
-      
-      if (found.isNotEmpty) {
-        print('>>> [ZoneCheck] Backend matched: ${found["name"]} (id=${found["id"]})');
-      } else {
-        print('>>> [ZoneCheck] Backend found no zone. Attempting local polygon check...');
+      if (found.isEmpty) {
         final allZones = asList(data['zones']);
-        print('>>> [ZoneCheck] Local check against ${allZones.length} zones');
         for (var z in allZones) {
           final zone = asMap(z);
           final poly = asList(zone['polygon_coords']);
-          print('>>> [ZoneCheck]   Zone "${zone["name"]}" has ${poly.length} polygon points');
-          if (poly.isNotEmpty && isPointInPolygon(lat, lng, poly)) {
-            found = zone;
-            print('>>> [ZoneCheck] Local match: ${found["name"]}');
-            break;
-          }
-        }
-        if (found.isEmpty) {
-          print('>>> [ZoneCheck] WARNING: No zone matched for ($lat, $lng). Not serviceable.');
+          if (poly.isNotEmpty && isPointInPolygon(lat, lng, poly)) { found = zone; break; }
         }
       }
-
       if (mounted) setState(() => _detectedZone = found);
-    } catch (e, stack) {
-      print('>>> [ZoneCheck] ERROR: $e');
-      print('>>> [ZoneCheck] Stack: $stack');
-    }
+    } catch (_) {}
   }
-
-  Future<void> _loadGeofences() async {
-    try {
-      final r = await _api.getGeofences();
-      if (mounted) setState(() => _geofences = asList(r));
-    } catch (_) {/* ignore */}
-  }
-
-  // Area dropdown → centre the map on the chosen geofence; user pans to fine-tune.
-  void _pickGeofence(String id) {
-    final g = _geofences.map((e) => asMap(e)).firstWhere((e) => asStr(e['id']) == id, orElse: () => <String, dynamic>{});
-    if (g.isEmpty) return;
-    final c = _polyCentroid(_parsePolygon(g['polygon_coords']));
-    if (c == null) return;
-    _selectedGfId = id;
-    _lat = c.latitude; _lng = c.longitude;
-    _mapTarget = c;
-    _pendingZoom = 13; // open at area level, not street level
-    setState(() { _step = 1; _searchResults = []; _searchCtrl.clear(); _geocoding = true; _detectedZone = g; });
-    _reverseGeocode(c.latitude, c.longitude);
-  }
-
-  List<List<double>> _parsePolygon(dynamic raw) {
-    try {
-      final arr = raw is String ? jsonDecode(raw) : raw;
-      if (arr is List) {
-        return arr
-            .where((p) => p is List && p.length >= 2)
-            .map<List<double>>((p) => [asDouble(p[0]), asDouble(p[1])])
-            .toList();
-      }
-    } catch (_) {/* ignore */}
-    return [];
-  }
-
-  LatLng? _polyCentroid(List<List<double>> pts) {
-    if (pts.isEmpty) return null;
-    double la = 0, ln = 0;
-    for (final p in pts) { la += p[0]; ln += p[1]; }
-    return LatLng(la / pts.length, ln / pts.length);
-  }
-
 
   void _onSaveAll() {
     Navigator.pop(context, PickedLocation(
-      lat: _lat!, lng: _lng!,
-      address: _detectedAddress,
+      lat: _lat!, lng: _lng!, address: _detectedAddress,
       flatNo:   _flatCtrl.text.trim(),
       building: _buildingCtrl.text.trim(),
       area:     _areaCtrl.text.trim(),
@@ -574,7 +468,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * (_step == 1 ? 0.95 : 0.9)),
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        padding: EdgeInsets.only(bottom: _step == 1 ? 0 : MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (_step != 1) ...[
             const SizedBox(height: 12),
@@ -605,48 +499,15 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       Text('Find your location to check serviceability', style: p(13, color: C.t3)),
       const SizedBox(height: 24),
 
-      // Serviceable-area dropdown → centre the map on that geofence
-      if (_geofences.isNotEmpty) ...[
-        Container(
-          height: 54, padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(color: const Color(0xFFF3F7F0), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.border)),
-          child: Row(children: [
-            const Icon(Icons.place_rounded, color: C.forest, size: 20),
-            const SizedBox(width: 12),
-            Expanded(child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                value: _selectedGfId,
-                hint: Text('Choose your area', style: p(14, w: FontWeight.w600, color: C.t3)),
-                style: p(14, w: FontWeight.w600, color: C.t1),
-                items: _geofences.map<DropdownMenuItem<String>>((g) {
-                  final m = asMap(g);
-                  final name = asStr(m['name']);
-                  final city = asStr(m['city']);
-                  return DropdownMenuItem(value: asStr(m['id']), child: Text(city.isNotEmpty ? '$name — $city' : name, maxLines: 1, overflow: TextOverflow.ellipsis));
-                }).toList(),
-                onChanged: (v) { if (v != null) _pickGeofence(v); },
-              ),
-            )),
-          ]),
-        ),
-        const SizedBox(height: 16),
-        Center(child: Text('OR', style: p(11, w: FontWeight.w800, color: C.t4))),
-        const SizedBox(height: 16),
-      ],
-
-      // Search Box
       Container(
         height: 54, padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(color: const Color(0xFFF3F7F0), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.border)),
         child: Row(children: [
           const Icon(Icons.search_rounded, color: C.forest, size: 20),
           const SizedBox(width: 12),
-          Expanded(child: TextField(
-            controller: _searchCtrl,
-            onChanged: _onSearchChanged,
-            decoration: const InputDecoration(hintText: 'Search area, colony, landmark...', border: InputBorder.none, isDense: true),
-            style: p(14, w: FontWeight.w600),
+          Expanded(child: _NoOutlineTextField(
+            controller: _searchCtrl, onChanged: _onSearchChanged,
+            hint: 'Search area, colony, landmark...',
           )),
           if (_searching) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)),
         ]),
@@ -693,82 +554,259 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
         if (!_isServiceable)
           _Badge(icon: Icons.info_outline_rounded, color: Colors.orange, text: 'This area may not be serviceable. You can still pin your location on the map.'),
         const SizedBox(height: 16),
-        GBtn(
-          label: 'Confirm on Map',
-          icon: Icons.map_rounded,
-          bg: C.forest,
-          onTap: () => setState(() => _step = 1),
-        ),
+        GBtn(label: 'Confirm on Map', icon: Icons.map_rounded, bg: C.forest, onTap: () => setState(() => _step = 1)),
       ],
       const SizedBox(height: 24),
     ]),
   );
 
-  // ── Step 1: Map (Precise Selection) ──────────────────────────────────────────
-  Widget _buildMapStep() => Column(key: const ValueKey(1), children: [
-    Expanded(child: Stack(children: [
-      GoogleMap(
-        onMapCreated: (c) {
-          _mapCtrl = c;
-          if (_pendingZoom != null && _mapTarget != null) {
-            c.moveCamera(CameraUpdate.newLatLngZoom(_mapTarget!, _pendingZoom!));
-            _pendingZoom = null;
-          }
-        },
-        initialCameraPosition: CameraPosition(target: _mapTarget ?? const LatLng(22.5726, 88.3639), zoom: 17),
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
-        mapToolbarEnabled: false,
-        // Center-pin pattern: track the map centre as it moves, geocode when idle.
-        onCameraMove: (pos) { _mapTarget = pos.target; },
-        onCameraIdle: () async {
-          if (_mapTarget != null && mounted) {
-            setState(() => _geocoding = true);
-            _lat = _mapTarget!.latitude; _lng = _mapTarget!.longitude;
-            await _reverseGeocode(_lat!, _lng!);
-          }
+  // ── Step 1: Map (Full-featured) ─────────────────────────────────────────────
+  Widget _buildMapStep() {
+    return Column(key: const ValueKey(1), children: [
+      Expanded(child: Stack(children: [
+
+        // ── Google Map ──
+        GoogleMap(
+          onMapCreated: (c) {
+            _mapCtrl = c;
+            if (_mapTarget != null) {
+              Future.delayed(const Duration(milliseconds: 300), () {
+                _mapCtrl?.animateCamera(CameraUpdate.newLatLngZoom(_mapTarget!, 17));
+              });
+            }
+          },
+          initialCameraPosition: CameraPosition(
+            target: _mapTarget ?? const LatLng(22.5726, 88.3639),
+            zoom: 17,
+          ),
+          mapType: _mapType,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          zoomGesturesEnabled: true,
+          scrollGesturesEnabled: true,
+          rotateGesturesEnabled: true,
+          tiltGesturesEnabled: true,
+          mapToolbarEnabled: false,
+          compassEnabled: true,
+          onCameraMove: (pos) { _mapTarget = pos.target; },
+          onCameraIdle: () async {
+            if (_mapTarget != null && mounted) {
+              setState(() => _geocoding = true);
+              _lat = _mapTarget!.latitude;
+              _lng = _mapTarget!.longitude;
+              await _reverseGeocode(_lat!, _lng!);
+            }
+          },
+        ),
+
+        // ── Center Pin ──
+        IgnorePointer(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.location_on_rounded, color: C.forest, size: 48, shadows: const [Shadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3))]),
+                // Shadow dot below pin
+                Container(
+                  width: 8, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                // Offset by half pin height so tip lands on map center
+                const SizedBox(height: 44),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Top: Back + Search Bar ──
+        Positioned(top: 12, left: 12, right: 12, child: _buildMapTopBar()),
+
+        // ── Map Search Results Dropdown ──
+        if (_mapSearchVisible && _mapSearchResults.isNotEmpty)
+          Positioned(top: 74, left: 12, right: 12, child: _buildMapSearchDropdown()),
+
+        // ── Right Controls Column ──
+        Positioned(
+          right: 12,
+          bottom: 200,
+          child: Column(
+            children: [
+              // Zoom In
+              _MapFab(
+                icon: Icons.add_rounded,
+                tooltip: 'Zoom In',
+                onTap: () => _mapCtrl?.animateCamera(CameraUpdate.zoomIn()),
+              ),
+              const SizedBox(height: 8),
+              // Zoom Out
+              _MapFab(
+                icon: Icons.remove_rounded,
+                tooltip: 'Zoom Out',
+                onTap: () => _mapCtrl?.animateCamera(CameraUpdate.zoomOut()),
+              ),
+              const SizedBox(height: 8),
+              // Map Type Toggle
+              _MapFab(
+                icon: _mapType == MapType.normal ? Icons.satellite_alt_rounded : Icons.map_rounded,
+                tooltip: _mapType == MapType.normal ? 'Satellite View' : 'Map View',
+                onTap: () => setState(() {
+                  _mapType = _mapType == MapType.normal ? MapType.satellite : MapType.normal;
+                }),
+              ),
+              const SizedBox(height: 8),
+              // My Location
+              _MapFab(
+                icon: Icons.my_location_rounded,
+                tooltip: 'My Location',
+                onTap: _detectGPS,
+                iconColor: C.forest,
+              ),
+            ],
+          ),
+        ),
+      ])),
+
+      // ── Bottom Panel ──
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -5))],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Drag handle
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 12),
+
+          // Address row
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: C.forest.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.location_on_rounded, color: C.forest, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: _geocoding
+              ? Row(children: [
+                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)),
+                  const SizedBox(width: 8),
+                  Text('Fetching address...', style: p(13, color: C.t3)),
+                ])
+              : Text(_detectedAddress.isNotEmpty ? _detectedAddress : 'Move the pin to your location',
+                    style: p(13, w: FontWeight.w600, color: C.t1), maxLines: 2, overflow: TextOverflow.ellipsis)),
+          ]),
+          const SizedBox(height: 10),
+
+          if (!_geocoding) ...[
+            if (_isServiceable)
+              _Badge(icon: Icons.check_circle_rounded, color: C.green, text: 'Serviceable in ${asStr(_detectedZone['name'])}')
+            else
+              _Badge(icon: Icons.info_outline_rounded, color: Colors.orange, text: 'Move the pin to your exact location'),
+            const SizedBox(height: 14),
+          ],
+
+          GBtn(
+            label: _geocoding ? 'Locating...' : 'Confirm Location',
+            icon: Icons.check_rounded,
+            onTap: (_lat != null && _lng != null && !_geocoding) ? () => setState(() => _step = 2) : null,
+            bg: (_lat != null && !_geocoding) ? C.forest : C.t4.withOpacity(0.3),
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _buildMapTopBar() {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: s2(),
+      ),
+      child: Row(children: [
+        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: () => setState(() { _step = 0; _mapSearchVisible = false; _mapSearchResults = []; _mapSearchCtrl.clear(); }),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: const Icon(Icons.arrow_back_rounded, size: 22),
+          ),
+        ),
+        Expanded(
+          child: _mapSearchVisible
+            ? _NoOutlineTextField(
+                controller: _mapSearchCtrl,
+                focusNode: _mapSearchFocus,
+                onChanged: _onMapSearchChanged,
+                hint: 'Search location on map...',
+                autofocus: true,
+                suffixIcon: _mapSearching
+                  ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)))
+                  : (_mapSearchCtrl.text.isNotEmpty
+                      ? IconButton(icon: const Icon(Icons.close_rounded, size: 18, color: C.t3), onPressed: () {
+                          _mapSearchCtrl.clear();
+                          setState(() => _mapSearchResults = []);
+                        })
+                      : null),
+              )
+            : GestureDetector(
+                onTap: () => setState(() { _mapSearchVisible = true; }),
+                child: Text(
+                  _geocoding ? 'Fetching address...' : (_detectedAddress.isNotEmpty ? _detectedAddress : 'Search location...'),
+                  style: p(13, w: FontWeight.w600, color: _detectedAddress.isNotEmpty ? C.t1 : C.t3),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
+              ),
+        ),
+        if (!_mapSearchVisible)
+          GestureDetector(
+            onTap: () => setState(() { _mapSearchVisible = true; }),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: const Icon(Icons.search_rounded, color: C.forest, size: 20),
+            ),
+          )
+        else
+          GestureDetector(
+            onTap: () => setState(() { _mapSearchVisible = false; _mapSearchResults = []; _mapSearchCtrl.clear(); }),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: const Icon(Icons.close_rounded, color: C.t3, size: 20),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _buildMapSearchDropdown() {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 220),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: s2(),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        separatorBuilder: (_,__) => const Divider(height: 1, indent: 44),
+        itemCount: _mapSearchResults.length,
+        itemBuilder: (_, i) {
+          final res = _mapSearchResults[i];
+          return ListTile(
+            leading: const Icon(Icons.location_on_outlined, size: 18, color: C.forest),
+            title: Text(asStr(res['description']), style: p(12, w: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
+            onTap: () => _selectSearchResult(res, fromMap: true),
+          );
         },
       ),
-      // Center Pin
-      Center(child: Padding(padding: const EdgeInsets.only(bottom: 35), child: Icon(Icons.location_on_rounded, color: C.forest, size: 45))),
-      
-      // Floating Header (Address Bar)
-      Positioned(top: 20, left: 16, right: 16, child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: s2()),
-        child: Row(children: [
-          GestureDetector(onTap: () => setState(() => _step = 0), child: const Icon(Icons.arrow_back_rounded)),
-          const SizedBox(width: 12),
-          Expanded(child: Text(_geocoding ? 'Fetching address...' : _detectedAddress, style: p(13, w: FontWeight.w600, color: C.t1), maxLines: 2, overflow: TextOverflow.ellipsis)),
-        ]),
-      )),
-
-      // Floating Action (Current Loc)
-      Positioned(bottom: 220, right: 16, child: FloatingActionButton(onPressed: _detectGPS, backgroundColor: Colors.white, child: const Icon(Icons.my_location_rounded, color: C.forest))),
-    ])),
-
-    // Bottom Panel
-    Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32)), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20, offset: Offset(0, -5))]),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (_geocoding)
-          _Badge(icon: Icons.sync_rounded, color: C.t3, text: 'Finding address for this location...')
-        else if (_isServiceable)
-          _Badge(icon: Icons.check_circle_rounded, color: C.green, text: 'Serviceable in ${asStr(_detectedZone['name'])} · Tap Confirm to continue')
-        else
-          _Badge(icon: Icons.info_outline_rounded, color: Colors.orange, text: 'Move the pin to your exact location for best results'),
-
-        const SizedBox(height: 20),
-        GBtn(
-          label: _geocoding ? 'Locating...' : 'Confirm Location',
-          icon: Icons.check_rounded,
-          onTap: (_lat != null && _lng != null && !_geocoding) ? () => setState(() => _step = 2) : null,
-          bg: (_lat != null && !_geocoding) ? C.forest : C.t4.withOpacity(0.3),
-        ),
-      ]),
-    ),
-  ]);
+    );
+  }
 
   // ── Step 2: Address Details ─────────────────────────────────────────────────
   Widget _buildDetailsStep() => SingleChildScrollView(
@@ -783,21 +821,101 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       const SizedBox(height: 8),
       Padding(padding: const EdgeInsets.only(left: 38), child: Text('Precisely selected on map', style: p(12, w: FontWeight.w600, color: C.forest))),
       const SizedBox(height: 20),
-      _SheetField(ctrl: _flatCtrl,     label: 'Flat / House No.',      hint: 'e.g. 101 or B-402',         icon: Icons.home_rounded, maxLength: 10),
+      _SheetField(ctrl: _flatCtrl,     label: 'Flat / House No.',      hint: 'e.g. 101 or B-402',       icon: Icons.home_rounded, maxLength: 10),
       const SizedBox(height: 12),
-      _SheetField(ctrl: _buildingCtrl, label: 'Building / Apartment',  hint: 'e.g. Green Valley Apts',    icon: Icons.apartment_rounded),
+      _SheetField(ctrl: _buildingCtrl, label: 'Building / Apartment',  hint: 'e.g. Green Valley Apts',  icon: Icons.apartment_rounded),
       const SizedBox(height: 12),
-      _SheetField(ctrl: _areaCtrl,     label: 'Landmark / Area',       hint: 'e.g. Near Central Park',    icon: Icons.place_outlined),
+      _SheetField(ctrl: _areaCtrl,     label: 'Landmark / Area',       hint: 'e.g. Near Central Park',  icon: Icons.place_outlined),
       const SizedBox(height: 12),
       Row(children: [
-        Expanded(child: _SheetField(ctrl: _cityCtrl, label: 'City', hint: 'e.g. Noida', icon: Icons.location_city_rounded)),
+        Expanded(child: _SheetField(ctrl: _cityCtrl,    label: 'City',    hint: 'e.g. Noida',  icon: Icons.location_city_rounded)),
         const SizedBox(width: 12),
-        Expanded(child: _SheetField(ctrl: _pincodeCtrl, label: 'Pincode', hint: '6 digits', icon: Icons.pin_drop_rounded)),
+        Expanded(child: _SheetField(ctrl: _pincodeCtrl, label: 'Pincode', hint: '6 digits',    icon: Icons.pin_drop_rounded)),
       ]),
       const SizedBox(height: 28),
       GBtn(label: 'Save Address', onTap: _onSaveAll, bg: C.forest),
-      const SizedBox(height: 120), // Extra space for keyboard
+      const SizedBox(height: 120),
     ]),
+  );
+}
+
+// ── TextField with no selection highlight / focus border ─────────────────────
+class _NoOutlineTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String>? onChanged;
+  final String hint;
+  final bool autofocus;
+  final FocusNode? focusNode;
+  final Widget? suffixIcon;
+
+  const _NoOutlineTextField({
+    required this.controller,
+    required this.hint,
+    this.onChanged,
+    this.autofocus = false,
+    this.focusNode,
+    this.suffixIcon,
+  });
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Theme(
+      data: Theme.of(ctx).copyWith(
+        textSelectionTheme: const TextSelectionThemeData(
+          selectionColor: Color(0x33388E3C),       // subtle green tint, no dark outline
+          cursorColor: C.forest,
+          selectionHandleColor: C.forest,
+        ),
+      ),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: onChanged,
+        autofocus: autofocus,
+        cursorColor: C.forest,
+        style: p(13, w: FontWeight.w600, color: C.t1),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: C.t3, fontSize: 13),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          filled: false,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+          suffixIcon: suffixIcon,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Small square FAB used on the map ─────────────────────────────────────────
+class _MapFab extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final Color? iconColor;
+  const _MapFab({required this.icon, required this.tooltip, required this.onTap, this.iconColor});
+
+  @override
+  Widget build(BuildContext ctx) => Tooltip(
+    message: tooltip,
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
+        ),
+        child: Icon(icon, size: 22, color: iconColor ?? C.t2),
+      ),
+    ),
   );
 }
 
@@ -828,17 +946,11 @@ class _SheetField extends StatelessWidget {
           style: p(14, w: FontWeight.w600, color: C.t1),
           inputFormatters: maxLength != null ? [LengthLimitingTextInputFormatter(maxLength)] : null,
           decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: C.t4, fontSize: 13),
-            border:             InputBorder.none,
-            enabledBorder:      InputBorder.none,
-            focusedBorder:      InputBorder.none,
-            errorBorder:        InputBorder.none,
-            focusedErrorBorder: InputBorder.none,
-            disabledBorder:     InputBorder.none,
-            filled:             false,
-            isDense:            true,
-            contentPadding:     EdgeInsets.zero,
+            hintText: hint, hintStyle: TextStyle(color: C.t4, fontSize: 13),
+            border: InputBorder.none, enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none, errorBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none, disabledBorder: InputBorder.none,
+            filled: false, isDense: true, contentPadding: EdgeInsets.zero,
           ),
         )),
       ]),
@@ -856,8 +968,7 @@ class _LocTile extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F7F0),
-        borderRadius: BorderRadius.circular(13),
+        color: const Color(0xFFF3F7F0), borderRadius: BorderRadius.circular(13),
         border: Border.all(color: C.border, width: 1.2),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -878,8 +989,7 @@ class _Badge extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(12),
+      color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12),
       border: Border.all(color: color.withOpacity(0.2)),
     ),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

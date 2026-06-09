@@ -75,15 +75,20 @@ class AT {
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       textTheme: GoogleFonts.poppinsTextTheme(t.textTheme),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: C.forest,
+        selectionColor: Color(0x3303411A),       // forest @ 20% — subtle, no dark outline
+        selectionHandleColor: C.forest,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true, fillColor: C.subtle,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: _p(14, color: C.t4),
-        border:         OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.border)),
-        enabledBorder:  OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.border)),
-        focusedBorder:  OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.forest, width: 1.5)),
-        errorBorder:    OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.red)),
-        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.red, width: 1.5)),
+        border:             OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.border)),
+        enabledBorder:      OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.border)),
+        focusedBorder:      OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.border)),
+        errorBorder:        OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.red)),
+        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: C.red)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
