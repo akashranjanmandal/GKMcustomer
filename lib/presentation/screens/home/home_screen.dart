@@ -403,7 +403,7 @@ class _HotstarPlansCarouselState extends State<_HotstarPlansCarousel> {
         SizedBox(
           // Tall enough to surface stats + full feature list. Card content scrolls
           // internally so even the largest plans (18 features) show everything.
-          height: 280,
+          height: 310,
           child: PageView.builder(
             controller: _pageCtrl,
             // Don't clip — lets each card's drop-shadow render fully past the edges.
@@ -546,19 +546,27 @@ class _HotstarPlansCarouselState extends State<_HotstarPlansCarousel> {
 
                               const SizedBox(height: 12),
 
-                              // ── Price + stat pills row ──
-                              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                              // ── Price line (own row so it can't collide with pills) ──
+                              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                 Text('₹${price.toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w900, color: tier.accent, height: 1)),
-                                const SizedBox(width: 4),
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: Text(priceSubtitle, style: p(9, color: Colors.white38)),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 2),
+                                    child: Text(priceSubtitle, style: p(9.5, color: Colors.white54), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
                                 ),
-                                const Spacer(),
-                                if (visits > 0) _statPill(Icons.event_repeat_rounded, '$visits', '/mo', tier.accent),
-                                if (visits > 0 && maxPlants > 0) const SizedBox(width: 6),
-                                if (maxPlants > 0) _statPill(Icons.spa_rounded, '$maxPlants', '', tier.accent),
                               ]),
+
+                              const SizedBox(height: 10),
+
+                              // ── Stat pills (own row, left-aligned) ──
+                              if (visits > 0 || maxPlants > 0)
+                                Row(children: [
+                                  if (visits > 0) _statPill(Icons.event_repeat_rounded, '$visits', 'visits/mo', tier.accent),
+                                  if (visits > 0 && maxPlants > 0) const SizedBox(width: 8),
+                                  if (maxPlants > 0) _statPill(Icons.spa_rounded, '$maxPlants', 'plants', tier.accent),
+                                ]),
 
                               const SizedBox(height: 12),
                               Divider(height: 1, color: Colors.white.withOpacity(0.08)),
