@@ -534,3 +534,44 @@ String imgUrl(dynamic img) {
   if (img is String) return img;
   return '';
 }
+
+// ── IST time helpers ─────────────────────────────────────────────────────────
+// The backend (and its DB connection) runs in IST (+05:30). Timestamps are sent
+// as IST wall-clock strings, usually WITHOUT a timezone marker. To show all times
+// in IST regardless of the device's timezone, interpret backend strings as IST
+// and compare against "now in IST" rather than relying on the device clock.
+const Duration _istOffset = Duration(hours: 5, minutes: 30);
+
+// Real "now" expressed as IST wall-clock (a UTC-flagged DateTime whose fields read IST).
+DateTime nowIST() => DateTime.now().toUtc().add(_istOffset);
+
+// Parse a backend timestamp into an IST wall-clock DateTime (UTC-flagged, fields = IST).
+// - If the string carries a zone ('Z' or +hh:mm), it's a real instant → convert to IST.
+// - Otherwise the digits already ARE IST wall-clock → keep them as-is.
+DateTime? parseIST(String? s) {
+  if (s == null || s.isEmpty) return null;
+  try {
+    final hasZone = s.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(s);
+    if (hasZone) {
+      return DateTime.parse(s).toUtc().add(_istOffset);
+    }
+    // No zone: the digits are IST wall-clock. Re-tag as UTC so arithmetic against
+    // nowIST() (also UTC-tagged IST fields) compares like-for-like.
+    final naive = DateTime.parse(s);
+    return DateTime.utc(naive.year, naive.month, naive.day, naive.hour, naive.minute, naive.second);
+  } catch (_) {
+    return null;
+  }
+}
+
+// Relative "time ago" label, computed in IST (device-timezone independent).
+String timeAgoIST(String? s) {
+  final d = parseIST(s);
+  if (d == null) return s == null ? '' : (s.length >= 10 ? s.substring(0, 10) : s);
+  final diff = nowIST().difference(d);
+  if (diff.inMinutes < 1)  return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24)   return '${diff.inHours}h ago';
+  if (diff.inDays < 7)     return '${diff.inDays}d ago';
+  return '${d.day}/${d.month}/${d.year}';
+}

@@ -119,16 +119,6 @@ class _NotifState extends State<NotificationsScreen> {
     ),
   );
 
-  String _timeAgo(String s) {
-    if (s.isEmpty) return '';
-    try {
-      final d = DateTime.parse(s).toLocal();
-      final diff = DateTime.now().difference(d);
-      if (diff.inMinutes < 1)  return 'just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-      if (diff.inHours < 24)   return '${diff.inHours}h ago';
-      if (diff.inDays < 7)     return '${diff.inDays}d ago';
-      return '${d.day}/${d.month}/${d.year}';
-    } catch (_) { return s.length >= 10 ? s.substring(0, 10) : s; }
-  }
+  // Relative time computed in IST (see timeAgoIST in api.dart).
+  String _timeAgo(String s) => timeAgoIST(s);
 }
