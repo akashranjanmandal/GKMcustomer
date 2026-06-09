@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../data/services/api.dart';
 import '../../../utils/validators.dart';
 import '../../theme/theme.dart';
@@ -37,30 +36,17 @@ class _LoginState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _startCd() {
-    _cd = 30;
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_cd == 0)
-        t.cancel();
-      else
-        setState(() => _cd--);
-    });
-  }
-
+  // OTP temporarily disabled for launch: customers log in with just their phone
+  // number; 123456 is sent as the OTP internally (the backend accepts it). The
+  // OTP/name screens below are kept for easy re-enable but are no longer reached.
   Future<void> _sendOtp() async {
     final phoneErr = Validators.phone(_phoneCtrl.text);
     if (phoneErr != null) return showMsg(context, phoneErr, err: true);
     final p = Validators.normalizePhone(_phoneCtrl.text);
     setState(() => _busy = true);
     try {
-      await _api.sendOtp(p);
-      _startCd();
-      if (mounted)
-        setState(() {
-          _step = 'otp';
-          _busy = false;
-        });
+      await _api.verifyOtp(p, '123456');
+      if (mounted) widget.onLoggedIn();
     } on ApiError catch (e) {
       if (mounted) {
         setState(() => _busy = false);

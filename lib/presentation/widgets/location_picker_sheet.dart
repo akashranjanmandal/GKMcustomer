@@ -265,6 +265,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   final _stateCtrl    = TextEditingController();
   final _pincodeCtrl  = TextEditingController();
   List<dynamic> _searchResults = [];
+  List<dynamic> _geofences = [];
+  String? _selectedGfId;
+  double? _pendingZoom; // applied in onMapCreated when entering from the area dropdown
 
   // Map-level search
   final _mapSearchCtrl   = TextEditingController();
