@@ -53,7 +53,7 @@ class Api {
     final headers = await _headers(auth: auth);
     final encoded = body != null ? jsonEncode(body) : null;
 
-    final showLogs = path.contains('/shop/products') || path.contains('/payments/check-serviceability');
+    final showLogs = path.contains('/shop/products') || path.contains('/payments/check-serviceability') || path.contains('/plans');
     if (showLogs) {
       print('>>> API REQ: $method $uri');
       if (encoded != null) print('>>> BODY: $encoded');
@@ -73,7 +73,19 @@ class Api {
     on TimeoutException    { throw ApiError('Request timed out. Please try again.'); }
     catch (e)              { if (e is ApiError) rethrow; throw ApiError('Something went wrong. Please try again.'); }
 
-    if (showLogs) print('<<< API RES: ${res.statusCode} ${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
+    if (showLogs) {
+      // For /plans, dump the FULL response body (chunked, since print() clips long
+      // lines). Other logged endpoints keep the 500-char preview.
+      if (path.contains('/plans')) {
+        print('<<< API RES: ${res.statusCode} /plans (${res.body.length} bytes)');
+        const chunk = 800;
+        for (var i = 0; i < res.body.length; i += chunk) {
+          print('<<< /plans BODY: ${res.body.substring(i, i + chunk > res.body.length ? res.body.length : i + chunk)}');
+        }
+      } else {
+        print('<<< API RES: ${res.statusCode} ${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
+      }
+    }
 
     dynamic json;
     try { json = jsonDecode(utf8.decode(res.bodyBytes)); } catch (_) { json = {}; }
