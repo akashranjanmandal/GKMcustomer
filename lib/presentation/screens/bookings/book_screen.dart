@@ -278,6 +278,7 @@ class _BookState extends State<BookScreen> {
           area: _picked!.area, landmark: _picked!.landmark,
           city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
           plantCount: _plantCount,
+          planId: _planId,
           customerNotes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
           addons: addonsPayload,
           totalAmount: totalAmount,
