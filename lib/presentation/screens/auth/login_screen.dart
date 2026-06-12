@@ -36,17 +36,18 @@ class _LoginState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // OTP temporarily disabled for launch: customers log in with just their phone
-  // number; 123456 is sent as the OTP internally (the backend accepts it). The
-  // OTP/name screens below are kept for easy re-enable but are no longer reached.
+  // Send a real OTP (MSG91) to the entered phone, then advance to the OTP screen.
   Future<void> _sendOtp() async {
     final phoneErr = Validators.phone(_phoneCtrl.text);
     if (phoneErr != null) return showMsg(context, phoneErr, err: true);
     final p = Validators.normalizePhone(_phoneCtrl.text);
     setState(() => _busy = true);
     try {
-      await _api.verifyOtp(p, '123456');
-      if (mounted) widget.onLoggedIn();
+      await _api.sendOtp(p);
+      if (mounted) {
+        setState(() { _step = 'otp'; _busy = false; });
+        showMsg(context, 'OTP sent to your phone');
+      }
     } on ApiError catch (e) {
       if (mounted) {
         setState(() => _busy = false);
