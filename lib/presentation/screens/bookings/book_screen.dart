@@ -36,12 +36,13 @@ class _BookState extends State<BookScreen> {
   List<String> _availableSlots = [];
   bool _loadingSlots = false, _slotsLoaded = false, _noGardenersInZone = false;
 
-  // Instant vs scheduled — defaults to 'instant' for on-demand bookings.
-  // The server computes the slot when isInstant=true; if no gardener is free
-  // we fall back to schedule mode with a toast.
-  String _mode = 'instant';
-  Map<String, dynamic>? _instantInfo; // { available, eta_minutes, gardener_count, reason }
-  bool _checkingInstant = false;
+  // Instant booking has been removed from the UI. All on-demand bookings are
+  // scheduled — the user picks a date + time. The instant flow (toggle,
+  // availability check, instant payload, _ModeCard, getInstantAvailability) is
+  // gone; restore from git history to re-enable.
+  // final String _mode = 'schedule';
+  // Map<String, dynamic>? _instantInfo;
+  // bool _checkingInstant = false;
 
   bool get _isSub => asStr(_selectedPlan?['plan_type']) == 'subscription';
   bool get _planPreSelected => widget.planId != null;
@@ -205,28 +206,28 @@ class _BookState extends State<BookScreen> {
     }
   }
 
+  // Instant booking removed — this is now a no-op. The original instant
+  // availability check is preserved in git history.
   Future<void> _loadInstantInfo() async {
-    final id = asInt(_picked?.zone['id']);
-    if (id <= 0 || _isSub) {
-      setState(() { _instantInfo = null; });
-      return;
-    }
-    setState(() => _checkingInstant = true);
-    try {
-      final res = asMap(await _api.getInstantAvailability(id));
-      if (!mounted) return;
-      setState(() {
-        _instantInfo = res;
-        // Fall back to schedule mode if instant is disabled OR no gardener is free.
-        final etaOk = asInt(res['eta_minutes']) > 0;
-        final available = res['available'] == true;
-        if (_mode == 'instant' && (!etaOk || !available)) _mode = 'schedule';
-      });
-    } catch (_) {
-      if (mounted) setState(() => _instantInfo = {'available': false, 'eta_minutes': 0});
-    } finally {
-      if (mounted) setState(() => _checkingInstant = false);
-    }
+    // No-op: all on-demand bookings are scheduled.
+    // ── ORIGINAL (instant availability check) ────────────────────────────────
+    // final id = asInt(_picked?.zone['id']);
+    // if (id <= 0 || _isSub) { setState(() { _instantInfo = null; }); return; }
+    // setState(() => _checkingInstant = true);
+    // try {
+    //   final res = asMap(await _api.getInstantAvailability(id));
+    //   if (!mounted) return;
+    //   setState(() {
+    //     _instantInfo = res;
+    //     final etaOk = asInt(res['eta_minutes']) > 0;
+    //     final available = res['available'] == true;
+    //     if (_mode == 'instant' && (!etaOk || !available)) _mode = 'schedule';
+    //   });
+    // } catch (_) {
+    //   if (mounted) setState(() => _instantInfo = {'available': false, 'eta_minutes': 0});
+    // } finally {
+    //   if (mounted) setState(() => _checkingInstant = false);
+    // }
   }
 
   Future<void> _submit() async {
@@ -264,36 +265,24 @@ class _BookState extends State<BookScreen> {
         await Future.delayed(1000.ms);
         if (mounted) { Navigator.pop(context, true); Navigator.pushNamed(context, '/subscriptions'); }
       } else {
-        final isInstant = _mode == 'instant';
-        dynamic booking;
-        try {
-          booking = await _api.createBooking(
-            zoneId: zoneId,
-            geofenceId: _picked?.geofenceId,
-            isInstant: isInstant,
-            scheduledDate: isInstant ? null : _date,
-            scheduledTime: isInstant ? null : _time,
-            serviceAddress: _picked!.address,
-            lat: _picked!.lat, lng: _picked!.lng,
-            flatNo: _picked!.flatNo, building: _picked!.building,
-            area: _picked!.area, landmark: _picked!.landmark,
-            city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
-            plantCount: _plantCount,
-            customerNotes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
-            addons: addonsPayload,
-            totalAmount: totalAmount,
-          );
-        } on ApiError catch (e) {
-          // Instant slot taken / no gardener free → push to scheduled mode.
-          if (isInstant && e.code == 409) {
-            if (mounted) {
-              setState(() { _mode = 'schedule'; _submitting = false; _stepIdx = _labels.indexOf('Schedule'); });
-              showMsg(context, e.message, err: true);
-            }
-            return;
-          }
-          rethrow;
-        }
+        // On-demand bookings are always scheduled (instant booking removed).
+        final booking = await _api.createBooking(
+          zoneId: zoneId,
+          geofenceId: _picked?.geofenceId,
+          isInstant: false,
+          scheduledDate: _date,
+          scheduledTime: _time,
+          serviceAddress: _picked!.address,
+          lat: _picked!.lat, lng: _picked!.lng,
+          flatNo: _picked!.flatNo, building: _picked!.building,
+          area: _picked!.area, landmark: _picked!.landmark,
+          city: _picked!.city, state: _picked!.state, pincode: _picked!.pincode,
+          plantCount: _plantCount,
+          planId: _planId,
+          customerNotes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+          addons: addonsPayload,
+          totalAmount: totalAmount,
+        );
         final bookingId = asInt(asMap(booking)['id']);
         final pay = await RazorpayService().pay(type: 'booking', bookingId: bookingId);
         if (!mounted) return;
@@ -317,8 +306,7 @@ class _BookState extends State<BookScreen> {
       case 'Plan':     return _planId != null;
       case 'Schedule':
         if (_isSub) return true;
-        if (_mode == 'instant') return _instantInfo != null && _instantInfo!['available'] == true;
-        // scheduled: need a date, slots loaded, gardeners available, and a valid selected slot
+        // Scheduled: need a date, slots loaded, gardeners available, and a valid selected slot.
         return _date.isNotEmpty && !_loadingSlots && !_noGardenersInZone && _availableSlots.contains(_time);
       default:         return true;
     }
@@ -494,74 +482,9 @@ class _BookState extends State<BookScreen> {
     }),
   ]));
 
+  // Instant booking removed — this step is now scheduled-only (date + time + notes).
   Widget _stepSchedule() {
-    final eta = asInt(_instantInfo?['eta_minutes']);
-    final instantAvailable = _instantInfo?['available'] == true;
-    final instantEnabled = eta > 0;
     return SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (instantEnabled) ...[
-      GSec('How soon?'),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(child: _ModeCard(
-          icon: Icons.bolt_rounded,
-          chip: '${eta} min',
-          title: 'Instant',
-          sub: instantAvailable ? 'Gardener dispatched now' : 'No one free right now',
-          selected: _mode == 'instant',
-          enabled: instantAvailable,
-          onTap: () => setState(() => _mode = 'instant'),
-        )),
-        const SizedBox(width: 12),
-        Expanded(child: _ModeCard(
-          icon: Icons.event_rounded,
-          chip: 'Later',
-          title: 'Schedule',
-          sub: 'Pick your date & time',
-          selected: _mode == 'schedule',
-          enabled: true,
-          onTap: () => setState(() => _mode = 'schedule'),
-        )),
-      ]),
-      const SizedBox(height: 24),
-    ],
-    if (_checkingInstant && !instantEnabled) ...[
-      Row(children: [
-        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: C.forest)),
-        const SizedBox(width: 10),
-        Text('Checking instant availability…', style: p(13, color: C.t3)),
-      ]),
-      const SizedBox(height: 18),
-    ],
-    if (_instantInfo != null && eta <= 0) ...[
-      Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: const Color(0xFFFFF8E1), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFF5C842))),
-        child: Row(children: [
-          const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF7A5C00)),
-          const SizedBox(width: 10),
-          Expanded(child: Text("Instant booking isn't available in your area yet. Please pick a scheduled slot below.",
-            style: p(12, w: FontWeight.w600, color: const Color(0xFF7A5C00)))),
-        ]),
-      ),
-    ],
-    if (_mode == 'instant' && instantAvailable) ...[
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: C.forest.withOpacity(0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: C.forest.withOpacity(0.2), style: BorderStyle.solid)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text("YOU'RE BOOKING INSTANT", style: p(10, w: FontWeight.w800, color: C.t4, ls: 0.8)),
-          const SizedBox(height: 6),
-          Text('A gardener will be dispatched and arrive within ~$eta minutes.',
-            style: p(14, w: FontWeight.w700, color: C.forest, h: 1.4)),
-        ]),
-      ),
-      const SizedBox(height: 24),
-      GSec('Instructions'),
-      const SizedBox(height: 12),
-      TextField(controller: _notesCtrl, maxLines: 3, decoration: InputDecoration(hintText: 'Any special requests?', filled: true, fillColor: const Color(0xFFF9F9F9), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none))),
-    ] else ...[
     GSec('Preferred Date'),
     const SizedBox(height: 16),
     SizedBox(height: 90, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: 14, itemBuilder: (_, i) {
@@ -606,7 +529,6 @@ class _BookState extends State<BookScreen> {
     GSec('Instructions'),
     const SizedBox(height: 12),
     TextField(controller: _notesCtrl, maxLines: 3, decoration: InputDecoration(hintText: 'Any special requests?', filled: true, fillColor: const Color(0xFFF9F9F9), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none))),
-    ],
   ]));
   }
 
@@ -621,12 +543,8 @@ class _BookState extends State<BookScreen> {
         _RowInfo(label: 'Plan', value: asStr(_selectedPlan?['name'])),
         _RowInfo(label: 'Additional Plants', value: _plantCount == 0 ? 'None (plan only)' : '$_plantCount × ₹25 = +₹${_plantCount * 25}'),
         if (!_isSub) ...[
-          if (_mode == 'instant')
-            _RowInfo(label: 'When', value: '⚡ Instant — within ~${asInt(_instantInfo?['eta_minutes'])} min')
-          else ...[
-            _RowInfo(label: 'Date', value: _date),
-            _RowInfo(label: 'Time', value: _time),
-          ],
+          _RowInfo(label: 'Date', value: _date),
+          _RowInfo(label: 'Time', value: _time),
         ],
         if (!_isSub && _selectedAddons.isNotEmpty) _RowInfo(label: 'Add-ons', value: _selectedAddons.length.toString()),
         const Divider(height: 48),
@@ -650,52 +568,8 @@ class _BookState extends State<BookScreen> {
   }
 }
 
-class _ModeCard extends StatelessWidget {
-  final IconData icon;
-  final String chip, title, sub;
-  final bool selected, enabled;
-  final VoidCallback onTap;
-  const _ModeCard({
-    required this.icon, required this.chip, required this.title, required this.sub,
-    required this.selected, required this.enabled, required this.onTap,
-  });
-  @override
-  Widget build(BuildContext ctx) {
-    final body = selected ? Colors.white : C.t1;
-    final faded = selected ? Colors.white70 : Colors.black45;
-    return Opacity(opacity: enabled ? 1 : 0.45, child: GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: AnimatedContainer(
-        duration: 200.ms,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: selected ? C.forest : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? C.forest : Colors.black.withOpacity(0.08), width: 2),
-          boxShadow: [if (selected) BoxShadow(color: C.forest.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: selected ? Colors.white.withOpacity(0.15) : C.forest.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 12, color: selected ? Colors.white : C.forest),
-              const SizedBox(width: 4),
-              Text(chip, style: p(10, w: FontWeight.w800, color: selected ? Colors.white : C.forest, ls: 0.4)),
-            ]),
-          ),
-          const SizedBox(height: 10),
-          Text(title, style: p(17, w: FontWeight.w900, color: body)),
-          const SizedBox(height: 2),
-          Text(sub, style: p(11, w: FontWeight.w600, color: faded)),
-        ]),
-      ),
-    ));
-  }
-}
+// _ModeCard (Instant vs Schedule toggle card) removed with instant booking.
+// Restore from git history to re-enable.
 
 class _PlanItem extends StatelessWidget {
   final Map<String, dynamic> plan; final bool sel; final VoidCallback onTap;
