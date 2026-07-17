@@ -1,0 +1,455 @@
+================================================================================
+GHARKAMALI — ALL PLANS (from GET /api/plans)
+success: true  |  total plans: 12
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 1 — One-Time
+────────────────────────────────────────────────────────────────────────────
+  id                  : 6
+  slug                : one-time
+  description         : A single on-demand visit for urgent gardening help. Up to 5 plants.
+  tagline             : Urgent gardening help
+  plan_type           : ondemand
+  visits_per_month    : 1
+  price               : ₹599.00
+  price_subtitle      : One-time
+  plan_summary        : Pay per visit
+  price_per_visit     : ₹599.00
+  is_best_value       : false
+  button_text         : Book Now
+  duration_days       : 1
+  is_active           : true
+  max_plants          : 10
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 20:38:56
+  updatedAt           : 2026-06-06 15:02:55
+  features            :
+      - Basic pruning
+      - Aeration (soil care)
+      - Basic monitoring
+      - Light cleaning
+      - Basic pest monitoring
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 2 — Basic            ★ BEST VALUE
+────────────────────────────────────────────────────────────────────────────
+  id                  : 7
+  slug                : basic
+  description         : Small balcony upkeep — 2 visits/month for up to 15 plants.
+  tagline             : Small balcony upkeep
+  plan_type           : subscription
+  visits_per_month    : 3
+  price               : ₹1899.00
+  price_subtitle      : per month
+  plan_summary        : ₹1,899/month
+  price_per_visit     : ₹999.50
+  is_best_value       : true
+  button_text         : Select
+  duration_days       : 30
+  is_active           : true
+  max_plants          : 15
+  is_weekend_included : false
+  weekend_surge_price : ₹100.00
+  createdAt           : 2026-06-06 13:08:56
+  updatedAt           : 2026-06-08 09:53:06
+  features            :
+      - Regular pruning
+      - Aeration
+      - Monitoring
+      - Monthly Compost Included
+      - Waste removal
+      - Basic pest monitoring
+      - Light cleaning
+      - 5% discount on plants
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 3 — Plus
+────────────────────────────────────────────────────────────────────────────
+  id                  : 9
+  slug                : plus
+  description         : Growing & improving plants — 2 visits/month for up to 25 plants.
+  tagline             : Growing & improving plants
+  plan_type           : subscription
+  visits_per_month    : 3
+  price               : ₹2499.00
+  price_subtitle      : per month
+  plan_summary        : ₹2,499/month
+  price_per_visit     : ₹1249.50
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 30
+  is_active           : true
+  max_plants          : 25
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-06 02:08:56
+  updatedAt           : 2026-06-08 09:53:26
+  features            :
+      - Regular pruning
+      - Aeration
+      - Improved monitoring
+      - Fertilizer / compost included
+      - Waste removal
+      - Deep cleaning
+      - Basic disease treatment
+      - Watering guidance
+      - Advanced nutrients
+      - Priority booking
+      - Basic garden advice
+      - 10% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 4 — Premium
+────────────────────────────────────────────────────────────────────────────
+  id                  : 11
+  slug                : premium
+  description         : Serious plant lovers — 3 visits/month for up to 40 plants.
+  tagline             : Serious plant lovers
+  plan_type           : subscription
+  visits_per_month    : -10          ⚠ (looks like a data error — negative visits)
+  price               : ₹3999.00
+  price_subtitle      : per month
+  plan_summary        : ₹3,999/month
+  price_per_visit     : ₹1333.00
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 30
+  is_active           : true
+  max_plants          : 40
+  is_weekend_included : false
+  weekend_surge_price : ₹100.00
+  createdAt           : 2026-06-06 02:08:57
+  updatedAt           : 2026-06-08 09:53:57
+  features            :
+      - Deep pruning
+      - Soil refresh
+      - Recovery diagnostics
+      - Fertilizer / compost included
+      - Deep cleaning
+      - Preventive pest monitoring
+      - Advanced disease treatment
+      - Watering guidance
+      - Advanced nutrients
+      - Priority booking
+      - 1 emergency visit/month
+      - Expert garden advice
+      - Limited repotting
+      - 15% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 5 — Elite
+────────────────────────────────────────────────────────────────────────────
+  id                  : 13
+  slug                : elite
+  description         : Large balcony / terrace gardens — 4 visits/month for up to 100 plants.
+  tagline             : Large balcony / terrace gardens
+  plan_type           : subscription
+  visits_per_month    : 6
+  price               : ₹7999.00
+  price_subtitle      : per month
+  plan_summary        : ₹7,999/month
+  price_per_visit     : ₹1999.75
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 30
+  is_active           : true
+  max_plants          : 149
+  is_weekend_included : false
+  weekend_surge_price : ₹100.00
+  createdAt           : 2026-06-05 20:38:57
+  updatedAt           : 2026-06-06 14:40:05
+  features            :
+      - Advanced pruning
+      - Custom soil enrichment
+      - Recovery diagnostics
+      - Premium fertilizer / compost
+      - Premium cleaning
+      - Priority waste removal
+      - Advanced pest monitoring
+      - Priority disease treatment
+      - Smart watering guidance
+      - Premium nutrients
+      - Fast-track priority booking
+      - 2 emergency visits/month
+      - Dedicated gardener
+      - Expert garden advice
+      - Unlimited repotting
+      - Advanced seasonal plan
+      - 2 free plants/month
+      - 20% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 6 — Elite Plus
+────────────────────────────────────────────────────────────────────────────
+  id                  : 15
+  slug                : elite-plus
+  description         : Luxury gardening & full automation — 5 visits/month for up to 150 plants.
+  tagline             : Luxury gardening & full automation
+  plan_type           : subscription
+  visits_per_month    : 5
+  price               : ₹8999.00
+  price_subtitle      : per month
+  plan_summary        : ₹8,999/month
+  price_per_visit     : ₹1799.80
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 30
+  is_active           : true
+  max_plants          : 150
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 15:08:57
+  updatedAt           : 2026-06-05 15:08:57
+  features            :
+      - Expert pruning
+      - Custom soil enrichment
+      - Doctor-level diagnostics
+      - Premium fertilizer / compost
+      - Premium cleaning
+      - Priority waste removal
+      - Hybrid pest / disease management
+      - Doctor-level disease treatment
+      - Smart watering guidance
+      - Custom nutrients
+      - Manager-level priority booking
+      - Unlimited emergency visits
+      - Dedicated gardener
+      - Landscape advice
+      - Unlimited repotting
+      - Custom seasonal plan
+      - 3 premium free plants/month
+      - 25% discount
+
+
+================================================================================
+ANNUAL PLANS
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 7 — Basic (Annual)
+────────────────────────────────────────────────────────────────────────────
+  id                  : 8
+  slug                : basic-annual
+  description         : Small balcony upkeep — billed annually (₹19,670/year ≈ ₹1,639/month). 2 visits/month for up to 15 plants.
+  tagline             : Small balcony upkeep
+  plan_type           : subscription
+  visits_per_month    : 2
+  price               : ₹19670.00
+  price_subtitle      : per year
+  plan_summary        : Save ₹4,318 vs monthly
+  price_per_visit     : ₹819.58
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 365
+  is_active           : true
+  max_plants          : 15
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 15:08:56
+  updatedAt           : 2026-06-05 15:08:56
+  features            :
+      - Regular pruning
+      - Aeration
+      - Monitoring
+      - Waste removal
+      - Basic pest monitoring
+      - Light cleaning
+      - 1 free plant
+      - 5% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 8 — Plus (Annual)
+────────────────────────────────────────────────────────────────────────────
+  id                  : 10
+  slug                : plus-annual
+  description         : Growing & improving plants — billed annually (₹24,590/year ≈ ₹2,049/month). 2 visits/month for up to 25 plants.
+  tagline             : Growing & improving plants
+  plan_type           : subscription
+  visits_per_month    : 2
+  price               : ₹24590.00
+  price_subtitle      : per year
+  plan_summary        : Save ₹5,398 vs monthly
+  price_per_visit     : ₹1024.58
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 365
+  is_active           : true
+  max_plants          : 25
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 15:08:57
+  updatedAt           : 2026-06-05 15:08:57
+  features            :
+      - Regular pruning
+      - Aeration
+      - Improved monitoring
+      - Fertilizer / compost included
+      - Waste removal
+      - Deep cleaning
+      - Basic disease treatment
+      - Watering guidance
+      - Advanced nutrients
+      - Priority booking
+      - Basic garden advice
+      - 1 free plant
+      - 10% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 9 — Premium (Annual)
+────────────────────────────────────────────────────────────────────────────
+  id                  : 12
+  slug                : premium-annual
+  description         : Serious plant lovers — billed annually (₹39,350/year ≈ ₹3,279/month). 3 visits/month for up to 40 plants.
+  tagline             : Serious plant lovers
+  plan_type           : subscription
+  visits_per_month    : 3
+  price               : ₹39350.00
+  price_subtitle      : per year
+  plan_summary        : Save ₹8,638 vs monthly
+  price_per_visit     : ₹1093.06
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 365
+  is_active           : true
+  max_plants          : 40
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 15:08:57
+  updatedAt           : 2026-06-05 15:08:57
+  features            :
+      - Deep pruning
+      - Soil refresh
+      - Recovery diagnostics
+      - Fertilizer / compost included
+      - Deep cleaning
+      - Preventive pest monitoring
+      - Advanced disease treatment
+      - Watering guidance
+      - Advanced nutrients
+      - Priority booking
+      - 1 emergency visit/month
+      - Expert garden advice
+      - Limited repotting
+      - Seasonal plan included
+      - 15% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 10 — Elite (Annual)
+────────────────────────────────────────────────────────────────────────────
+  id                  : 14
+  slug                : elite-annual
+  description         : Large balcony / terrace gardens — billed annually (₹78,710/year ≈ ₹6,559/month). 4 visits/month for up to 100 plants.
+  tagline             : Large balcony / terrace gardens
+  plan_type           : subscription
+  visits_per_month    : 4
+  price               : ₹78710.00
+  price_subtitle      : per year
+  plan_summary        : Save ₹17,278 vs monthly
+  price_per_visit     : ₹1639.79
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 365
+  is_active           : true
+  max_plants          : 100
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 15:08:57
+  updatedAt           : 2026-06-05 15:08:57
+  features            :
+      - Advanced pruning
+      - Custom soil enrichment
+      - Recovery diagnostics
+      - Premium fertilizer / compost
+      - Premium cleaning
+      - Priority waste removal
+      - Advanced pest monitoring
+      - Priority disease treatment
+      - Smart watering guidance
+      - Premium nutrients
+      - Fast-track priority booking
+      - 2 emergency visits/month
+      - Dedicated gardener
+      - Expert garden advice
+      - Unlimited repotting
+      - Advanced seasonal plan
+      - 2 free plants/month
+      - 20% discount
+
+
+────────────────────────────────────────────────────────────────────────────
+PLAN 11 — Elite Plus (Annual)
+────────────────────────────────────────────────────────────────────────────
+  id                  : 16
+  slug                : elite-plus-annual
+  description         : Luxury gardening & full automation — billed annually (₹88,550/year ≈ ₹7,379/month). 5 visits/month for up to 150 plants.
+  tagline             : Luxury gardening & full automation
+  plan_type           : subscription
+  visits_per_month    : 5
+  price               : ₹88550.00
+  price_subtitle      : per year
+  plan_summary        : Save ₹19,438 vs monthly
+  price_per_visit     : ₹1475.83
+  is_best_value       : false
+  button_text         : Select
+  duration_days       : 365
+  is_active           : true
+  max_plants          : 150
+  is_weekend_included : false
+  weekend_surge_price : ₹0.00
+  createdAt           : 2026-06-05 15:08:57
+  updatedAt           : 2026-06-05 15:08:57
+  features            :
+      - Expert pruning
+      - Custom soil enrichment
+      - Doctor-level diagnostics
+      - Premium fertilizer / compost
+      - Premium cleaning
+      - Priority waste removal
+      - Hybrid pest / disease management
+      - Doctor-level disease treatment
+      - Smart watering guidance
+      - Custom nutrients
+      - Manager-level priority booking
+      - Unlimited emergency visits
+      - Dedicated gardener
+      - Landscape advice
+      - Unlimited repotting
+      - Custom seasonal plan
+      - 3 premium free plants/month
+      - 25% discount
+
+
+================================================================================
+QUICK SUMMARY TABLE
+================================================================================
+ ID | Name                 | Type         | Price      | Billing   | Visits | Max Plants | Best
+----+----------------------+--------------+------------+-----------+--------+------------+-----
+  6 | One-Time             | ondemand     | ₹599       | One-time  |   1    |    10      |
+  7 | Basic                | subscription | ₹1,899     | per month |   3    |    15      | ★
+  9 | Plus                 | subscription | ₹2,499     | per month |   3    |    25      |
+ 11 | Premium              | subscription | ₹3,999     | per month | -10 ⚠  |    40      |
+ 13 | Elite                | subscription | ₹7,999     | per month |   6    |   149      |
+ 15 | Elite Plus           | subscription | ₹8,999     | per month |   5    |   150      |
+  8 | Basic (Annual)       | subscription | ₹19,670    | per year  |   2    |    15      |
+ 10 | Plus (Annual)        | subscription | ₹24,590    | per year  |   2    |    25      |
+ 12 | Premium (Annual)     | subscription | ₹39,350    | per year  |   3    |    40      |
+ 14 | Elite (Annual)       | subscription | ₹78,710    | per year  |   4    |   100      |
+ 16 | Elite Plus (Annual)  | subscription | ₹88,550    | per year  |   5    |   150      |
+
+NOTES / DATA ANOMALIES:
+  • Plan id 11 (Premium) has visits_per_month = -10  → likely a data-entry bug.
+  • Plan id 13 (Elite) description says "4 visits/month" but visits_per_month = 6,
+    and max_plants = 149 while description says "up to 100".
+================================================================================

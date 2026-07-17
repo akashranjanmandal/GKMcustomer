@@ -387,21 +387,9 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
 
   Widget _buildSpaces() {
     final spaces = [
-      {
-        'title': 'Balcony Oasis',
-        'img':
-            'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=800&h=1000&fit=crop'
-      },
-      {
-        'title': 'Terrace & Lawn',
-        'img':
-            'https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=800&h=1000&fit=crop'
-      },
-      {
-        'title': 'Indoor Elegance',
-        'img':
-            'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&h=1000&fit=crop'
-      },
+      {'title': 'Balcony Oasis',   'img': 'assets/images/img-1.jpeg'},
+      {'title': 'Terrace & Lawn',  'img': 'assets/images/img-2.jpeg'},
+      {'title': 'Indoor Elegance', 'img': 'assets/images/img-3.jpeg'},
     ];
 
     return Column(
@@ -431,7 +419,7 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
                         offset: Offset(0, 10))
                   ],
                   image: DecorationImage(
-                    image: NetworkImage(spaces[index]['img']!),
+                    image: AssetImage(spaces[index]['img']!),
                     fit: BoxFit.cover,
                   ),
                 ),
