@@ -245,7 +245,7 @@ class _HomeState extends State<HomeScreen> {
             _Feature(icon: Icons.auto_awesome, title: 'Makeover', onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
             _Feature(icon: Icons.shopping_bag_rounded, title: 'My Orders', onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
             _Feature(icon: Icons.support_agent_rounded, title: 'Support', onTap: () => Navigator.pushNamed(ctx, '/complaints')),
-            _Feature(icon: Icons.local_florist_rounded, title: 'Store', onTap: () => widget.navTo(3)),
+            _Feature(icon: Icons.local_florist_rounded, title: 'Shop', onTap: () => widget.navTo(3)),
             _Feature(icon: Icons.notifications_none_rounded, title: 'Notifications', onTap: () => Navigator.pushNamed(ctx, '/notifications')),
          ],
        ),
