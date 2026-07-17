@@ -93,6 +93,8 @@ class _HomeState extends State<HomeScreen> {
               const SizedBox(height: 40),
               _buildQuickActions(ctx),
               const SizedBox(height: 40),
+              _buildPromotionsSection(ctx),
+              const SizedBox(height: 40),
               _buildShopSection(ctx),
               const SizedBox(height: 40),
               _buildPlansSection(ctx),
@@ -275,6 +277,16 @@ class _HomeState extends State<HomeScreen> {
               ),
             ),
           ),
+    ],
+  );
+
+  Widget _buildPromotionsSection(BuildContext ctx) => const _PromotionsCarousel(
+    images: [
+      'assets/images/marketting-1.jpeg',
+      'assets/images/marketting-2.jpeg',
+      'assets/images/marketting-3.jpeg',
+      'assets/images/marketting-4.jpeg',
+      'assets/images/marketting-5.jpeg',
     ],
   );
 
@@ -652,6 +664,139 @@ class _Tier {
   final Color accent;          // bright metallic accent (badge text, price, glow)
   final List<Color> gradient;  // deep background gradient (dark → darker)
   const _Tier(this.label, this.accent, this.gradient);
+}
+
+// ─── Promotions Carousel ─────────────────────────────────────────────────────
+
+class _PromotionsCarousel extends StatefulWidget {
+  final List<String> images;
+  const _PromotionsCarousel({required this.images});
+  @override State<_PromotionsCarousel> createState() => _PromotionsCarouselState();
+}
+
+class _PromotionsCarouselState extends State<_PromotionsCarousel> {
+  late final PageController _pageCtrl;
+  int _current = 0;
+  Timer? _autoTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController(viewportFraction: 0.86, initialPage: 0);
+    _autoTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || widget.images.isEmpty) return;
+      final next = (_current + 1) % widget.images.length;
+      _pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.images.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text("Why Choose GharKaMali?", style: p(18, w: FontWeight.w800, color: Colors.black)),
+            const SizedBox(height: 4),
+            Text('Offers & highlights from GharKaMali', style: p(12, color: Colors.black45, h: 1.4)),
+          ]),
+        ),
+        const SizedBox(height: 18),
+        // Use the screen width and a 4:5 card aspect ratio so portrait/square
+        // marketing artwork shows in full without cropping or distortion.
+        SizedBox(
+          height: MediaQuery.of(context).size.width * 0.86 * (5 / 4),
+          child: PageView.builder(
+            controller: _pageCtrl,
+            clipBehavior: Clip.none, // let shadows bleed
+            itemCount: widget.images.length,
+            onPageChanged: (i) => setState(() => _current = i),
+            itemBuilder: (_, i) {
+              final active = i == _current;
+              return AnimatedScale(
+                scale: active ? 1.0 : 0.94,
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOut,
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(6, 6, 6, 18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: const Color(0xFFF1F5F1), // neutral mat behind letterboxed images
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(active ? 0.22 : 0.10),
+                        blurRadius: active ? 24 : 12,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Stack(fit: StackFit.expand, children: [
+                      // `contain` shows the full artwork at its natural ratio,
+                      // never cropped. The neutral container colour acts as a
+                      // mat around it if the aspect doesn't perfectly match.
+                      Image.asset(
+                        widget.images[i],
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: const Color(0xFFF1F5F1),
+                          child: const Center(child: Icon(Icons.image_rounded, color: Colors.black26, size: 40)),
+                        ),
+                      ),
+                      // Subtle bottom gradient so any text/logo on the image edge stays legible
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.black.withOpacity(0.18)],
+                              stops: const [0.65, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Dot indicators
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(widget.images.length, (i) {
+              final active = i == _current;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 20 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: active ? C.forest : Colors.black12,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ─── Shared Widgets ───────────────────────────────────────────────────────────

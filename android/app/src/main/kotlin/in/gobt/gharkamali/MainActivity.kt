@@ -1,4 +1,4 @@
-package com.example.gkm_customer
+package `in`.gobt.gharkamali
 
 import io.flutter.embedding.android.FlutterActivity
 
