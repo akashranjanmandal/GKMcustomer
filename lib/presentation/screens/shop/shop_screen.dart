@@ -207,7 +207,7 @@ class _ShopState extends State<ShopScreen> {
     padding: EdgeInsets.fromLTRB(20, MediaQuery.of(ctx).padding.top + 8, 20, 24),
     child: Row(children: [
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Plant Store', style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
+        Text('Plant Shop', style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
         Text('Premium seeds, tools & care', style: p(12, color: Colors.white.withOpacity(0.7))),
       ])),
       GestureDetector(
@@ -553,10 +553,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String? _couponMsg;
   bool _couponBusy = false;
   List<dynamic> _availableCoupons = [];
+  
+  // Track quantity modifications
+  late Map<int, int> _qtyMap;
 
   @override
   void initState() {
     super.initState();
+    // Initialize quantity map from cart items
+    _qtyMap = {};
+    for (var item in widget.cart) {
+      final prodId = asInt(asMap(item['product'])['id']);
+      _qtyMap[prodId] = asInt(item['qty']);
+    }
     _loadCoupons();
   }
 
@@ -567,7 +576,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     } catch (_) {/* non-critical */}
   }
 
-  double get _subtotal => widget.cart.fold<double>(0.0, (s, e) => s + asDouble(asMap(e['product'])['price']) * asInt(e['qty']));
+  double get _subtotal => widget.cart.fold<double>(0.0, (s, e) => s + asDouble(asMap(e['product'])['price']) * (_qtyMap[asInt(asMap(e['product'])['id'])] ?? asInt(e['qty'])));
 
   Future<void> _applyCoupon([String? codeArg]) async {
     final code = (codeArg ?? _couponCtrl.text).trim().toUpperCase();
@@ -589,6 +598,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   void _removeCoupon() => setState(() { _appliedCode = null; _discount = 0; _couponCtrl.clear(); _couponMsg = null; });
 
+  void _incrementQty(int productId) {
+    setState(() {
+      _qtyMap[productId] = (_qtyMap[productId] ?? 0) + 1;
+    });
+  }
+
+  void _decrementQty(int productId) {
+    setState(() {
+      final current = _qtyMap[productId] ?? 0;
+      if (current > 1) {
+        _qtyMap[productId] = current - 1;
+      } else if (current == 1) {
+        _qtyMap.remove(productId);
+      }
+    });
+  }
+
   @override void dispose() { _gstinCtrl.dispose(); _bizCtrl.dispose(); _couponCtrl.dispose(); super.dispose(); }
 
   String _getImageUrl(Map<String, dynamic> prod) {
@@ -606,7 +632,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext ctx) {
     final loc = context.watch<LocationProvider>();
-    final totalValue = widget.cart.fold<double>(0.0, (s, e) => s + asDouble(asMap(e['product'])['price']) * asInt(e['qty']));
+    final totalValue = widget.cart.fold<double>(0.0, (s, e) => s + asDouble(asMap(e['product'])['price']) * (_qtyMap[asInt(asMap(e['product'])['id'])] ?? asInt(e['qty'])));
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -632,7 +658,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
          GSec('Order Summary'),
          const SizedBox(height: 12),
          ...widget.cart.map((e) {
-            final prod = asMap(e['product']); final q = asInt(e['qty']);
+            final prod = asMap(e['product']);
+            final prodId = asInt(prod['id']);
+            final q = _qtyMap[prodId] ?? asInt(e['qty']);
+            final price = asDouble(prod['price']);
             return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [
                ClipRRect(
                  borderRadius: BorderRadius.circular(8), 
@@ -646,9 +675,35 @@ class _CheckoutPageState extends State<CheckoutPage> {
                const SizedBox(width: 12),
                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                  Text(asStr(prod['name']), style: p(14, w: FontWeight.w700), maxLines: 1),
-                 Text('$q x ₹${asDouble(prod['price']).toStringAsFixed(0)}', style: p(12, color: Colors.black45)),
+                 Text('₹${price.toStringAsFixed(0)}', style: p(12, color: Colors.black45)),
                ])),
-               Text('₹${(asDouble(prod['price']) * q).toStringAsFixed(0)}', style: p(14, w: FontWeight.w800)),
+               // Quantity control
+               Container(
+                 decoration: BoxDecoration(color: const Color(0xFFF3F7F0), borderRadius: BorderRadius.circular(10), border: Border.all(color: C.border)),
+                 child: Row(mainAxisSize: MainAxisSize.min, children: [
+                   GestureDetector(
+                     onTap: () => _decrementQty(prodId),
+                     child: Container(
+                       width: 28, height: 28,
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(8)),
+                       child: Icon(Icons.remove_rounded, size: 16, color: C.forest),
+                     ),
+                   ),
+                   Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text('$q', style: p(13, w: FontWeight.w900, color: C.forest))),
+                   GestureDetector(
+                     onTap: () => _incrementQty(prodId),
+                     child: Container(
+                       width: 28, height: 28,
+                       alignment: Alignment.center,
+                       decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(8)),
+                       child: Icon(Icons.add_rounded, size: 16, color: C.forest),
+                     ),
+                   ),
+                 ]),
+               ),
+               const SizedBox(width: 10),
+               Text('₹${(price * q).toStringAsFixed(0)}', style: p(14, w: FontWeight.w800)),
             ]));
          }),
          const Divider(height: 48),
@@ -887,7 +942,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final loc = context.read<LocationProvider>();
     setState(() => _busy = true);
     try {
-      final items = widget.cart.map((e) => {'product_id': asInt(asMap(e['product'])['id']), 'quantity': asInt(e['qty'])}).toList();
+      final items = widget.cart.map((e) {
+        final prodId = asInt(asMap(e['product'])['id']);
+        return {'product_id': prodId, 'quantity': _qtyMap[prodId] ?? asInt(e['qty'])};
+      }).toList();
       final res = await _api.createShopOrder(
         items: items,
         shippingAddress: loc.fullAddress,
