@@ -141,7 +141,7 @@ class Api {
   Future<dynamic> verifyOtp(String phone, String otp, {String? name}) async {
     final res = await req('POST', '/auth/verify-otp', auth: false,
         body: {'phone': phone, 'otp': otp, if (name != null && name.isNotEmpty) 'name': name});
-    if (res is Map && res.containsKey('token')) {
+    if (res is Map && res.containsKey('token') && res['requires_name'] != true) {
       final p = await SharedPreferences.getInstance();
       await p.setString(kTokKey, asStr(res['token']));
       if (res.containsKey('user')) await p.setString(kUserKey, jsonEncode(res['user']));
