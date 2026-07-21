@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../data/services/api.dart';
+import '../../data/services/cart_provider.dart';
 import '../theme/theme.dart';
 export 'location_picker_sheet.dart';
 
@@ -359,6 +362,145 @@ class GField extends StatelessWidget {
 }
 
 
+// ─── Premium floating cart bar — tap the bag to expand and remove items ───────
+class GFloatingCartBar extends StatefulWidget {
+  final int count;
+  final double total;
+  final VoidCallback onTap;
+  final String? subtitle;
+  const GFloatingCartBar({super.key, required this.count, required this.total, required this.onTap, this.subtitle});
+
+  @override State<GFloatingCartBar> createState() => _GFloatingCartBarState();
+}
+
+class _GFloatingCartBarState extends State<GFloatingCartBar> {
+  bool _expanded = false;
+
+  String _imageUrl(Map<String, dynamic> prod) {
+    if (prod['images'] is List && (prod['images'] as List).isNotEmpty) {
+      final url = (prod['images'] as List).first.toString();
+      if (url.isNotEmpty && url != 'null') return url;
+    }
+    final img = prod['image']?.toString();
+    if (img != null && img.isNotEmpty && img != 'null') return img;
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final cart = ctx.watch<CartProvider>();
+    return Positioned(
+      left: 16, right: 16, bottom: 16 + MediaQuery.of(ctx).padding.bottom,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFF0E5C2A), C.forest, Color(0xFF03411A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+          boxShadow: [
+            BoxShadow(color: C.forest.withOpacity(0.45), blurRadius: 24, offset: const Offset(0, 12)),
+            BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_expanded) ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: cart.items.isEmpty
+                ? const SizedBox.shrink()
+                : ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                    itemCount: cart.items.length,
+                    separatorBuilder: (_, __) => Divider(height: 1, color: Colors.white.withOpacity(0.08)),
+                    itemBuilder: (_, i) {
+                      final item = cart.items[i];
+                      final prod = asMap(item['product']);
+                      final qty = asInt(item['qty']);
+                      final id = asInt(prod['id']);
+                      final img = _imageUrl(prod);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: img.isNotEmpty
+                              ? Image.network(img, width: 36, height: 36, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 36, height: 36, color: Colors.white12, child: const Icon(Icons.eco_rounded, color: Colors.white54, size: 16)))
+                              : Container(width: 36, height: 36, color: Colors.white12, child: const Icon(Icons.eco_rounded, color: Colors.white54, size: 16)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(asStr(prod['name']), style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => ctx.read<CartProvider>().remove(id),
+                            child: Container(
+                              width: 26, height: 26, alignment: Alignment.center,
+                              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                              child: const Icon(Icons.remove_rounded, size: 15, color: Colors.white),
+                            ),
+                          ),
+                          Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('$qty', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w900, color: Colors.white))),
+                          GestureDetector(
+                            onTap: () => ctx.read<CartProvider>().add(prod),
+                            child: Container(
+                              width: 26, height: 26, alignment: Alignment.center,
+                              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                              child: const Icon(Icons.add_rounded, size: 15, color: Colors.white),
+                            ),
+                          ),
+                        ]),
+                      );
+                    },
+                  ),
+            ),
+          ],
+          Row(children: [
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                child: Stack(alignment: Alignment.center, children: [
+                  Icon(_expanded ? Icons.keyboard_arrow_down_rounded : Icons.shopping_bag_rounded, color: Colors.white, size: _expanded ? 26 : 20),
+                  if (!_expanded) Positioned(top: 2, right: 2, child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(99)),
+                    child: Text('${widget.count}', style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w900, color: C.forest)),
+                  )),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: GestureDetector(
+              onTap: widget.onTap,
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.subtitle ?? '${widget.count} item${widget.count == 1 ? '' : 's'} added', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white70)),
+                Text('₹${widget.total.toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+              ]),
+            )),
+            GestureDetector(
+              onTap: widget.onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [C.gold, Color(0xFFE0BE6E)]),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [BoxShadow(color: C.gold.withOpacity(0.5), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('View Cart', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w900, color: const Color(0xFF1A0F00))),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.arrow_forward_rounded, color: Color(0xFF1A0F00), size: 15),
+                ]),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    ).animate().slideY(begin: 1, end: 0, duration: 350.ms, curve: Curves.easeOutQuart).fadeIn(duration: 250.ms);
+  }
+}
+
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
 class GNavBar extends StatelessWidget {
   final int idx;
@@ -369,64 +511,67 @@ class GNavBar extends StatelessWidget {
   static const _items = [
     (icon: Icons.home_outlined,           active: Icons.home_rounded,            label: 'Home'),
     (icon: Icons.calendar_month_outlined,  active: Icons.calendar_month_rounded,  label: 'Bookings'),
-    (icon: Icons.qr_code_scanner_rounded, active: Icons.qr_code_scanner_rounded, label: 'Scan'),
     (icon: Icons.storefront_outlined,     active: Icons.storefront_rounded,      label: 'Shop'),
-    (icon: Icons.person_outline_rounded,  active: Icons.person_rounded,          label: 'Me'),
   ];
 
   @override
   Widget build(BuildContext ctx) => Container(
-    height: 70 + MediaQuery.of(ctx).padding.bottom,
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    height: 74 + MediaQuery.of(ctx).padding.bottom,
     decoration: BoxDecoration(
       color: Colors.white,
       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0,-4))],
     ),
     child: SafeArea(top: false,
-      child: Row(children: List.generate(_items.length, (i) {
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: List.generate(_items.length, (i) {
         final sel = i == idx;
-        if (i == 2) {
-          return Expanded(child: GestureDetector(
-            onTap: () => onTap(i),
-            child: Column(children: [
-               Transform.translate(
-                 offset: const Offset(0, -10),
-                 child: Container(
-                   padding: const EdgeInsets.all(12),
-                   decoration: const BoxDecoration(
-                     color: C.forest,
-                     shape: BoxShape.circle,
-                     boxShadow: [BoxShadow(color: C.forest, blurRadius: 12, offset: Offset(0, 4))],
-                   ),
-                   child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 28),
-                 ),
-               ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(1,1), end: const Offset(1.1, 1.1), duration: 1.seconds),
-               const Text('Scan', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF1E5BB1))),
-            ]),
-          ));
+        final isShop = i == 2; // rightmost tab — styled as a distinct highlighted badge
+        final showBadge = isShop && cartCount > 0;
+
+        if (isShop) {
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () { HapticFeedback.selectionClick(); onTap(i); },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [C.forest3, C.forest], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [BoxShadow(color: C.forest.withOpacity(0.30), blurRadius: 14, offset: const Offset(0, 6))],
+              ),
+              child: Stack(clipBehavior: Clip.none, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.storefront_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Shop', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                ]),
+                if (showBadge) Positioned(top: -10, right: -10,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    child: Text('$cartCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                  )),
+              ]),
+            ),
+          );
         }
-        // Shop tab (index 3) gets cart badge
-        final showBadge = i == 3 && cartCount > 0;
-        return Expanded(child: GestureDetector(
+
+        return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () { HapticFeedback.selectionClick(); onTap(i); },
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Stack(clipBehavior: Clip.none, children: [
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(sel ? _items[i].active : _items[i].icon,
-                size: 24, color: sel ? C.forest : Colors.black45),
-              if (showBadge) Positioned(top: -4, right: -6,
-                child: Container(
-                  padding: const EdgeInsets.all(3.5),
-                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                  child: Text('$cartCount',
-                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)),
-                )),
+                size: 22, color: sel ? C.forest : Colors.black45),
+              const SizedBox(width: 8),
+              Text(_items[i].label, style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                color: sel ? C.forest : Colors.black54)),
             ]),
-            const SizedBox(height: 4),
-            Text(_items[i].label, style: GoogleFonts.poppins(
-              fontSize: 10, fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-              color: sel ? C.forest : Colors.black45)),
-          ]),
-        ));
+          ),
+        );
       }))),
   );
 }

@@ -84,17 +84,17 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
             controller: _scrollController,
             physics: const BouncingScrollPhysics(),
             slivers: [
-              _buildHero(),
+              _buildAppBar(),
               SliverToBoxAdapter(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 20),
+                    _buildSpaces(),
+                    const SizedBox(height: 64),
                     _buildConsultationBanner(),
                     const SizedBox(height: 64),
                     _buildServices(),
-                    const SizedBox(height: 64),
-                    _buildSpaces(),
                     const SizedBox(height: 64),
                     _buildTransformations(),
                     const SizedBox(height: 64),
@@ -114,97 +114,24 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
     );
   }
 
-  Widget _buildHero() {
+  Widget _buildAppBar() {
     return SliverAppBar(
-      expandedHeight: 500,
       pinned: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFFAFAFA),
+      surfaceTintColor: const Color(0xFFFAFAFA),
       elevation: 0,
+      scrolledUnderElevation: 0,
       leading: IconButton(
         icon: Container(
           padding: const EdgeInsets.all(8),
           decoration: const BoxDecoration(
-              color: Colors.white70, shape: BoxShape.circle),
+              color: Colors.black12, shape: BoxShape.circle),
           child: const Icon(Icons.arrow_back, color: Colors.black87, size: 20),
         ),
         onPressed: () => Navigator.pop(context),
       ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (_canLoadImages)
-              Image.network(
-                'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=1200&h=1000&fit=crop',
-                fit: BoxFit.cover,
-              )
-            else
-              Container(color: const Color(0xFFEEEEEE)),
-
-            // Gradient overlay seamlessly fading into the light background
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black12,
-                    Colors.transparent,
-                    Color(0xFFFAFAFA)
-                  ],
-                  stops: [0.0, 0.4, 1.0],
-                ),
-              ),
-            ),
-            Positioned(
-              left: 24,
-              right: 24,
-              bottom: 40,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 10)
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.star, color: C.gold, size: 14),
-                        const SizedBox(width: 8),
-                        Text('GHARKAMALI EXCLUSIVE',
-                            style: p(10,
-                                w: FontWeight.w900, color: C.forest, ls: 1.5)),
-                      ],
-                    ),
-                  ).animate().fadeIn().slideY(begin: 0.5, end: 0),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Transform Your Space into a Green Paradise.',
-                    style: p(36,
-                        w: FontWeight.w900,
-                        color: Colors.black87,
-                        h: 1.1,
-                        ls: -1),
-                  ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.3, end: 0),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Complete balcony, terrace, indoor, and office setups—expertly designed and executed.',
-                    style: p(16,
-                        color: Colors.black54, h: 1.5, w: FontWeight.w500),
-                  ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.3, end: 0),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      title: Text('Green Makeover',
+          style: p(17, w: FontWeight.w800, color: Colors.black87)),
     );
   }
 
@@ -387,9 +314,12 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
 
   Widget _buildSpaces() {
     final spaces = [
-      {'title': 'Balcony Oasis',   'img': 'assets/images/img-1.jpeg'},
-      {'title': 'Terrace & Lawn',  'img': 'assets/images/img-2.jpeg'},
-      {'title': 'Indoor Elegance', 'img': 'assets/images/img-3.jpeg'},
+      {'title': 'Balcony',  'img': 'assets/images/balcony.jpeg'},
+      {'title': 'Indoor',   'img': 'assets/images/indoor.jpeg'},
+      {'title': 'Lawn',     'img': 'assets/images/Lawn.jpeg'},
+      {'title': 'Terrace',  'img': 'assets/images/terrace.jpeg'},
+      {'title': 'Backyard', 'img': 'assets/images/backyard.jpeg'},
+      {'title': 'Office',   'img': 'assets/images/office_mobile.jpeg'},
     ];
 
     return Column(

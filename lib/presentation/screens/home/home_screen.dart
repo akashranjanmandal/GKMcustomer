@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../../../data/services/auth.dart';
 import '../../../data/services/cart_provider.dart';
 import '../shop/shop_screen.dart';
-import 'package:video_player/video_player.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/location_provider.dart';
 import '../../theme/theme.dart';
@@ -23,52 +23,33 @@ class _HomeState extends State<HomeScreen> {
   bool _loading = true;
   List<dynamic> _plans = [];
   List<dynamic> _products = [];
-  List<String> _taglines = ['Expert Gardeners', 'Organic Fertilizer', 'Plant Health Check'];
-  int _tagIdx = 0;
-  Timer? _tagTimer;
   int _notifCount = 0;
-  late VideoPlayerController _videoCtrl;
-  bool _videoReady = false;
+  final _scrollCtrl = ScrollController();
+  bool _navCollapsed = false;
 
   @override void initState() {
     super.initState();
     _loadAll();
-    _tagTimer = Timer.periodic(const Duration(seconds: 4), (t) {
-      if (mounted) setState(() => _tagIdx = (_tagIdx + 1) % _taglines.length);
+    _scrollCtrl.addListener(() {
+      final collapsed = _scrollCtrl.offset > (MediaQuery.of(context).size.height * 0.30 - 90);
+      if (collapsed != _navCollapsed) setState(() => _navCollapsed = collapsed);
     });
-    _initVideo();
   }
 
-  void _initVideo() {
-    _videoCtrl = VideoPlayerController.asset('assets/images/video.mp4')
-      ..setLooping(true)
-      ..setVolume(0)
-      ..initialize().then((_) {
-        if (mounted) { setState(() => _videoReady = true); _videoCtrl.play(); }
-      }).catchError((_) {});
-  }
-
-  @override void dispose() { _tagTimer?.cancel(); _videoCtrl.dispose(); super.dispose(); }
+  @override void dispose() { _scrollCtrl.dispose(); super.dispose(); }
 
   Future<void> _loadAll() async {
     try {
       final r = await Future.wait([
         _api.getPlans().catchError((_) => []),
         _api.getShopProducts(limit: 5).catchError((_) => []),
-        _api.getActiveTaglines().catchError((_) => []),
         _api.getNotifications().catchError((_) => []),
       ]);
       if (!mounted) return;
       setState(() {
         _plans = asList(r[0]);
         _products = asList(r[1]);
-        final tags = asList(r[2]);
-        if (tags.isNotEmpty) {
-          _taglines = tags.map((e) => asStr(asMap(e)['text'])).toList();
-        } else {
-          _taglines = ['Professional gardening made simple', 'Expert Gardeners', 'Organic Fertilizer'];
-        }
-        final notifs = asList(r[3]);
+        final notifs = asList(r[2]);
         _notifCount = notifs.where((e) => asBool(asMap(e)['is_read']) == false).length;
         _loading = false;
       });
@@ -78,26 +59,27 @@ class _HomeState extends State<HomeScreen> {
   @override
   Widget build(BuildContext ctx) {
     final cart = ctx.watch<CartProvider>();
+    final heroH = MediaQuery.of(ctx).size.height * 0.30;
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(children: [
         RefreshIndicator(
           onRefresh: _loadAll, color: C.forest,
-          child: CustomScrollView(slivers: [
-            _buildSliverHeader(ctx),
+          child: CustomScrollView(controller: _scrollCtrl, slivers: [
+            _buildHeroSliver(ctx, heroH),
             SliverToBoxAdapter(child: Column(children: [
-              const SizedBox(height: 28),
-              _buildBookingSection(ctx),
-              const SizedBox(height: 28),
-              _buildGreenMakeoverBanner(ctx),
+              const SizedBox(height: 24),
+              _buildTwoColumnCards(ctx),
               const SizedBox(height: 40),
               _buildQuickActions(ctx),
-              const SizedBox(height: 40),
-              _buildPromotionsSection(ctx),
               const SizedBox(height: 40),
               _buildShopSection(ctx),
               const SizedBox(height: 40),
               _buildPlansSection(ctx),
+              const SizedBox(height: 40),
+              _buildPromotionsSection(ctx),
+              const SizedBox(height: 32),
+              _buildFooter(ctx),
               const SizedBox(height: 130),
             ])),
           ]),
@@ -107,131 +89,116 @@ class _HomeState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSliverHeader(BuildContext ctx) => SliverAppBar(
-    expandedHeight: 480, pinned: true,
-    backgroundColor: C.forest, elevation: 0,
-    flexibleSpace: FlexibleSpaceBar(
-      background: Stack(fit: StackFit.expand, children: [
-        _videoReady
-          ? SizedBox.expand(child: FittedBox(fit: BoxFit.cover, child: SizedBox(width: _videoCtrl.value.size.width, height: _videoCtrl.value.size.height, child: VideoPlayer(_videoCtrl))))
-          : Container(color: C.forest),
-        Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.4), Colors.transparent, Colors.black.withOpacity(0.8)]))),
+  // ── Hero image slider with the top nav overlaid directly on top of it ─────
+  // The nav (address / notifications / profile) sits over the hero images —
+  // once the hero scrolls away, the pinned bar crossfades to a plain white nav.
+  Widget _buildHeroSliver(BuildContext ctx, double heroH) {
+    final collapsed = _navCollapsed;
+    final fg = collapsed ? C.t1 : Colors.white;
+    final fgMuted = collapsed ? C.t3 : Colors.white70;
+    final chipBg = collapsed ? C.forest.withOpacity(0.08) : Colors.white.withOpacity(0.22);
 
-        Positioned(top: MediaQuery.of(ctx).padding.top + 10, left: 16, child: Consumer<LocationProvider>(builder: (ctx, lp, _) => GestureDetector(
-          onTap: () {
-            if (lp.locations.isNotEmpty) {
-              showSavedLocations(ctx);
-            } else {
-              showLocationPicker(ctx).then((loc) { if (loc != null) lp.save(loc); });
-            }
-          },
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(99)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.location_on_rounded, color: C.gold, size: 14), const SizedBox(width: 6),
-              Flexible(child: Text(lp.label, style: p(11, w: FontWeight.w700, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              const SizedBox(width: 4), const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white70, size: 16),
-            ]))))),
-
-        Positioned(top: MediaQuery.of(ctx).padding.top + 6, right: 10, child: Stack(children: [
-          IconButton(onPressed: () => Navigator.pushNamed(ctx, '/notifications'), icon: const Icon(Icons.notifications_outlined, color: Colors.white)),
-          if (_notifCount > 0) Positioned(top: 10, right: 10, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: Text('$_notifCount', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
-        ])),
-
-        Positioned(left: 24, right: 24, bottom: 40, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(8)), child: Text('Professional gardening made simple', style: p(10, w: FontWeight.w900, color: Colors.black, ls: 0.5))),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 48,
-            child: AnimatedSwitcher(
-              duration: 500.ms,
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: SlideTransition(
-                  position: Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(anim),
-                  child: child,
-                ),
-              ),
-              child: Text(
-                _taglines[_tagIdx],
-                key: ValueKey(_tagIdx),
-                style: GoogleFonts.poppins(fontSize: 30, fontWeight: FontWeight.w900, color: Colors.white, height: 1.1),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+    return SliverAppBar(
+      pinned: true,
+      floating: false,
+      expandedHeight: heroH,
+      collapsedHeight: 60,
+      backgroundColor: collapsed ? Colors.white : Colors.transparent,
+      surfaceTintColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      automaticallyImplyLeading: false,
+      flexibleSpace: FlexibleSpaceBar(
+        background: _buildHeroSlider(ctx),
+      ),
+      title: Consumer<LocationProvider>(builder: (ctx, lp, _) => GestureDetector(
+        onTap: () {
+          if (lp.locations.isNotEmpty) {
+            showSavedLocations(ctx);
+          } else {
+            showLocationPicker(ctx).then((loc) { if (loc != null) lp.save(loc); });
+          }
+        },
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: chipBg, borderRadius: BorderRadius.circular(9)),
+            child: Icon(Icons.location_on_rounded, color: fg, size: 16)),
+          const SizedBox(width: 8),
+          Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Deliver to', style: p(10, w: FontWeight.w600, color: fgMuted)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(child: Text(lp.label, style: p(13, w: FontWeight.w800, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Icon(Icons.keyboard_arrow_down_rounded, color: fgMuted, size: 16),
+            ]),
+          ])),
+        ]),
+      )),
+      actions: [
+        Stack(children: [
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(color: chipBg, shape: BoxShape.circle),
+            child: IconButton(onPressed: () => Navigator.pushNamed(ctx, '/notifications'), icon: Icon(Icons.notifications_outlined, color: fg, size: 20)),
           ),
-          Text('GharKaMali hai na!', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: C.gold, fontStyle: FontStyle.italic)),
-          const SizedBox(height: 24),
-          GBtn(label: 'BOOK A SERVICE', w: 180, h: 52, onTap: () => Navigator.pushNamed(ctx, '/book'), bg: Colors.white, labelColor: C.forest),
-        ])),
-      ]),
-    ),
+          if (_notifCount > 0) Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: Text('$_notifCount', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
+        ]),
+        Consumer<AuthProvider>(builder: (ctx, auth, _) => GestureDetector(
+          onTap: () => widget.navTo(4),
+          child: Container(
+            margin: const EdgeInsets.only(right: 16, left: 4),
+            width: 34, height: 34,
+            decoration: BoxDecoration(color: C.forest, shape: BoxShape.circle, border: Border.all(color: collapsed ? C.border : Colors.white, width: 1.5)),
+            child: ClipOval(child: auth.profileImage != null
+              ? Image.network(auth.profileImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: Colors.white, size: 18))
+              : const Icon(Icons.person_rounded, color: Colors.white, size: 18)),
+          ),
+        )),
+      ],
+    );
+  }
+
+  // ── Hero image slider — fills the flexible space above ─────────────────────
+  Widget _buildHeroSlider(BuildContext ctx) => _HeroSlider(
+    images: const [
+      'assets/images/marketting-1.jpeg',
+      'assets/images/marketting-2.jpeg',
+      'assets/images/marketting-3.jpeg',
+      'assets/images/marketting-4.jpeg',
+      'assets/images/marketting-5.jpeg',
+    ],
   );
 
-  Widget _buildBookingSection(BuildContext ctx) => Padding(
+  // ── Two light, premium action cards ─────────────────────────────────────
+  Widget _buildTwoColumnCards(BuildContext ctx) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Make your garden better', style: p(20, w: FontWeight.w800, color: Colors.black)),
-      const SizedBox(height: 18),
-      GestureDetector(
+    child: Row(children: [
+      Expanded(child: _HeroCard(
+        title: 'Schedule a Visit',
+        icon: Icons.bolt_rounded,
+        iconColor: C.forest,
+        gradient: const [Color(0xFFF3FBF4), Color(0xFFE3F5E8)],
+        btnLabel: 'Book Now',
+        btnIcon: Icons.bolt_rounded,
         onTap: () => Navigator.pushNamed(ctx, '/book'),
-        child: Container(
-          padding: const EdgeInsets.all(26),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [C.forest, const Color(0xFF1E4D2B)]),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [BoxShadow(color: C.forest.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
-          ),
-          child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Schedule a Visit', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-              const SizedBox(height: 8),
-              Text('Professional gardeners at your doorstep', style: p(13, color: Colors.white70, h: 1.4)),
-            ])),
-            Container(padding: const EdgeInsets.all(12), decoration: const BoxDecoration(color: Colors.white12, shape: BoxShape.circle), child: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 20)),
-          ]),
-        ),
-      ),
+      )),
+      const SizedBox(width: 14),
+      Expanded(child: _HeroCard(
+        title: 'Green Makeover',
+        icon: Icons.auto_awesome_rounded,
+        iconColor: const Color(0xFFC69328),
+        gradient: const [Color(0xFFFBF8F0), Color(0xFFF6EFDD)],
+        btnLabel: 'Consult Now',
+        btnIcon: Icons.arrow_forward_rounded,
+        onTap: () => Navigator.pushNamed(ctx, '/green-makeover'),
+      )),
     ]),
   );
 
-  Widget _buildGreenMakeoverBanner(BuildContext ctx) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: GestureDetector(
-      onTap: () => Navigator.pushNamed(ctx, '/green-makeover'),
-      child: Container(
-        padding: const EdgeInsets.all(26),
-        decoration: BoxDecoration(
-          color: C.forest,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [BoxShadow(color: C.gold.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))],
-          image: DecorationImage(
-            image: const NetworkImage('https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=600&h=400&fit=crop'),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(C.forest.withOpacity(0.85), BlendMode.srcOver),
-          ),
-        ),
-        child: Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(8)),
-              child: Text('PREMIUM', style: p(9, w: FontWeight.w900, color: C.forest, ls: 1)),
-            ),
-            const SizedBox(height: 12),
-            Text('Green Makeover', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('Complete plant setups starting ₹20k', style: p(12, w: FontWeight.w500, color: Colors.white70, h: 1.4)),
-          ])),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle),
-            child: const Icon(Icons.auto_awesome, color: C.forest, size: 20),
-          ),
-        ]),
-      ),
-    ),
-  );
+  // ── Company footer ─────────────────────────────────────────────────────
+  Widget _buildFooter(BuildContext ctx) => Center(child: Column(children: [
+    Text('Gharkamali', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: C.t3)),
+    const SizedBox(height: 3),
+    Text('© Plantura Care Pvt Ltd', style: p(11, color: C.t4)),
+  ]));
 
   Widget _buildQuickActions(BuildContext ctx) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -243,11 +210,11 @@ class _HomeState extends State<HomeScreen> {
          crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 20,
          childAspectRatio: 0.9,
          children: [
-            _Feature(icon: Icons.yard_rounded, title: 'Plantopedia', onTap: () => widget.navTo(2)),
+            _Feature(icon: Icons.yard_rounded, title: 'Plantopedia', onTap: () => widget.navTo(3)),
             _Feature(icon: Icons.auto_awesome, title: 'Makeover', onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
             _Feature(icon: Icons.shopping_bag_rounded, title: 'My Orders', onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
             _Feature(icon: Icons.support_agent_rounded, title: 'Support', onTap: () => Navigator.pushNamed(ctx, '/complaints')),
-            _Feature(icon: Icons.local_florist_rounded, title: 'Shop', onTap: () => widget.navTo(3)),
+            _Feature(icon: Icons.local_florist_rounded, title: 'Shop', onTap: () => widget.navTo(2)),
             _Feature(icon: Icons.notifications_none_rounded, title: 'Notifications', onTap: () => Navigator.pushNamed(ctx, '/notifications')),
          ],
        ),
@@ -260,7 +227,7 @@ class _HomeState extends State<HomeScreen> {
       Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('Featured Products', style: p(18, w: FontWeight.w800, color: Colors.black)),
-          TextButton(onPressed: () => widget.navTo(3), child: Text('See all', style: p(13, w: FontWeight.w700, color: C.forest))),
+          TextButton(onPressed: () => widget.navTo(2), child: Text('See all', style: p(13, w: FontWeight.w700, color: C.forest))),
         ])),
       const SizedBox(height: 16),
       _products.isEmpty
@@ -273,7 +240,7 @@ class _HomeState extends State<HomeScreen> {
               itemCount: _products.length,
               itemBuilder: (_, i) => _ProductThumb(
                 product: asMap(_products[i]),
-                onTap: () => widget.navTo(3),
+                onTap: () => widget.navTo(2),
               ),
             ),
           ),
@@ -298,40 +265,172 @@ class _HomeState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCartBar(BuildContext ctx, int count, double total) => Positioned(
-    left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
-    child: GestureDetector(
-      onTap: () {
-        final cart = context.read<CartProvider>();
-        Navigator.push(ctx, MaterialPageRoute(builder: (_) => CheckoutPage(cart: cart.items, onOrdered: () => cart.clear())));
-      },
-      child: Container(
-        height: 68, padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [BoxShadow(color: C.forest.withOpacity(0.45), blurRadius: 20, offset: const Offset(0, 10))],
+  Widget _buildCartBar(BuildContext ctx, int count, double total) =>
+    GFloatingCartBar(count: count, total: total, onTap: () {
+      final cart = context.read<CartProvider>();
+      Navigator.push(ctx, MaterialPageRoute(builder: (_) => CheckoutPage(cart: cart.items, onOrdered: () => cart.clear())));
+    });
+}
+
+// ─── Hero slider — replaces the old video hero, sits at ~30% screen height ───
+// Fills whatever space its parent (SliverAppBar's FlexibleSpaceBar) gives it.
+class _HeroSlider extends StatefulWidget {
+  final List<String> images;
+  const _HeroSlider({required this.images});
+  @override State<_HeroSlider> createState() => _HeroSliderState();
+}
+
+class _HeroSliderState extends State<_HeroSlider> {
+  late final PageController _pageCtrl;
+  int _current = 0;
+  Timer? _autoTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+    _autoTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || widget.images.isEmpty) return;
+      final next = (_current + 1) % widget.images.length;
+      _pageCtrl.animateToPage(next, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.images.isEmpty) return const SizedBox.shrink();
+    return Stack(fit: StackFit.expand, children: [
+      PageView.builder(
+        controller: _pageCtrl,
+        itemCount: widget.images.length,
+        onPageChanged: (i) => setState(() => _current = i),
+        itemBuilder: (_, i) => Image.asset(
+          widget.images[i],
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(color: C.subtle, child: const Center(child: Icon(Icons.image_rounded, color: Colors.black26, size: 40))),
         ),
-        child: Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: Text('$count', style: p(14, w: FontWeight.w900, color: Colors.white))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$count item${count == 1 ? '' : 's'} in cart', style: p(14, w: FontWeight.w800, color: Colors.white)),
-            Text('₹${total.toStringAsFixed(0)} total', style: p(11, color: Colors.white70)),
-          ])),
+      ),
+      // Top scrim so the overlaid nav (white icons/text) stays readable on bright images.
+      Positioned(
+        left: 0, right: 0, top: 0, height: 110,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              colors: [Colors.black.withOpacity(0.45), Colors.transparent],
+            ),
+          ),
+        ),
+      ),
+      // Bottom dot indicators
+      Positioned(
+        left: 0, right: 0, bottom: 14,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(widget.images.length, (i) {
+            final active = i == _current;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: active ? 20 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: active ? Colors.white : Colors.white.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(99),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3)],
+              ),
+            );
+          }),
+        ),
+      ),
+    ]);
+  }
+}
+
+// ─── Two-column light action card ─────────────────────────────────────────
+// Layout mirrors the "Book Pronto" reference cards: title top-left, a small
+// pill button beneath it, and a large decorative icon anchored bottom-right.
+class _HeroCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final List<Color> gradient;
+  final String btnLabel;
+  final IconData btnIcon;
+  final VoidCallback onTap;
+  const _HeroCard({
+    required this.title, required this.icon, required this.iconColor,
+    required this.gradient, required this.btnLabel, required this.btnIcon, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 148,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
+      ),
+      child: Stack(children: [
+        // Large decorative icon, bottom-right, with a shine sweep animation.
+        Positioned(
+          right: -6, bottom: -6,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox(
+              width: 64, height: 64,
+              child: Stack(alignment: Alignment.center, children: [
+                Icon(icon, color: iconColor.withOpacity(0.55), size: 52),
+                Positioned.fill(
+                  child: ShaderMask(
+                    blendMode: BlendMode.srcATop,
+                    shaderCallback: (rect) => LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [Colors.transparent, Colors.white.withOpacity(0.9), Colors.transparent],
+                      stops: const [0.35, 0.5, 0.65],
+                    ).createShader(rect),
+                    child: Icon(icon, color: iconColor, size: 52),
+                  ).animate(onPlay: (c) => c.repeat())
+                   .shimmer(duration: 1200.ms, delay: 900.ms, color: Colors.white.withOpacity(0.7)),
+                ),
+              ]),
+            ),
+          ),
+        ),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: 120,
+            child: Text(title, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: C.t1, height: 1.2)),
+          ),
+          const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: C.forest.withOpacity(0.18)),
+            ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('View Cart', style: p(13, w: FontWeight.w900, color: Colors.black87)),
-              const SizedBox(width: 6),
-              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black87, size: 12),
+              Icon(btnIcon, color: C.forest, size: 13),
+              const SizedBox(width: 5),
+              Text(btnLabel, style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w800, color: C.forest)),
             ]),
           ),
         ]),
-      ),
+      ]),
     ),
-  ).animate().slideY(begin: 1, end: 0, curve: Curves.easeOutQuart);
+  );
 }
 
 // ─── Hotstar-style Plans Carousel ────────────────────────────────────────────

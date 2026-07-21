@@ -536,25 +536,41 @@ class _OtpScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 48),
-            Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(
-                    6,
-                    (i) => _OtpBox(
-                          controller: controllers[i],
-                          focusNode: focusNodes[i],
-                          onChanged: (v) {
-                            if (v.isNotEmpty && i < 5)
-                              focusNodes[i + 1].requestFocus();
-                            if (v.isEmpty && i > 0)
-                              focusNodes[i - 1].requestFocus();
-                            onChange(v);
+            AutofillGroup(
+              child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(
+                      6,
+                      (i) => _OtpBox(
+                            controller: controllers[i],
+                            focusNode: focusNodes[i],
+                            autofillHint: i == 0,
+                            onChanged: (v) {
+                              // The OS SMS-autofill suggestion pastes the full
+                              // code into whichever box is focused — spread it
+                              // across all 6 boxes instead of just the one.
+                              if (v.length > 1) {
+                                final digits = v.replaceAll(RegExp(r'\D'), '');
+                                for (var j = 0; j < 6; j++) {
+                                  controllers[j].text = j < digits.length ? digits[j] : '';
+                                }
+                                if (digits.length >= 6) {
+                                  focusNodes[5].requestFocus();
+                                } else {
+                                  focusNodes[digits.length.clamp(0, 5)].requestFocus();
+                                }
+                              } else {
+                                if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
+                                if (v.isEmpty && i > 0) focusNodes[i - 1].requestFocus();
+                              }
+                              onChange(v);
 
-                            // Auto submit when all fields are filled
-                            final code = controllers.map((c) => c.text).join();
-                            if (code.length == 6) onVerify();
-                          },
-                        ))),
+                              // Auto submit when all fields are filled
+                              final code = controllers.map((c) => c.text).join();
+                              if (code.length == 6) onVerify();
+                            },
+                          ))),
+            ),
             const SizedBox(height: 48),
             GBtn(
                 label: 'Verify OTP',
@@ -624,10 +640,16 @@ class _OtpBox extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
+  // Only the first box carries the SMS-autofill hint. Its maxLength stays
+  // high (6) so the OS can paste the *whole* code into it — onChanged then
+  // spreads those digits across all 6 boxes. Other boxes stay capped at 1
+  // for normal manual digit-by-digit typing.
+  final bool autofillHint;
   const _OtpBox(
       {required this.controller,
       required this.focusNode,
-      required this.onChanged});
+      required this.onChanged,
+      this.autofillHint = false});
   @override
   Widget build(BuildContext ctx) => SizedBox(
       width: 48,
@@ -637,7 +659,8 @@ class _OtpBox extends StatelessWidget {
         focusNode: focusNode,
         keyboardType: TextInputType.number,
         textAlign: TextAlign.center,
-        maxLength: 1,
+        maxLength: autofillHint ? 6 : 1,
+        autofillHints: autofillHint ? const [AutofillHints.oneTimeCode] : null,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
         decoration: InputDecoration(

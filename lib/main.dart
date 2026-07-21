@@ -196,19 +196,31 @@ class _ShellState extends State<_Shell> {
               FadeTransition(opacity: a, child: child)),
       (_) => false);
 
+  // HomeScreen calls this both for the 3 bottom tabs (0-2) and for actions
+  // that live outside the tab bar (Plantopedia, Profile) — those are pushed
+  // as routes instead of switching the IndexedStack.
+  void _navTo(int i) {
+    switch (i) {
+      case 3:
+        Navigator.push(context, MaterialPageRoute(builder: (_) => PlantopediaScreen(
+          isVisible: true,
+          onClose: () => Navigator.pop(context),
+        )));
+        break;
+      case 4:
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(onLogout: _onLogout)));
+        break;
+      default:
+        setState(() => _idx = i);
+    }
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final pages = [
-      HomeScreen(navTo: (i) => setState(() => _idx = i)),
+      HomeScreen(navTo: _navTo),
       const BookingsScreen(),
-      // Plantopedia: handle visibility to pause/resume camera
-      PlantopediaScreen(
-        isVisible: _idx == 2,
-        onClose: () => setState(() => _idx = 0),
-      ),
-
       const ShopScreen(),
-      ProfileScreen(onLogout: _onLogout),
     ];
     return Scaffold(
       body: IndexedStack(index: _idx, children: pages),
