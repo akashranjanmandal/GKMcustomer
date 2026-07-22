@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import '../../../data/services/api.dart';
 import '../../../utils/validators.dart';
 import '../../theme/theme.dart';
@@ -189,163 +191,140 @@ class _PhoneScreen extends StatelessWidget {
         phoneCtrl.text.replaceAll(RegExp(r'\D'), '').length == 10;
     final top = MediaQuery.of(ctx).padding.top;
     final bot = MediaQuery.of(ctx).padding.bottom;
-    final screenH = MediaQuery.of(ctx).size.height;
 
-    return Stack(
-      children: [
-        // Background - Fixed size to prevent squeezing
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: screenH,
-          child: Column(
-            children: [
-              // ── Top Section (Header + Marquee) ─────────────────────────
-              Container(
-                width: double.infinity,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        child: Column(children: [
+          // ── Green hero card — rounded bottom corners, logo + tagline + photo grid ──
+          // Stacked so a green→white gradient can bleed over the card's tail,
+          // softening the seam into the white section below instead of a hard cut.
+          Stack(children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(36)),
+              child: Container(
                 color: C.forest,
-                padding: EdgeInsets.fromLTRB(24, top + 20, 24, 10),
+                padding: EdgeInsets.fromLTRB(24, top + 28, 24, 0),
                 child: Column(children: [
                   Image.asset('assets/images/logo.png',
-                          height: 64, fit: BoxFit.contain)
+                          height: 96, fit: BoxFit.contain)
                       .animate()
                       .fadeIn(duration: 600.ms)
                       .scale(begin: const Offset(0.88, 0.88)),
-                ]),
-              ),
-
-              // ── Marquee area ──────────────────
-              Expanded(
-                child: Stack(children: [
-                  Container(
-                    width: double.infinity,
-                    color: C.forest,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 20),
-                        _MarqueeRow(
-                            tiles: _r1,
-                            duration: const Duration(seconds: 36),
-                            reverse: false),
-                        _MarqueeRow(
-                            tiles: _r2,
-                            duration: const Duration(seconds: 30),
-                            reverse: true),
-                        _MarqueeRow(
-                            tiles: _r3,
-                            duration: const Duration(seconds: 40),
-                            reverse: false),
-                      ],
-                    ),
-                  ),
-                  // Top fade: forest → transparent
-                  Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 36,
-                      child: IgnorePointer(
-                          child: Container(
-                              decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [C.forest, C.forest.withOpacity(0)],
-                      ))))),
-                ]),
-              ),
-            ],
-          ),
-        ),
-
-        // Foreground - Bottom Section (White Card)
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // The white flare between inputs and images
-              IgnorePointer(
-                child: Container(
-                  height: 120,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Colors.white, Colors.transparent],
-                    ),
-                  ),
-                ),
-              ),
-              Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                ),
-                padding:
-                    EdgeInsets.fromLTRB(24, 24, 24, bot > 0 ? bot + 10 : 24),
-                child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Mobile Number',
-                          style: p(13, w: FontWeight.w600, color: C.t3)),
-                      const SizedBox(height: 10),
-                      _LoginInput(
-                        child: Row(children: [
-                          const SizedBox(width: 16),
-                          const Icon(Icons.phone_android_rounded,
-                              size: 20, color: C.forest),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: _rawField(
-                            ctrl: phoneCtrl,
-                            hint: 'e.g. 7319XXXXXX',
-                            onChanged: onPhoneChanged,
-                            keyboard: TextInputType.phone,
-                            formatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(10)
-                            ],
-                          )),
+                  const SizedBox(height: 24),
+                  // Photo grid — three auto-scrolling rows, cropped by the card edge.
+                  // Faded out (via ShaderMask) starting halfway down so the third
+                  // row dissolves into the green background instead of hard-cutting.
+                  ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (rect) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.white, Colors.white, Colors.transparent],
+                      stops: [0.0, 0.5, 1.0],
+                    ).createShader(rect),
+                    child: SizedBox(
+                      height: 274,
+                      child: ClipRect(
+                        child: Column(children: [
+                          const SizedBox(height: 4),
+                          _MarqueeRow(tiles: _r1, duration: const Duration(seconds: 36), reverse: false),
+                          const SizedBox(height: 8),
+                          _MarqueeRow(tiles: _r2, duration: const Duration(seconds: 30), reverse: true),
+                          const SizedBox(height: 8),
+                          _MarqueeRow(tiles: _r3, duration: const Duration(seconds: 40), reverse: false),
                         ]),
                       ),
-                      const SizedBox(height: 16),
-                      GBtn(
-                          label: 'Continue',
-                          loading: busy,
-                          onTap: canContinue ? onSend : null,
-                          bg: canContinue ? C.forest : Colors.grey[300]!),
-                      const SizedBox(height: 18),
-                      Center(
-                          child: Text.rich(TextSpan(
-                              style: p(12, color: Colors.black38, h: 1.5),
-                              children: [
-                            const TextSpan(
-                                text: 'By continuing, you agree to our '),
-                            TextSpan(
-                                text: 'Terms of Service',
-                                style: p(12,
-                                    w: FontWeight.w700, color: Colors.black54)),
-                            const TextSpan(text: ' & '),
-                            TextSpan(
-                                text: 'Privacy Policy',
-                                style: p(12,
-                                    w: FontWeight.w700, color: Colors.black54)),
-                          ]))),
-                    ]),
+                    ),
+                  ),
+                ]),
               ),
-            ],
+            ),
+            // Green → white bleed, anchored to the bottom of the whole card.
+            Positioned(
+              left: 0, right: 0, bottom: 0, height: 140,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [C.forest.withOpacity(0), Colors.white],
+                      stops: const [0.0, 0.92],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+
+          // ── White section — Log in or Sign up ───────────────────────────
+          Padding(
+            padding: EdgeInsets.fromLTRB(24, 28, 24, bot > 0 ? bot + 20 : 28),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Log in or Sign up',
+                      style: p(24, w: FontWeight.w900, color: Colors.black)),
+                  const SizedBox(height: 24),
+                  Text('Mobile Number',
+                      style: p(13, w: FontWeight.w600, color: C.t3)),
+                  const SizedBox(height: 10),
+                  _LoginInput(
+                    child: Row(children: [
+                      const SizedBox(width: 16),
+                      const Icon(Icons.phone_android_rounded,
+                          size: 20, color: C.forest),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: _rawField(
+                        ctrl: phoneCtrl,
+                        hint: 'e.g. 7319XXXXXX',
+                        onChanged: onPhoneChanged,
+                        keyboard: TextInputType.phone,
+                        formatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10)
+                        ],
+                      )),
+                    ]),
+                  ),
+                  const SizedBox(height: 16),
+                  GBtn(
+                      label: 'Continue',
+                      loading: busy,
+                      onTap: canContinue ? onSend : null,
+                      bg: canContinue ? C.forest : Colors.grey[300]!),
+                  const SizedBox(height: 18),
+                  Center(
+                      child: Text.rich(TextSpan(
+                          style: p(12, color: Colors.black38, h: 1.5),
+                          children: [
+                        const TextSpan(
+                            text: 'By continuing, you agree to our '),
+                        TextSpan(
+                            text: 'Terms of Service',
+                            style: p(12,
+                                w: FontWeight.w700, color: Colors.black54),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => launchUrlString(_legalUrl)),
+                        const TextSpan(text: ' & '),
+                        TextSpan(
+                            text: 'Privacy Policy',
+                            style: p(12,
+                                w: FontWeight.w700, color: Colors.black54),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => launchUrlString(_legalUrl)),
+                      ]))),
+                ]),
           ),
-        ),
-      ],
+        ]),
+      ),
     );
   }
 }
+
+const _legalUrl = 'https://gharkamali.com/terms';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Seamless marquee row
@@ -364,7 +343,7 @@ class _MarqueeRowState extends State<_MarqueeRow>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   static const double _w = 120;
-  static const double _h = 100;
+  static const double _h = 76;
   static const double _gap = 12;
   static const double _stride = _w + _gap;
 

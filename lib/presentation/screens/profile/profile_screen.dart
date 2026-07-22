@@ -167,8 +167,8 @@ class _ProfileState extends State<ProfileScreen> {
             ).animate().fadeIn(delay: 180.ms),
             const SizedBox(height: 10),
             Center(child: Column(children: [
-              Text('Gharkamali v1.0', style: p(11, w: FontWeight.w700, color: C.t4)),
-              const SizedBox(height: 2),
+              Image.asset('assets/images/logo-colored.png', height: 42, fit: BoxFit.contain),
+              const SizedBox(height: 4),
               Text('© Plantura Care Pvt Ltd', style: p(10, color: C.t4)),
             ])).animate().fadeIn(delay: 200.ms),
           ])),

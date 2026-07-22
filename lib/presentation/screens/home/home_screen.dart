@@ -80,7 +80,7 @@ class _HomeState extends State<HomeScreen> {
               _buildPromotionsSection(ctx),
               const SizedBox(height: 32),
               _buildFooter(ctx),
-              const SizedBox(height: 130),
+              const SizedBox(height: 28),
             ])),
           ]),
         ),
@@ -133,18 +133,23 @@ class _HomeState extends State<HomeScreen> {
         ]),
       )),
       actions: [
-        Stack(children: [
-          Container(
-            margin: const EdgeInsets.only(top: 4),
+        GestureDetector(
+          onTap: () => Navigator.pushNamed(ctx, '/notifications'),
+          child: Container(
+            margin: const EdgeInsets.only(left: 4),
+            width: 34, height: 34,
+            alignment: Alignment.center,
             decoration: BoxDecoration(color: chipBg, shape: BoxShape.circle),
-            child: IconButton(onPressed: () => Navigator.pushNamed(ctx, '/notifications'), icon: Icon(Icons.notifications_outlined, color: fg, size: 20)),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Icon(Icons.notifications_outlined, color: fg, size: 18),
+              if (_notifCount > 0) Positioned(top: -3, right: -5, child: Container(padding: const EdgeInsets.all(3.5), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: Text('$_notifCount', style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.bold)))),
+            ]),
           ),
-          if (_notifCount > 0) Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: Text('$_notifCount', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)))),
-        ]),
+        ),
         Consumer<AuthProvider>(builder: (ctx, auth, _) => GestureDetector(
           onTap: () => widget.navTo(4),
           child: Container(
-            margin: const EdgeInsets.only(right: 16, left: 4),
+            margin: const EdgeInsets.only(right: 16, left: 10),
             width: 34, height: 34,
             decoration: BoxDecoration(color: C.forest, shape: BoxShape.circle, border: Border.all(color: collapsed ? C.border : Colors.white, width: 1.5)),
             child: ClipOval(child: auth.profileImage != null
@@ -176,7 +181,7 @@ class _HomeState extends State<HomeScreen> {
         icon: Icons.bolt_rounded,
         iconColor: C.forest,
         gradient: const [Color(0xFFF3FBF4), Color(0xFFE3F5E8)],
-        btnLabel: 'Book Now',
+        btnLabel: 'Book',
         btnIcon: Icons.bolt_rounded,
         onTap: () => Navigator.pushNamed(ctx, '/book'),
       )),
@@ -186,7 +191,7 @@ class _HomeState extends State<HomeScreen> {
         icon: Icons.auto_awesome_rounded,
         iconColor: const Color(0xFFC69328),
         gradient: const [Color(0xFFFBF8F0), Color(0xFFF6EFDD)],
-        btnLabel: 'Consult Now',
+        btnLabel: 'Consult',
         btnIcon: Icons.arrow_forward_rounded,
         onTap: () => Navigator.pushNamed(ctx, '/green-makeover'),
       )),
@@ -195,8 +200,8 @@ class _HomeState extends State<HomeScreen> {
 
   // ── Company footer ─────────────────────────────────────────────────────
   Widget _buildFooter(BuildContext ctx) => Center(child: Column(children: [
-    Text('Gharkamali', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: C.t3)),
-    const SizedBox(height: 3),
+    Image.asset('assets/images/logo-colored.png', height: 46, fit: BoxFit.contain),
+    const SizedBox(height: 4),
     Text('© Plantura Care Pvt Ltd', style: p(11, color: C.t4)),
   ]));
 
@@ -204,13 +209,13 @@ class _HomeState extends State<HomeScreen> {
     padding: const EdgeInsets.symmetric(horizontal: 16),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
        Text('Explore GKM', style: p(18, w: FontWeight.w800, color: Colors.black)),
-       const SizedBox(height: 20),
+       const SizedBox(height: 16),
        GridView.count(
          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-         crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 20,
-         childAspectRatio: 0.9,
+         crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 18,
+         childAspectRatio: 0.82,
          children: [
-            _Feature(icon: Icons.yard_rounded, title: 'Plantopedia', onTap: () => widget.navTo(3)),
+            _Feature(icon: Icons.yard_rounded, title: 'Plantopedia', comingSoon: true, onTap: () => widget.navTo(3)),
             _Feature(icon: Icons.auto_awesome, title: 'Makeover', onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
             _Feature(icon: Icons.shopping_bag_rounded, title: 'My Orders', onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
             _Feature(icon: Icons.support_agent_rounded, title: 'Support', onTap: () => Navigator.pushNamed(ctx, '/complaints')),
@@ -374,23 +379,25 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext ctx) => GestureDetector(
     onTap: onTap,
     child: Container(
-      height: 148,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.black.withOpacity(0.04)),
       ),
-      child: Stack(children: [
-        // Large decorative icon, bottom-right, with a shine sweep animation.
-        Positioned(
-          right: -6, bottom: -6,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        // Title left, decorative icon right — same row so they can never overlap.
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Text(title, style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w800, color: C.t1, height: 1.2)),
+          ),
+          const SizedBox(width: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
             child: SizedBox(
-              width: 64, height: 64,
+              width: 34, height: 34,
               child: Stack(alignment: Alignment.center, children: [
-                Icon(icon, color: iconColor.withOpacity(0.55), size: 52),
+                Icon(icon, color: iconColor.withOpacity(0.55), size: 30),
                 Positioned.fill(
                   child: ShaderMask(
                     blendMode: BlendMode.srcATop,
@@ -400,34 +407,31 @@ class _HeroCard extends StatelessWidget {
                       colors: [Colors.transparent, Colors.white.withOpacity(0.9), Colors.transparent],
                       stops: const [0.35, 0.5, 0.65],
                     ).createShader(rect),
-                    child: Icon(icon, color: iconColor, size: 52),
+                    child: Icon(icon, color: iconColor, size: 30),
                   ).animate(onPlay: (c) => c.repeat())
                    .shimmer(duration: 1200.ms, delay: 900.ms, color: Colors.white.withOpacity(0.7)),
                 ),
               ]),
             ),
           ),
-        ),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(
-            width: 120,
-            child: Text(title, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: C.t1, height: 1.2)),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ]),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.bottomLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(99),
               border: Border.all(color: C.forest.withOpacity(0.18)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(btnIcon, color: C.forest, size: 13),
+              Icon(btnIcon, color: C.forest, size: 12),
               const SizedBox(width: 5),
               Text(btnLabel, style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w800, color: C.forest)),
             ]),
           ),
-        ]),
+        ),
       ]),
     ),
   );
@@ -901,13 +905,41 @@ class _PromotionsCarouselState extends State<_PromotionsCarousel> {
 // ─── Shared Widgets ───────────────────────────────────────────────────────────
 
 class _Feature extends StatelessWidget {
-  final IconData icon; final String title; final VoidCallback onTap;
-  const _Feature({required this.icon, required this.title, required this.onTap});
+  final IconData icon; final String title; final VoidCallback onTap; final bool comingSoon;
+  const _Feature({required this.icon, required this.title, required this.onTap, this.comingSoon = false});
   @override
   Widget build(BuildContext ctx) => GestureDetector(
     onTap: onTap,
-    child: Column(children: [
-      Container(width: 64, height: 64, decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(20)), child: Icon(icon, color: C.forest, size: 30)),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      if (comingSoon) ...[
+        Text('COMING SOON', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w900, color: C.gold, letterSpacing: 0.6))
+          .animate(onPlay: (c) => c.repeat())
+          .shimmer(duration: 1600.ms, color: Colors.white),
+        const SizedBox(height: 6),
+      ],
+      ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: SizedBox(
+          width: 72, height: 72,
+          child: Stack(alignment: Alignment.center, children: [
+            Container(color: const Color(0xFFF8F8F8)),
+            Icon(icon, color: C.forest, size: 34),
+            Positioned.fill(
+              child: ShaderMask(
+                blendMode: BlendMode.srcATop,
+                shaderCallback: (rect) => LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Colors.transparent, Colors.white.withOpacity(0.85), Colors.transparent],
+                  stops: const [0.35, 0.5, 0.65],
+                ).createShader(rect),
+                child: Icon(icon, color: C.forest, size: 34),
+              ).animate(onPlay: (c) => c.repeat())
+               .shimmer(duration: 1300.ms, delay: 800.ms, color: Colors.white.withOpacity(0.7)),
+            ),
+          ]),
+        ),
+      ),
       const SizedBox(height: 10),
       Text(title, style: p(11, w: FontWeight.w700, color: Colors.black87), textAlign: TextAlign.center),
     ]),
