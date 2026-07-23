@@ -198,7 +198,13 @@ class _ShopState extends State<ShopScreen> {
   }
 
   void _showDetail(Map<String, dynamic> pData) {
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => _ProductDetails(pData: pData, onAdd: () => _addToCart(pData)));
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (_) => _ProductDetails(pData: pData, onAdd: () => _addToCart(pData)),
+    );
   }
 
   Widget _buildHeader(BuildContext ctx) => Container(
@@ -283,39 +289,15 @@ class _ShopState extends State<ShopScreen> {
     ]),
   );
 
-  Widget _buildCartBar(BuildContext ctx, int count, double total, int distinct) => Positioned(left: 16, right: 16, bottom: 20 + MediaQuery.of(ctx).padding.bottom,
-    child: GestureDetector(
-      onTap: () {
-        final cart = context.read<CartProvider>();
-        Navigator.push(ctx, MaterialPageRoute(builder: (_) => CheckoutPage(cart: cart.items, onOrdered: () => cart.clear())));
-      },
-      child: Container(
-        height: 68, padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [BoxShadow(color: C.forest.withOpacity(0.45), blurRadius: 20, offset: const Offset(0, 10))],
-        ),
-        child: Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)), child: Text('$count', style: p(14, w: FontWeight.w900, color: Colors.white))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(distinct == count ? '$count item${count == 1 ? '' : 's'} in cart' : '$distinct product${distinct == 1 ? '' : 's'} · $count items', style: p(14, w: FontWeight.w800, color: Colors.white)),
-            Text('₹${total.toStringAsFixed(0)} total', style: p(11, color: Colors.white70)),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('View Cart', style: p(13, w: FontWeight.w900, color: Colors.black87)),
-              const SizedBox(width: 6),
-              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black87, size: 12),
-            ]),
-          ),
-        ]),
-      ),
-    ),
-  ).animate().slideY(begin: 1, end: 0, curve: Curves.easeOutQuart);
+  Widget _buildCartBar(BuildContext ctx, int count, double total, int distinct) => GFloatingCartBar(
+    count: count,
+    total: total,
+    subtitle: distinct == count ? '$count item${count == 1 ? '' : 's'} in cart' : '$distinct product${distinct == 1 ? '' : 's'} · $count items',
+    onTap: () {
+      final cart = context.read<CartProvider>();
+      Navigator.push(ctx, MaterialPageRoute(builder: (_) => CheckoutPage(cart: cart.items, onOrdered: () => cart.clear())));
+    },
+  );
 }
 
 class _ProductTile extends StatefulWidget {
@@ -469,68 +451,96 @@ class _ProductDetails extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext ctx) => Container(
-    decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      // ── Product image — full width, no broken Material wrapper ──────────
-      ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        child: CachedNetworkImage(
-          imageUrl: _getImageUrl(pData),
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: 260,
-          placeholder: (_, __) => Container(height: 260, color: const Color(0xFFF1F5F1), child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50)))),
-          errorWidget: (_, __, ___) => Container(
-            height: 200,
-            color: const Color(0xFFF1F5F1),
-            child: Center(child: Icon(Icons.eco_rounded, size: 64, color: C.green.withOpacity(0.4))),
+  Widget build(BuildContext ctx) {
+    final screenH = MediaQuery.of(ctx).size.height;
+    final topInset = MediaQuery.of(ctx).padding.top;
+    return Container(
+      height: screenH - topInset,
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+      child: Column(children: [
+        // ── Drag handle ──────────────────────────────────────────────────
+        const SizedBox(height: 12),
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(99))),
+        const SizedBox(height: 8),
+
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              // ── Product image — contained on white, nothing cropped ──────
+              Container(
+                color: Colors.white,
+                height: screenH * 0.42,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: CachedNetworkImage(
+                    imageUrl: _getImageUrl(pData),
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    placeholder: (_, __) => Container(color: const Color(0xFFF6F8F5), child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50)))),
+                    errorWidget: (_, __, ___) => Container(
+                      color: const Color(0xFFF6F8F5),
+                      child: Center(child: Icon(Icons.eco_rounded, size: 64, color: C.green.withOpacity(0.4))),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Info ─────────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Name + price row
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(asStr(pData['name']), style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w900, color: C.t1)),
+                      const SizedBox(height: 2),
+                      Text(asStr(asMap(pData['category'])['name'], 'Garden Care'), style: p(13, w: FontWeight.w600, color: C.forest.withOpacity(0.65))),
+                    ])),
+                    const SizedBox(width: 12),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text('₹${asDouble(pData['price']).toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w900, color: C.green)),
+                      if (asDouble(pData['mrp']) > asDouble(pData['price']))
+                        Text('₹${asDouble(pData['mrp']).toStringAsFixed(0)}', style: const TextStyle(decoration: TextDecoration.lineThrough, decorationColor: Color(0xFF9AAA94), color: Color(0xFF9AAA94), fontSize: 12, fontWeight: FontWeight.w600)),
+                    ]),
+                  ]),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: Color(0xFFEEF4EA)),
+                  const SizedBox(height: 16),
+
+                  // Description
+                  Text('Product Details', style: p(14, w: FontWeight.w800, color: C.t1)),
+                  const SizedBox(height: 6),
+                  Text(
+                    asStr(pData['description'], 'This premium gardening product is designed to keep your garden healthy and vibrant.'),
+                    style: p(13, color: C.t3, h: 1.6),
+                  ),
+                  if (pData['specifications'] != null) ...[
+                    const SizedBox(height: 14),
+                    Text('Specifications', style: p(14, w: FontWeight.w800, color: C.t1)),
+                    const SizedBox(height: 6),
+                    Text(asStr(pData['specifications']), style: p(13, color: C.t3)),
+                  ],
+                  const SizedBox(height: 24),
+                ]),
+              ),
+            ]),
           ),
         ),
-      ),
 
-      // ── Info ─────────────────────────────────────────────────────────────
-      Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Name + price row
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(asStr(pData['name']), style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w900, color: C.t1)),
-              const SizedBox(height: 2),
-              Text(asStr(asMap(pData['category'])['name'], 'Garden Care'), style: p(13, w: FontWeight.w600, color: C.forest.withOpacity(0.65))),
-            ])),
-            const SizedBox(width: 12),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('₹${asDouble(pData['price']).toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w900, color: C.green)),
-              if (asDouble(pData['mrp']) > asDouble(pData['price']))
-                Text('₹${asDouble(pData['mrp']).toStringAsFixed(0)}', style: const TextStyle(decoration: TextDecoration.lineThrough, decorationColor: Color(0xFF9AAA94), color: Color(0xFF9AAA94), fontSize: 12, fontWeight: FontWeight.w600)),
-            ]),
-          ]),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: Color(0xFFEEF4EA)),
-          const SizedBox(height: 16),
-
-          // Description
-          Text('Product Details', style: p(14, w: FontWeight.w800, color: C.t1)),
-          const SizedBox(height: 6),
-          Text(
-            asStr(pData['description'], 'This premium gardening product is designed to keep your garden healthy and vibrant.'),
-            style: p(13, color: C.t3, h: 1.6),
+        // ── Sticky Add to Cart ─────────────────────────────────────────────
+        Container(
+          padding: EdgeInsets.fromLTRB(20, 14, 20, MediaQuery.of(ctx).padding.bottom + 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: const Border(top: BorderSide(color: Color(0xFFEEF4EA))),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, -6))],
           ),
-          if (pData['specifications'] != null) ...[
-            const SizedBox(height: 14),
-            Text('Specifications', style: p(14, w: FontWeight.w800, color: C.t1)),
-            const SizedBox(height: 6),
-            Text(asStr(pData['specifications']), style: p(13, color: C.t3)),
-          ],
-          const SizedBox(height: 24),
-          GBtn(label: 'Add to Cart', onTap: () { onAdd(); Navigator.pop(ctx); }, bg: C.forest),
-          SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
-        ]),
-      ),
-    ]),
-  );
+          child: GBtn(label: 'Add to Cart', onTap: () { onAdd(); Navigator.pop(ctx); }, bg: C.forest),
+        ),
+      ]),
+    );
+  }
 }
 
 class CheckoutPage extends StatefulWidget {
@@ -598,9 +608,29 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   void _removeCoupon() => setState(() { _appliedCode = null; _discount = 0; _couponCtrl.clear(); _couponMsg = null; });
 
+  // Stock cap: only enforced when the product actually carries a stock
+  // figure from the API — otherwise increment is unrestricted.
+  int? _stockFor(int productId) {
+    for (final e in widget.cart) {
+      final prod = asMap(e['product']);
+      if (asInt(prod['id']) == productId) {
+        final raw = prod['stock'] ?? prod['available_stock'] ?? prod['quantity_available'];
+        if (raw == null) return null;
+        return asInt(raw);
+      }
+    }
+    return null;
+  }
+
   void _incrementQty(int productId) {
+    final stock = _stockFor(productId);
+    final current = _qtyMap[productId] ?? 0;
+    if (stock != null && current >= stock) {
+      showMsg(context, 'Only $stock left in stock', err: true);
+      return;
+    }
     setState(() {
-      _qtyMap[productId] = (_qtyMap[productId] ?? 0) + 1;
+      _qtyMap[productId] = current + 1;
     });
   }
 
@@ -662,9 +692,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
             final prodId = asInt(prod['id']);
             final q = _qtyMap[prodId] ?? asInt(e['qty']);
             final price = asDouble(prod['price']);
-            return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [
+            final stock = _stockFor(prodId);
+            final atMax = stock != null && q >= stock;
+            return Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                ClipRRect(
-                 borderRadius: BorderRadius.circular(8), 
+                 borderRadius: BorderRadius.circular(8),
                  child: CachedNetworkImage(
                    imageUrl: _getImageUrl(prod),
                    width: 48, height: 48, fit: BoxFit.cover,
@@ -676,8 +708,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                  Text(asStr(prod['name']), style: p(14, w: FontWeight.w700), maxLines: 1),
                  Text('₹${price.toStringAsFixed(0)}', style: p(12, color: Colors.black45)),
+                 if (atMax) Text('Max stock reached', style: p(10, w: FontWeight.w600, color: Colors.orange.shade800)),
                ])),
-               // Quantity control
+               // Quantity control — increment disables once stock (if known) is reached
                Container(
                  decoration: BoxDecoration(color: const Color(0xFFF3F7F0), borderRadius: BorderRadius.circular(10), border: Border.all(color: C.border)),
                  child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -692,12 +725,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                    ),
                    Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text('$q', style: p(13, w: FontWeight.w900, color: C.forest))),
                    GestureDetector(
-                     onTap: () => _incrementQty(prodId),
+                     onTap: atMax ? null : () => _incrementQty(prodId),
                      child: Container(
                        width: 28, height: 28,
                        alignment: Alignment.center,
-                       decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(8)),
-                       child: Icon(Icons.add_rounded, size: 16, color: C.forest),
+                       decoration: BoxDecoration(color: Colors.white.withOpacity(atMax ? 0.2 : 0.5), borderRadius: BorderRadius.circular(8)),
+                       child: Icon(Icons.add_rounded, size: 16, color: atMax ? C.t4 : C.forest),
                      ),
                    ),
                  ]),
@@ -1243,7 +1276,7 @@ class _BillSheet extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Tax Invoice', style: p(16, w: FontWeight.w900, color: C.t1)),
-            Text('Plantura Care Pvt Ltd — GSTIN: 09AAAAA0000A1Z5', style: p(10, color: C.t3)),
+            Text('Plantura Care Pvt Ltd (Gharkamali) — GSTIN: 09AAAAA0000A1Z5', style: p(10, color: C.t3)),
           ])),
         ]),
         const SizedBox(height: 20),
