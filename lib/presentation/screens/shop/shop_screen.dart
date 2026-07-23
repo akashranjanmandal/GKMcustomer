@@ -1259,6 +1259,7 @@ class _BillSheet extends StatelessWidget {
     final dateStr = asStr(order['createdAt'] ?? order['created_at'], '');
     final gstin = asStr(order['billing_gstin'], '');
     final bizName = asStr(order['billing_business_name'], '');
+    final customerName = asStr(order['customer_name'] ?? order['customerName'] ?? (order['customer'] is Map ? order['customer']['name'] : ''), 'Customer');
 
     return Container(
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
@@ -1283,7 +1284,8 @@ class _BillSheet extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Customer / order meta
-        if (bizName.isNotEmpty) Text(bizName, style: p(14, w: FontWeight.w800, color: C.t1)),
+        if (customerName.isNotEmpty) Text(customerName, style: p(14, w: FontWeight.w800, color: C.t1)),
+        if (bizName.isNotEmpty) Text(bizName, style: p(12, color: C.t3)),
         if (gstin.isNotEmpty) Text('GSTIN: $gstin', style: p(12, color: C.t3)),
         const SizedBox(height: 4),
         Text('Order: ${asStr(order['order_number'], '#${order['id']}')}', style: p(12, color: C.t3)),
@@ -1338,7 +1340,7 @@ class _BillSheet extends StatelessWidget {
 
         const SizedBox(height: 20),
         // Footer note
-        Center(child: Text('This is a computer-generated invoice.\nCIN: U01500UP2024PTC000001', style: p(10, color: C.t4), textAlign: TextAlign.center)),
+        Center(child: Text('Plantura Care Pvt Ltd\nThis is a computer-generated invoice.\nCIN: U01500UP2024PTC000001', style: p(10, color: C.t4), textAlign: TextAlign.center)),
       ]),
     );
   }
