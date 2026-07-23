@@ -47,7 +47,16 @@ class _HomeState extends State<HomeScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _plans = asList(r[0]);
+        // On-demand visits (e.g. ₹399/₹499) show first, then subscription plans.
+        // Within each group the API's price-ascending order is preserved.
+        final loadedPlans = asList(r[0]);
+        loadedPlans.sort((a, b) {
+          int rank(dynamic p) => asStr(asMap(p)['plan_type']) == 'subscription' ? 1 : 0;
+          final byType = rank(a).compareTo(rank(b));
+          if (byType != 0) return byType;
+          return asDouble(asMap(a)['price']).compareTo(asDouble(asMap(b)['price']));
+        });
+        _plans = loadedPlans;
         _products = asList(r[1]);
         final notifs = asList(r[2]);
         _notifCount = notifs.where((e) => asBool(asMap(e)['is_read']) == false).length;
