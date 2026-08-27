@@ -201,6 +201,7 @@ class Api {
     double? totalAmount,
     int? geofenceId,
     bool isInstant = false,
+    String? couponCode,
   }) => req('POST', '/bookings', body: {
     'zone_id': zoneId,
     'geofence_id': geofenceId ?? zoneId,
@@ -223,6 +224,7 @@ class Api {
     if (customerNotes != null && customerNotes.isNotEmpty) 'customer_notes': customerNotes,
     if (addons != null) 'addons': addons,
     if (totalAmount != null) 'total_amount': totalAmount,
+    if (couponCode != null && couponCode.isNotEmpty) 'coupon_code': couponCode,
   });
 
   // Check zone-configured instant ETA + whether any gardener is free right now.
@@ -284,6 +286,7 @@ class Api {
     double? totalAmount,
     int? geofenceId,
     String? paymentMethod,
+    String? couponCode,
   }) => req('POST', '/subscriptions', body: {
     'plan_id': planId,
     'zone_id': zoneId,
@@ -303,6 +306,7 @@ class Api {
     if (addons != null) 'addons': addons,
     if (totalAmount != null) 'total_amount': totalAmount,
     if (paymentMethod != null) 'payment_method': paymentMethod,
+    if (couponCode != null && couponCode.isNotEmpty) 'coupon_code': couponCode,
   });
 
   Future<dynamic> getMySubscriptions() => req('GET', '/subscriptions/my');
@@ -314,6 +318,16 @@ class Api {
 
   // ─── CONTENT & SETTINGS ──────────────────────────────────────────────────
   Future<dynamic> getActiveTaglines() => req('GET', '/taglines', auth: false);
+
+  // Service catalogue content — includes/excludes/steps/FAQs per service.
+  // No slug → list of all services; with slug → single service object.
+  Future<dynamic> getServiceDetails([String? slug]) =>
+      req('GET', '/service-details', auth: false,
+          query: {if (slug != null && slug.isNotEmpty) 'slug': slug});
+
+  // Operations kill-switch → { paused: bool, message: String }. While paused
+  // the server 503s all create endpoints (bookings/subscriptions/shop orders).
+  Future<dynamic> getOperationsStatus() => req('GET', '/operations-status', auth: false);
 
   // ─── SHOP ─────────────────────────────────────────────────────────────────
   Future<dynamic> getShopCategories() => req('GET', '/shop/categories', auth: false);
@@ -392,11 +406,25 @@ class Api {
   // ─── COUPONS ──────────────────────────────────────────────────────────────
   // On success returns { code, discount_amount, ... }; on a (200) validation
   // failure returns the { success:false, message } envelope.
-  Future<dynamic> validateCoupon(String code, double subtotal) =>
-      req('POST', '/coupons/validate', body: {'code': code, 'subtotal': subtotal});
+  // `scope` ∈ 'products' | 'subscription' | 'booking'. Shop callers omit it
+  // (server defaults to products); service bookings pass theirs explicitly.
+  Future<dynamic> validateCoupon(String code, double subtotal, [String? scope]) =>
+      req('POST', '/coupons/validate', body: {
+        'code': code,
+        'subtotal': subtotal,
+        if (scope != null && scope.isNotEmpty) 'scope': scope,
+      });
 
   // Coupons the customer can currently apply (returns a list).
-  Future<dynamic> getAvailableCoupons() => req('GET', '/coupons');
+  // Optional scope filters to 'booking' | 'subscription' | 'products'.
+  // When `subtotal` (pre-GST) is passed the server evaluates each coupon
+  // against it and returns rows sorted eligible-first, each carrying
+  // { eligible: bool, reason: String?, discount_amount: num? }.
+  Future<dynamic> getAvailableCoupons([String? scope, double? subtotal]) =>
+      req('GET', '/coupons', query: {
+        if (scope != null && scope.isNotEmpty) 'scope': scope,
+        if (subtotal != null) 'subtotal': subtotal.toStringAsFixed(2),
+      });
 
   Future<dynamic> getMyShopOrders({int page = 1, int limit = 10}) =>
       req('GET', '/shop/orders/my', query: {'page': '$page', 'limit': '$limit'});

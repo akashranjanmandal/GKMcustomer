@@ -11,6 +11,7 @@ import '../../../data/services/cart_provider.dart';
 import '../shop/shop_screen.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/location_provider.dart';
+import '../../../data/services/ops_status_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 
@@ -41,6 +42,8 @@ class _HomeState extends State<HomeScreen> {
   @override void dispose() { _scrollCtrl.dispose(); super.dispose(); }
 
   Future<void> _loadAll() async {
+    // Re-check the operations kill-switch alongside home data (init + pull-to-refresh).
+    if (mounted) context.read<OpsStatusProvider>().load();
     try {
       final r = await Future.wait([
         _api.getPlans().catchError((_) => []),
@@ -90,6 +93,7 @@ class _HomeState extends State<HomeScreen> {
               _buildHeroSliver(ctx, heroH),
               SliverToBoxAdapter(child: Column(children: [
                 const SizedBox(height: 24),
+                const GOpsBanner(),
                 _buildTwoColumnCards(ctx),
                 const SizedBox(height: 40),
                 _buildServicesSection(ctx),

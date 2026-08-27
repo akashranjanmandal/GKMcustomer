@@ -9,6 +9,7 @@ import '../../../data/services/api.dart';
 import '../../../data/services/cart_provider.dart';
 import '../../../data/services/invoice_service.dart';
 import '../../../data/services/location_provider.dart';
+import '../../../data/services/ops_status_provider.dart';
 import '../../../data/services/razorpay_service.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
@@ -718,6 +719,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   String? _couponMsg;
   bool _couponBusy = false;
   List<dynamic> _availableCoupons = [];
+  bool _couponsLoaded = false; // false until the first /coupons response lands
+  double? _couponsLoadedFor; // subtotal the available-coupon list was fetched for
+  Timer? _couponsDebounce;
   
   // Track quantity modifications
   late Map<int, int> _qtyMap;
@@ -736,11 +740,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _loadCoupons();
   }
 
+  // The server evaluates every coupon against (scope=products, subtotal) and
+  // returns eligible-first rows with `eligible`, `reason` and the exact
+  // `discount_amount`. Re-fetched whenever the subtotal changes.
   Future<void> _loadCoupons() async {
+    final sub = _subtotal;
+    if (_couponsLoadedFor == sub) return;
     try {
-      final res = await _api.getAvailableCoupons();
-      if (res is List && mounted) setState(() => _availableCoupons = res);
+      final res = await _api.getAvailableCoupons('products', sub);
+      // Drop a stale response if the cart moved on meanwhile.
+      if (!mounted || _subtotal != sub) return;
+      setState(() { _availableCoupons = asList(res); _couponsLoaded = true; _couponsLoadedFor = sub; });
     } catch (_) {/* non-critical */}
+  }
+
+  // Light debounce so rapid stepper taps collapse into a single refresh.
+  void _scheduleCouponRefresh() {
+    _couponsDebounce?.cancel();
+    _couponsDebounce = Timer(const Duration(milliseconds: 350), () { if (mounted) _loadCoupons(); });
   }
 
   List<dynamic> get _visibleCart => widget.cart.where((e) => !_removed.contains(asInt(asMap(e['product'])['id']))).toList();
@@ -792,6 +809,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       _qtyMap[productId] = current + 1;
     });
     context.read<CartProvider>().setQty(productId, current + 1);
+    _scheduleCouponRefresh();
   }
 
   void _decrementQty(int productId) {
@@ -799,6 +817,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (current <= 1) return; // steppers stop at 1 — the ✕ removes the line
     setState(() => _qtyMap[productId] = current - 1);
     context.read<CartProvider>().setQty(productId, current - 1);
+    _scheduleCouponRefresh();
   }
 
   // Delete a whole line regardless of its quantity.
@@ -806,6 +825,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     HapticFeedback.lightImpact();
     setState(() { _removed.add(productId); _qtyMap.remove(productId); });
     context.read<CartProvider>().removeLine(productId);
+    _scheduleCouponRefresh();
     showMsg(context, '$name removed from cart');
     if (_visibleCart.isEmpty && mounted) Navigator.pop(context);
   }
@@ -817,7 +837,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     Navigator.pop(context);
   }
 
-  @override void dispose() { _gstinCtrl.dispose(); _bizCtrl.dispose(); _couponCtrl.dispose(); super.dispose(); }
+  @override void dispose() { _couponsDebounce?.cancel(); _gstinCtrl.dispose(); _bizCtrl.dispose(); _couponCtrl.dispose(); super.dispose(); }
 
   String _getImageUrl(Map<String, dynamic> prod) {
     if (prod['images'] is List && (prod['images'] as List).isNotEmpty) {
@@ -1111,44 +1131,60 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
       ]),
       if (_couponMsg != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_couponMsg!, style: p(12, w: FontWeight.w600, color: Colors.red[400]))),
-      if (_availableCoupons.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        Text('AVAILABLE COUPONS', style: p(11, w: FontWeight.w800, color: C.t3)),
-        const SizedBox(height: 8),
-        ..._availableCoupons.map((c) => _availableCouponCard(asMap(c))),
-      ],
+      if (_couponsLoaded) ..._couponGroups(),
     ]);
   }
 
+  // Eligible coupons first (tap = apply), then "not eligible yet" rows greyed
+  // out with the server's reason. Eligibility and savings come from the
+  // server response — no client-side min-order guesswork.
+  List<Widget> _couponGroups() {
+    final rows = _availableCoupons.map((c) => asMap(c)).toList();
+    if (rows.isEmpty) return const [];
+    final eligible = rows.where((c) => c['eligible'] == true).toList();
+    final ineligible = rows.where((c) => c['eligible'] != true).toList();
+    return [
+      const SizedBox(height: 16),
+      if (eligible.isNotEmpty) ...[
+        Text('ELIGIBLE COUPONS', style: p(11, w: FontWeight.w800, color: C.green)),
+        const SizedBox(height: 8),
+        ...eligible.map(_availableCouponCard),
+      ] else
+        Text('No coupons eligible yet', style: p(12, w: FontWeight.w600, color: C.t3)),
+      if (ineligible.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text('NOT ELIGIBLE YET', style: p(11, w: FontWeight.w800, color: C.t3)),
+        const SizedBox(height: 8),
+        ...ineligible.map(_availableCouponCard),
+      ],
+    ];
+  }
+
   Widget _availableCouponCard(Map<String, dynamic> c) {
-    final type = asStr(c['discount_type']);
-    final val = asDouble(c['discount_value']);
-    final maxDisc = c['max_discount'] == null ? null : asDouble(c['max_discount']);
-    final min = asDouble(c['min_order_amount']);
-    final eligible = _subtotal >= min;
+    final eligible = c['eligible'] == true;
+    final saving = asDouble(c['discount_amount']);
+    final reason = asStr(c['reason']);
     final code = asStr(c['code']);
     final desc = asStr(c['description']);
-    final label = type == 'percentage'
-        ? '${val.toStringAsFixed(val % 1 == 0 ? 0 : 1)}% OFF${maxDisc != null && maxDisc > 0 ? ' up to ₹${maxDisc.toStringAsFixed(0)}' : ''}'
-        : '₹${val.toStringAsFixed(0)} OFF';
-    final shortfall = min - _subtotal;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
-        color: eligible ? C.green.withValues(alpha: 0.05) : const Color(0xFFF3F7F0),
+        color: eligible ? C.green.withValues(alpha: 0.06) : const Color(0xFFF3F3F3),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: C.border),
+        border: Border.all(color: eligible ? C.green.withValues(alpha: 0.45) : C.border),
       ),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Flexible(child: Text(code, style: p(13, w: FontWeight.w800, color: C.forest), maxLines: 1, overflow: TextOverflow.ellipsis)),
-            const SizedBox(width: 8),
-            Text(label, style: p(11, w: FontWeight.w800, color: C.green)),
+            Flexible(child: Text(code, style: p(13, w: FontWeight.w800, color: eligible ? C.forest : C.t3), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (eligible) ...[
+              const SizedBox(width: 8),
+              Text('Save ₹${saving.toStringAsFixed(0)}', style: p(11, w: FontWeight.w800, color: C.green)),
+            ],
           ]),
           if (desc.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(desc, style: p(11, color: C.t3))),
-          if (!eligible) Padding(padding: const EdgeInsets.only(top: 2), child: Text('Add ₹${shortfall.toStringAsFixed(0)} more to apply', style: p(11, w: FontWeight.w600, color: Colors.orange.shade800))),
+          if (!eligible) Padding(padding: const EdgeInsets.only(top: 2), child: Text(reason.isNotEmpty ? reason : 'Not eligible yet', style: p(10, w: FontWeight.w600, color: C.t3))),
         ])),
         const SizedBox(width: 10),
         GestureDetector(
@@ -1164,6 +1200,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   Future<void> _place() async {
+    // Operations kill-switch — short-circuit before hitting the API. The
+    // server enforces this regardless (503 on create endpoints).
+    final ops = context.read<OpsStatusProvider>();
+    if (ops.paused) { showMsg(context, ops.displayMessage, err: true); return; }
     final loc = context.read<LocationProvider>();
     setState(() => _busy = true);
     try {

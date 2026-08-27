@@ -8,8 +8,49 @@ import '../../data/services/api.dart';
 import '../../data/services/auth.dart';
 import '../../data/services/cart_provider.dart';
 import '../../data/services/wishlist_provider.dart';
+import '../../data/services/ops_status_provider.dart';
 import '../theme/theme.dart';
 export 'location_picker_sheet.dart';
+export 'service_details_sheet.dart';
+
+// ─── Operations paused banner ────────────────────────────────────────────────
+// Prominent, non-dismissible notice shown while the admin operations
+// kill-switch is on (OpsStatusProvider.paused). Renders nothing when live.
+class GOpsBanner extends StatelessWidget {
+  final EdgeInsetsGeometry margin;
+  const GOpsBanner({super.key, this.margin = const EdgeInsets.fromLTRB(16, 0, 16, 24)});
+
+  @override
+  Widget build(BuildContext ctx) => Consumer<OpsStatusProvider>(
+    builder: (_, ops, __) {
+      if (!ops.paused) return const SizedBox.shrink();
+      return Container(
+        width: double.infinity,
+        margin: margin,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A1B12), // deep earthy dark — matches plan-card tiers
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: C.amber.withOpacity(0.55)),
+          boxShadow: [BoxShadow(color: C.amber.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: C.amber.withOpacity(0.18), shape: BoxShape.circle),
+            child: const Icon(Icons.pause_circle_filled_rounded, color: C.amber, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(ops.displayMessage, style: p(13.5, w: FontWeight.w800, color: Colors.white, h: 1.35)),
+            const SizedBox(height: 4),
+            Text('New bookings are temporarily unavailable.', style: p(11.5, w: FontWeight.w600, color: C.amber, h: 1.3)),
+          ])),
+        ]),
+      );
+    },
+  );
+}
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 class GHeader extends StatelessWidget {
