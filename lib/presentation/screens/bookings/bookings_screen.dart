@@ -56,7 +56,7 @@ class _BkListState extends State<BookingsScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext ctx) => Scaffold(
     primary: false,
-    backgroundColor: C.bg,
+    backgroundColor: Colors.transparent,
     body: NestedScrollView(
       headerSliverBuilder: (_, __) => [
         SliverToBoxAdapter(child: GHeader(pb: 16,
@@ -347,10 +347,10 @@ class _BkDetailState extends State<BookingDetailScreen> {
 
   @override
   Widget build(BuildContext ctx) {
-    if (_loading) return Scaffold(backgroundColor: C.bg,
+    if (_loading) return Scaffold(backgroundColor: Colors.transparent,
       appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()),
       body: const Center(child: CircularProgressIndicator(color: C.forest)));
-    if (_bk == null) return Scaffold(backgroundColor: C.bg,
+    if (_bk == null) return Scaffold(backgroundColor: Colors.transparent,
       appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: const GEmpty(title: 'Booking not found', sub: 'It may have been removed or cancelled'));
 
     final gardener  = asMap(_bk!['gardener']);
@@ -359,7 +359,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
     final hasRating = _bk!['rating'] != null;
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       body: CustomScrollView(slivers: [
         SliverToBoxAdapter(child: GHeader(pb: 52, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           GestureDetector(onTap: () => Navigator.pop(ctx),

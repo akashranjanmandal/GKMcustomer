@@ -84,9 +84,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final imgUrl = auth.profileImage;
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(ctx),

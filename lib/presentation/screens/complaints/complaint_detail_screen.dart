@@ -85,7 +85,7 @@ class _State extends State<ComplaintDetailScreen> {
     final attachments = (t['attachments'] as List?) ?? [];
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       body: Column(children: [
         GHeader(pb: 16, child: Row(children: [
           GestureDetector(onTap: () => Navigator.pop(ctx, true),

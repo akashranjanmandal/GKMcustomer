@@ -59,7 +59,7 @@ class _WalletState extends State<WalletScreen> {
     final balance = ctx.watch<AuthProvider>().walletBalance;
     return Scaffold(
       primary: false,
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         color: C.forest, onRefresh: _load,
         child: CustomScrollView(slivers: [

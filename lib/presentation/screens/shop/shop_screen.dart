@@ -122,7 +122,7 @@ class _ShopState extends State<ShopScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       body: Stack(children: [
         Column(children: [
           _buildHeader(ctx),
@@ -130,7 +130,7 @@ class _ShopState extends State<ShopScreen> {
           Expanded(child: RefreshIndicator(
             onRefresh: _load, color: C.forest,
             child: _loading
-              ? GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 12, childAspectRatio: 0.62), itemCount: 9, itemBuilder: (_,__) => Container(decoration: BoxDecoration(color: kCardTop.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(18))))
+              ? GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 14, childAspectRatio: 0.58), itemCount: 6, itemBuilder: (_,__) => Container(decoration: BoxDecoration(color: kCardTop.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: 0.7)))))
               : _products.isEmpty
                 ? const GEmpty(title: 'No items found', sub: 'Try a different category or search term', icon: Icons.shopping_bag_outlined)
                 : CustomScrollView(
@@ -143,21 +143,23 @@ class _ShopState extends State<ShopScreen> {
                           child: Text('$_total product${_total == 1 ? '' : 's'}', style: GoogleFonts.poppins(fontSize: 12, color: Colors.black45, fontWeight: FontWeight.w600)),
                         ),
                       ),
+                      // Two cards per row; each row is as tall as its tallest
+                      // card so full product names are always visible.
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                        sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.62,
-                          ),
+                        sliver: SliverList(
                           delegate: SliverChildBuilderDelegate(
-                            (_, i) => GProductCard(
-                              pData: asMap(_products[i]),
-                              onTap: () => _showDetail(i),
-                            ).animate().fadeIn(delay: Duration(milliseconds: (i % 24) * 30)).slideY(begin: 0.05, end: 0),
-                            childCount: _products.length,
+                            (_, r) {
+                              final cards = [
+                                for (var i = r * 2; i < r * 2 + 2 && i < _products.length; i++)
+                                  GProductCard(pData: asMap(_products[i]), onTap: () => _showDetail(i)),
+                              ];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: GProductGridRow(cards: cards),
+                              ).animate().fadeIn(delay: Duration(milliseconds: (r % 12) * 40)).slideY(begin: 0.05, end: 0);
+                            },
+                            childCount: (_products.length + 1) ~/ 2,
                           ),
                         ),
                       ),
@@ -189,7 +191,6 @@ class _ShopState extends State<ShopScreen> {
 
   Widget _buildHeader(BuildContext ctx) => Container(
     width: double.infinity,
-    color: Colors.white,
     padding: EdgeInsets.fromLTRB(12, MediaQuery.of(ctx).padding.top + 8, 16, 6),
     child: Row(children: [
       IconButton(
@@ -200,14 +201,6 @@ class _ShopState extends State<ShopScreen> {
         Text('Plant Shop', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: C.forest, letterSpacing: -0.3)),
         Text('Premium seeds, tools & care', style: p(11, color: C.t3)),
       ])),
-      GestureDetector(
-        onTap: () => Navigator.pushNamed(ctx, '/wishlist'),
-        child: const Padding(
-          padding: EdgeInsets.all(8),
-          child: Icon(Icons.favorite_border_rounded, color: C.t1, size: 23),
-        ),
-      ),
-      const SizedBox(width: 4),
       GestureDetector(
         onTap: () => Navigator.pushNamed(ctx, '/shop/orders'),
         child: Container(
@@ -220,18 +213,12 @@ class _ShopState extends State<ShopScreen> {
   );
 
   Widget _buildSearchSection() => Container(
-    color: Colors.white,
     padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // ── Search: single container, stripped TextField ──────────────────
-      Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3F7F0),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: C.border, width: 1.2),
-        ),
-        child: Row(children: [
+      GGlass(
+        radius: BorderRadius.circular(16),
+        child: SizedBox(height: 50, child: Row(children: [
           const SizedBox(width: 14),
           const Icon(Icons.search_rounded, color: C.t4, size: 20),
           const SizedBox(width: 10),
@@ -254,7 +241,7 @@ class _ShopState extends State<ShopScreen> {
               contentPadding:     EdgeInsets.zero,
             ),
           )),
-        ]),
+        ])),
       ),
       const SizedBox(height: 12),
       // ── Category pills ────────────────────────────────────────────────
@@ -271,9 +258,9 @@ class _ShopState extends State<ShopScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 gradient: sel ? const LinearGradient(colors: [C.green, C.forest], begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
-                color: sel ? null : const Color(0xFFF3F7F0),
+                color: sel ? null : Colors.white.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: sel ? Colors.transparent : C.border, width: 1.2),
+                border: Border.all(color: sel ? Colors.transparent : Colors.white, width: 1.2),
               ),
               child: Center(child: Text(
                 _categories[i],
@@ -297,7 +284,7 @@ class _ShopState extends State<ShopScreen> {
   );
 }
 
-// Opens the product detail sheet from anywhere (shop grid, wishlist screen).
+// Opens the product detail sheet from anywhere (e.g. the product viewer).
 void showProductDetailSheet(BuildContext context, Map<String, dynamic> pData) {
   showModalBottomSheet(
     context: context,
@@ -376,7 +363,7 @@ class _ProductDetailsState extends State<_ProductDetails> {
 
     return Container(
       height: screenH - topInset,
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.97), borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
       child: Column(children: [
         // ── Drag handle ──────────────────────────────────────────────────
         const SizedBox(height: 12),
@@ -409,7 +396,6 @@ class _ProductDetailsState extends State<_ProductDetails> {
                       ),
                     ),
                   ),
-                  Positioned(top: 8, right: 12, child: GWishHeart(product: _data, size: 38)),
                   if (images.length > 1)
                     Positioned(
                       left: 0, right: 0, bottom: 6,
@@ -568,7 +554,14 @@ class _ProductDetailsState extends State<_ProductDetails> {
             border: const Border(top: BorderSide(color: Color(0xFFEEF4EA))),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, -6))],
           ),
-          child: GBtn(label: outOfStock ? 'Out of Stock' : 'Add to Cart', onTap: outOfStock ? null : () { widget.onAdd(); Navigator.pop(ctx); }, bg: C.forest),
+          child: GCartStepper(
+            qty: ctx.select<CartProvider, int>((c) => c.qty(asInt(_data['id']))),
+            onAdd: widget.onAdd,
+            onRemove: () { HapticFeedback.lightImpact(); ctx.read<CartProvider>().remove(asInt(_data['id'])); },
+            disabled: outOfStock,
+            height: 50,
+            light: false,
+          ),
         ),
       ]),
     );
@@ -734,9 +727,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final totalValue = _subtotal;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.white, elevation: 0,
+        backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent, elevation: 0,
         leading: IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.arrow_back, color: Colors.black)),
         title: Text('Checkout', style: p(18, w: FontWeight.w800, color: Colors.black)),
         actions: [
@@ -1143,7 +1136,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
 
   @override
   Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: C.bg, 
+    backgroundColor: Colors.transparent,
     body: CustomScrollView(slivers: [
       SliverToBoxAdapter(child: GHeader(pb: 16, child: Row(children: [
         GestureDetector(onTap: () => Navigator.pop(ctx), 
@@ -1209,7 +1202,7 @@ class OrderDetailScreen extends StatelessWidget {
     final isUP = state.toLowerCase().contains('uttar') || state.toLowerCase() == 'up';
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       body: CustomScrollView(slivers: [
         SliverToBoxAdapter(child: GHeader(pb: 52, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [

@@ -32,8 +32,6 @@ class _LoginState extends State<LoginScreen> {
   final List<FocusNode> _otpFocus = List.generate(6, (_) => FocusNode());
   // welcome → phone → otp → (name, for new users)
   String _step = 'welcome';
-  // Sign in / Sign up both run the same OTP flow; this only changes copy.
-  bool _signUp = false;
   bool _busy = false;
   int _cd = 0;
   Timer? _timer;
@@ -133,7 +131,7 @@ class _LoginState extends State<LoginScreen> {
     });
   }
 
-  void _toPhone(bool signUp) => setState(() { _signUp = signUp; _step = 'phone'; });
+  void _toPhone() => setState(() => _step = 'phone');
 
   @override
   Widget build(BuildContext ctx) {
@@ -141,11 +139,9 @@ class _LoginState extends State<LoginScreen> {
       'phone' => _PhoneCard(
           key: const ValueKey('phone'),
           phoneCtrl: _phoneCtrl,
-          signUp: _signUp,
           busy: _busy,
           onSend: _sendOtp,
-          onChanged: (_) => setState(() {}),
-          onToggleMode: () => setState(() => _signUp = !_signUp)),
+          onChanged: (_) => setState(() {})),
       'otp' => _OtpCard(
           key: const ValueKey('otp'),
           phone: _phoneCtrl.text,
@@ -164,8 +160,7 @@ class _LoginState extends State<LoginScreen> {
           onSubmit: _submitName),
       _ => _WelcomeCard(
           key: const ValueKey('welcome'),
-          onSignIn: () => _toPhone(false),
-          onSignUp: () => _toPhone(true)),
+          onSignIn: _toPhone),
     };
 
     return PopScope(
@@ -272,8 +267,8 @@ class _Glass extends StatelessWidget {
 class _PillButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  final bool filled, busy;
-  const _PillButton({required this.label, this.onTap, this.filled = true, this.busy = false});
+  final bool busy;
+  const _PillButton({required this.label, this.onTap, this.busy = false});
   @override
   Widget build(BuildContext ctx) {
     final enabled = onTap != null && !busy;
@@ -284,9 +279,8 @@ class _PillButton extends StatelessWidget {
         height: 46,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: filled ? (onTap == null ? _kGreenBtn.withValues(alpha: 0.45) : _kGreenBtn) : Colors.transparent,
+          color: onTap == null ? _kGreenBtn.withValues(alpha: 0.45) : _kGreenBtn,
           borderRadius: BorderRadius.circular(99),
-          border: filled ? null : Border.all(color: Colors.white.withValues(alpha: 0.85), width: 1.2),
         ),
         child: busy
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
@@ -371,8 +365,8 @@ Widget _footerLine(String q, String action, VoidCallback onTap) => Center(
 // Step 1 — Hello!
 // ─────────────────────────────────────────────────────────────────────────────
 class _WelcomeCard extends StatelessWidget {
-  final VoidCallback onSignIn, onSignUp;
-  const _WelcomeCard({super.key, required this.onSignIn, required this.onSignUp});
+  final VoidCallback onSignIn;
+  const _WelcomeCard({super.key, required this.onSignIn});
   @override
   Widget build(BuildContext ctx) => _Glass(
         minHeight: MediaQuery.of(ctx).size.height * 0.42,
@@ -387,8 +381,6 @@ class _WelcomeCard extends StatelessWidget {
                 style: p(13, color: Colors.white.withValues(alpha: 0.85), h: 1.45)),
             const SizedBox(height: 28),
             _PillButton(label: 'Sign in', onTap: onSignIn),
-            const SizedBox(height: 16),
-            _PillButton(label: 'Sign up', filled: false, onTap: onSignUp),
           ],
         ),
       );
@@ -399,17 +391,15 @@ class _WelcomeCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _PhoneCard extends StatelessWidget {
   final TextEditingController phoneCtrl;
-  final bool signUp, busy;
-  final VoidCallback onSend, onToggleMode;
+  final bool busy;
+  final VoidCallback onSend;
   final ValueChanged<String> onChanged;
   const _PhoneCard({
     super.key,
     required this.phoneCtrl,
-    required this.signUp,
     required this.busy,
     required this.onSend,
     required this.onChanged,
-    required this.onToggleMode,
   });
 
   @override
@@ -417,7 +407,7 @@ class _PhoneCard extends StatelessWidget {
     final canContinue = phoneCtrl.text.replaceAll(RegExp(r'\D'), '').length == 10;
     return _Glass(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(signUp ? 'Create account' : 'Welcome back',
+        Text('Sign in',
             style: p(20, w: FontWeight.w500, color: Colors.white)),
         const SizedBox(height: 6),
         Text('We\'ll send a one-time code to your mobile number.',
@@ -438,7 +428,7 @@ class _PhoneCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        _PillButton(label: signUp ? 'Sign up' : 'Sign in', busy: busy, onTap: canContinue ? onSend : null),
+        _PillButton(label: 'Get OTP', busy: busy, onTap: canContinue ? onSend : null),
         const SizedBox(height: 14),
         Center(
           child: Text.rich(TextSpan(
@@ -459,10 +449,6 @@ class _PhoneCard extends StatelessWidget {
             ],
           ), textAlign: TextAlign.center),
         ),
-        const SizedBox(height: 22),
-        signUp
-            ? _footerLine('Already have an account?', 'Sign in', onToggleMode)
-            : _footerLine('Don\'t have an account?', 'Sign up', onToggleMode),
       ]),
     );
   }

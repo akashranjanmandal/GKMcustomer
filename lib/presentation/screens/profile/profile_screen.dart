@@ -65,7 +65,7 @@ class _ProfileState extends State<ProfileScreen> {
 
     return Scaffold(
       primary: false,
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       body: CustomScrollView(slivers: [
         // ── Dark green header ─────────────────────────────────────────────
         SliverToBoxAdapter(child: Container(
@@ -149,7 +149,6 @@ class _ProfileState extends State<ProfileScreen> {
               _MenuItem(Icons.repeat_rounded,                  'Subscriptions',        () => Navigator.pushNamed(ctx, '/subscriptions')),
               _MenuItem(Icons.storefront_rounded,              'Shop',                 () => Navigator.pushNamed(ctx, '/shop')),
               _MenuItem(Icons.shopping_bag_outlined,           'My Orders',            () => Navigator.pushNamed(ctx, '/shop/orders')),
-              _MenuItem(Icons.favorite_border_rounded,         'My Wishlist',          () => Navigator.pushNamed(ctx, '/wishlist')),
               _MenuItem(Icons.spa_outlined,                    'Services & FAQs',      () => Navigator.pushNamed(ctx, '/services')),
               _MenuItem(Icons.psychology_rounded,              'Plantopedia',          () => Navigator.pushNamed(ctx, '/plantopedia')),
               _MenuItem(Icons.notifications_rounded,           'Notifications',        () => Navigator.pushNamed(ctx, '/notifications')),

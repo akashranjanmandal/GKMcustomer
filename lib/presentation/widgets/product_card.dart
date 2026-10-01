@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,12 +8,10 @@ import '../../data/services/cart_provider.dart';
 import '../theme/theme.dart';
 import 'widgets.dart';
 
-// ─── Product card palette (green glass cards on a white page) ────────────────
-const kCardTop = Color(0xFF2F6A45);
-const kCardBottom = Color(0xFF1D4A2E);
-const kCardFrame = Color(0x26FFFFFF);
-const kCardShelf = Color(0xFF1A3F27);
-const kCardMint = Color(0xFF7FF0C8);
+// ─── Green glass product card palette ────────────────────────────────────────
+const kCardTop = Color(0xFF2E7D4F);
+const kCardBottom = Color(0xFF14532D);
+const kCardCream = Color(0xFFF1E7B6);
 
 String productImageUrl(Map<String, dynamic> pData) {
   if (pData['images'] is List && (pData['images'] as List).isNotEmpty) {
@@ -26,9 +25,28 @@ String productImageUrl(Map<String, dynamic> pData) {
   return 'https://gkm.gobt.in/uploads/shop/placeholder.jpg';
 }
 
+// Lays product cards out [columns] per row. Each row is as tall as its
+// tallest card, so every card can show the product's full name.
+class GProductGridRow extends StatelessWidget {
+  final List<Widget> cards;
+  final int columns;
+  final double gap;
+  const GProductGridRow({super.key, required this.cards, this.columns = 2, this.gap = 12});
+  @override
+  Widget build(BuildContext ctx) => IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          for (var i = 0; i < columns; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            Expanded(child: i < cards.length ? cards[i] : const SizedBox.shrink()),
+          ],
+        ]),
+      );
+}
+
 // The one product card used everywhere (home "Featured Products" rail and the
-// shop grid): deep-green rounded card, framed product photo standing on a
-// shelf, name + price bottom-left, round action button bottom-right.
+// shop grid): green frosted-glass card, photo in a glass frame, full product
+// name, price, and an add / − qty + control so items can be removed from the
+// cart right here. Must be given a bounded height (see GProductGridRow).
 class GProductCard extends StatefulWidget {
   final Map<String, dynamic> pData;
   final VoidCallback onTap;
@@ -62,180 +80,208 @@ class _GProductCardState extends State<GProductCard> {
       ctx.read<CartProvider>().remove(id);
     }
 
+    const radius = BorderRadius.all(Radius.circular(24));
+
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
+        scale: _pressed ? 0.965 : 1.0,
         duration: const Duration(milliseconds: 120),
-        child: LayoutBuilder(builder: (_, box) {
-          final w = box.maxWidth;
-          // Scale type + controls with the card so the 3-up shop grid and the
-          // wider home rail both read correctly.
-          final k = (w / 150).clamp(0.72, 1.2);
-          return Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kCardTop, kCardBottom],
-              ),
-              borderRadius: BorderRadius.circular(22 * k),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              boxShadow: [
-                BoxShadow(color: kCardBottom.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8)),
-              ],
-            ),
-            padding: EdgeInsets.all(8 * k),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // ── Framed photo on a shelf ───────────────────────────────────
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16 * k),
-                    border: Border.all(color: kCardFrame),
-                    color: Colors.white.withValues(alpha: 0.03),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            boxShadow: [BoxShadow(color: kCardBottom.withValues(alpha: 0.22), blurRadius: 22, offset: const Offset(0, 10))],
+          ),
+          child: ClipRRect(
+            borderRadius: radius,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: radius,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [kCardTop.withValues(alpha: 0.86), kCardBottom.withValues(alpha: 0.92)],
                   ),
-                  padding: EdgeInsets.fromLTRB(10 * k, 12 * k, 10 * k, 0),
-                  child: Stack(clipBehavior: Clip.none, children: [
-                    Column(children: [
-                      Expanded(
-                        child: Center(
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12 * k),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 1.2),
+                ),
+                child: Stack(children: [
+                  // Glass sheen across the top of the card
+                  Positioned(
+                    top: 0, left: 0, right: 0, height: 90,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.white.withValues(alpha: 0.16), Colors.white.withValues(alpha: 0)],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    // ── Photo in a glass frame ──────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Stack(children: [
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                color: Colors.white.withValues(alpha: 0.95),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                              ),
+                              clipBehavior: Clip.antiAlias,
                               child: CachedNetworkImage(
                                 imageUrl: productImageUrl(pData),
                                 fit: BoxFit.cover,
-                                placeholder: (_, __) => Container(color: Colors.white.withValues(alpha: 0.06)),
-                                errorWidget: (_, __, ___) => Container(
-                                  color: Colors.white.withValues(alpha: 0.06),
-                                  child: Icon(Icons.eco_rounded, color: Colors.white.withValues(alpha: 0.4), size: 30 * k),
+                                placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F1)),
+                                errorWidget: (_, __, ___) => ColoredBox(
+                                  color: const Color(0xFFF1F5F1),
+                                  child: Icon(Icons.eco_rounded, color: C.green.withValues(alpha: 0.4), size: 36),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      // Shelf the product "stands" on
-                      Container(
-                        height: 7 * k,
-                        margin: EdgeInsets.fromLTRB(2 * k, 3 * k, 2 * k, 0),
-                        decoration: BoxDecoration(
-                          color: kCardShelf,
-                          borderRadius: BorderRadius.circular(3 * k),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 3))],
-                        ),
-                      ),
-                      SizedBox(height: 10 * k),
-                    ]),
-                    // Mint badge (wishlist) — top-left, like the reference
-                    Positioned(top: -4 * k, left: -4 * k, child: _MintHeart(product: pData, size: 22 * k)),
-                    if (discount > 0)
-                      Positioned(
-                        top: -4 * k, right: -4 * k,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 5 * k, vertical: 2 * k),
-                          decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(6 * k)),
-                          child: Text('$discount%', style: p(8.5 * k, w: FontWeight.w800, color: C.forest)),
-                        ),
-                      ),
-                    // In-cart stepper floats over the bottom of the frame
-                    if (qty > 0)
-                      Positioned(
-                        left: 0, right: 0, bottom: 14 * k,
-                        child: Center(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: kCardShelf.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(99),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                            ),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              _StepBtn(icon: Icons.remove_rounded, size: 22 * k, onTap: remove),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 4 * k),
-                                child: Text('$qty', style: p(11 * k, w: FontWeight.w800, color: Colors.white)),
+                          if (discount > 0)
+                            Positioned(
+                              top: 8, left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(8)),
+                                child: Text('$discount% OFF', style: p(9, w: FontWeight.w800, color: C.forest)),
                               ),
-                              _StepBtn(icon: Icons.add_rounded, size: 22 * k, onTap: add),
-                            ]),
-                          ),
-                        ),
-                      ),
-                  ]),
-                ),
-              ),
-
-              // ── Name / price + round action ───────────────────────────────
-              Padding(
-                padding: EdgeInsets.fromLTRB(4 * k, 9 * k, 0, 2 * k),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(asStr(pData['name']),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: p(12.5 * k, w: FontWeight.w600, color: Colors.white, h: 1.2)),
-                    SizedBox(height: 3 * k),
-                    Row(children: [
-                      Text('₹${price.toStringAsFixed(0)}',
-                          style: p(11.5 * k, w: FontWeight.w700, color: const Color(0xFFCDEBD5))),
-                      if (mrp > price) ...[
-                        SizedBox(width: 4 * k),
-                        Flexible(child: Text('₹${mrp.toStringAsFixed(0)}',
-                            overflow: TextOverflow.ellipsis,
-                            style: p(9 * k, color: Colors.white38, decoration: TextDecoration.lineThrough))),
-                      ],
-                    ]),
-                  ])),
-                  SizedBox(width: 4 * k),
-                  GestureDetector(
-                    onTap: add,
-                    child: Container(
-                      width: 28 * k, height: 28 * k,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: kCardShelf,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-                      ),
-                      child: Icon(
-                        qty > 0 ? Icons.shopping_bag_rounded : Icons.add_rounded,
-                        size: 15 * k,
-                        color: outOfStock ? Colors.white30 : Colors.white,
+                            ),
+                          if (outOfStock)
+                            Positioned(
+                              left: 8, right: 8, bottom: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                                child: Text('Out of stock', style: p(10, w: FontWeight.w700, color: Colors.white)),
+                              ),
+                            ),
+                        ]),
                       ),
                     ),
-                  ),
+
+                    // ── Full name, price, cart control ──────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: Text(asStr(pData['name']),
+                          style: p(13, w: FontWeight.w600, color: Colors.white, h: 1.3)),
+                    ),
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: Wrap(crossAxisAlignment: WrapCrossAlignment.end, spacing: 6, children: [
+                        Text('₹${price.toStringAsFixed(0)}', style: p(15, w: FontWeight.w800, color: kCardCream)),
+                        if (mrp > price)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 1),
+                            child: Text('₹${mrp.toStringAsFixed(0)}',
+                                style: p(11, color: Colors.white54, decoration: TextDecoration.lineThrough)),
+                          ),
+                      ]),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                      child: GCartStepper(qty: qty, onAdd: add, onRemove: remove, disabled: outOfStock),
+                    ),
+                  ]),
                 ]),
               ),
-            ]),
-          );
-        }),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _StepBtn extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final VoidCallback onTap;
-  const _StepBtn({required this.icon, required this.size, required this.onTap});
+// "Add" pill that turns into − qty + once the item is in the cart. Used on the
+// product cards, the product viewer and the detail sheet.
+class GCartStepper extends StatelessWidget {
+  final int qty;
+  final VoidCallback onAdd, onRemove;
+  final bool disabled;
+  final double height;
+  // light = on a green surface (glass pill); otherwise solid forest on white.
+  final bool light;
+  const GCartStepper({
+    super.key,
+    required this.qty,
+    required this.onAdd,
+    required this.onRemove,
+    this.disabled = false,
+    this.height = 36,
+    this.light = true,
+  });
+
   @override
-  Widget build(BuildContext ctx) => GestureDetector(
+  Widget build(BuildContext ctx) {
+    const fg = Colors.white;
+    final bg = light ? Colors.white.withValues(alpha: 0.16) : C.forest;
+    final inCartBg = light ? kCardCream : C.forest;
+    final inCartFg = light ? C.forest : Colors.white;
+    final radius = BorderRadius.circular(99);
+    final Color? disabledFg = !disabled ? null : (light ? Colors.white54 : C.t3);
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      transitionBuilder: (c, a) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.92, end: 1.0).animate(a), child: c)),
+      child: qty > 0
+          ? Container(
+              key: const ValueKey('stepper'),
+              height: height,
+              decoration: BoxDecoration(color: inCartBg, borderRadius: radius),
+              child: Row(children: [
+                _tap(Icons.remove_rounded, inCartFg, onRemove),
+                Expanded(
+                  child: Center(
+                    child: Text('$qty', style: p(14, w: FontWeight.w800, color: inCartFg)),
+                  ),
+                ),
+                _tap(Icons.add_rounded, inCartFg, disabled ? null : onAdd),
+              ]),
+            )
+          : GestureDetector(
+              key: const ValueKey('add'),
+              onTap: disabled ? null : onAdd,
+              child: Container(
+                height: height,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: disabled ? (light ? bg.withValues(alpha: 0.08) : C.t4.withValues(alpha: 0.25)) : bg,
+                  borderRadius: radius,
+                  border: light ? Border.all(color: Colors.white.withValues(alpha: 0.45)) : null,
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.add_shopping_cart_rounded, size: height > 40 ? 18 : 15, color: disabledFg ?? fg),
+                  const SizedBox(width: 6),
+                  Text(disabled ? 'Out of stock' : 'Add to cart',
+                      style: p(height > 40 ? 14 : 12, w: FontWeight.w700, color: disabledFg ?? fg)),
+                ]),
+              ),
+            ),
+    );
+  }
+
+  Widget _tap(IconData icon, Color c, VoidCallback? onTap) => GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: SizedBox(width: size, height: size, child: Icon(icon, size: size * 0.62, color: Colors.white)),
+        child: SizedBox(
+          width: height + 4, height: height,
+          child: Icon(icon, size: 18, color: onTap == null ? c.withValues(alpha: 0.35) : c),
+        ),
       );
-}
-
-// Small mint circle (matches the reference card's badge) that doubles as the
-// wishlist toggle.
-class _MintHeart extends StatelessWidget {
-  final Map<String, dynamic> product;
-  final double size;
-  const _MintHeart({required this.product, required this.size});
-  @override
-  Widget build(BuildContext ctx) =>
-      GWishHeart(product: product, size: size, bg: kCardMint, fg: C.forest);
 }

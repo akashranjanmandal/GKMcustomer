@@ -86,7 +86,7 @@ class _HomeState extends State<HomeScreen> {
         ? const SystemUiOverlayStyle(statusBarColor: Colors.white, statusBarIconBrightness: Brightness.dark, statusBarBrightness: Brightness.light)
         : const SystemUiOverlayStyle(statusBarColor: Colors.black26, statusBarIconBrightness: Brightness.light, statusBarBrightness: Brightness.dark),
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         body: Stack(children: [
           RefreshIndicator(
             onRefresh: _loadAll, color: C.forest,
@@ -270,13 +270,8 @@ class _HomeState extends State<HomeScreen> {
               child: Container(
                 width: 200,
                 margin: const EdgeInsets.only(right: 14),
+                child: GGlass(
                 padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: Colors.black.withOpacity(0.05)),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 14, offset: const Offset(0, 6))],
-                ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(
                     width: 44, height: 44,
@@ -291,7 +286,7 @@ class _HomeState extends State<HomeScreen> {
                   const SizedBox(height: 6),
                   Expanded(child: Text(s.desc, style: p(10.5, color: C.t3, h: 1.35), maxLines: 4, overflow: TextOverflow.ellipsis)),
                 ]),
-              ),
+              )),
             );
           },
         ),
@@ -313,11 +308,12 @@ class _HomeState extends State<HomeScreen> {
 
   Widget _buildWhyChooseSection(BuildContext ctx) => Container(
     margin: const EdgeInsets.symmetric(horizontal: 16),
+    // Frosted white glass panel
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Colors.white.withValues(alpha: 0.6),
       borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: Colors.black.withOpacity(0.05)),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 24, offset: const Offset(0, 10))],
+      border: Border.all(color: Colors.white, width: 1.2),
+      boxShadow: [BoxShadow(color: C.forest.withValues(alpha: 0.07), blurRadius: 24, offset: const Offset(0, 10))],
     ),
     child: Column(children: [
       // ── Header band ──────────────────────────────────────────────────
@@ -416,25 +412,28 @@ class _HomeState extends State<HomeScreen> {
       const SizedBox(height: 16),
       _products.isEmpty
         ? const SizedBox(height: 200, child: Center(child: Text('No products available')))
-        : SizedBox(
-            height: 246,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-              itemCount: _products.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: SizedBox(
-                  width: 148,
-                  child: GProductCard(
-                    pData: asMap(_products[i]),
-                    onTap: () async {
-                      final res = await ProductViewScreen.open(ctx, _products, i);
-                      if (res == 'search') widget.navTo(2);
-                    },
+        // Cards in one row share the tallest card's height so full product
+        // names always fit.
+        : SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 2, 14),
+            child: IntrinsicHeight(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                for (var i = 0; i < _products.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: SizedBox(
+                      width: 168,
+                      child: GProductCard(
+                        pData: asMap(_products[i]),
+                        onTap: () async {
+                          final res = await ProductViewScreen.open(ctx, _products, i);
+                          if (res == 'search') widget.navTo(2);
+                        },
+                      ),
+                    ),
                   ),
-                ),
-              ),
+              ]),
             ),
           ),
     ],
@@ -573,9 +572,11 @@ class _HeroCard extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        // Tinted glass: the card's gradient, kept translucent over the backdrop
+        gradient: LinearGradient(colors: [for (final c in gradient) c.withValues(alpha: 0.72)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.04)),
+        border: Border.all(color: Colors.white, width: 1.2),
+        boxShadow: [BoxShadow(color: C.forest.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 8))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         // Title left, decorative icon right — same row so they can never overlap.

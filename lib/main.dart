@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'data/services/auth.dart';
 import 'data/services/location_provider.dart';
 import 'data/services/cart_provider.dart';
-import 'data/services/wishlist_provider.dart';
 import 'data/services/ops_status_provider.dart';
 import 'data/services/push_service.dart';
 import 'presentation/theme/theme.dart';
@@ -16,7 +15,6 @@ import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/bookings/bookings_screen.dart';
 import 'presentation/screens/bookings/book_screen.dart';
 import 'presentation/screens/shop/shop_screen.dart';
-import 'presentation/screens/shop/wishlist_screen.dart';
 import 'presentation/screens/plantopedia/plantopedia_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/subscriptions/subscriptions_screen.dart';
@@ -46,7 +44,6 @@ void main() {
     ChangeNotifierProvider(create: (_) => AuthProvider()),
     ChangeNotifierProvider(create: (_) => LocationProvider()),
     ChangeNotifierProvider(create: (_) => CartProvider()),
-    ChangeNotifierProvider(create: (_) => WishlistProvider()),
     ChangeNotifierProvider(create: (_) => OpsStatusProvider()),
   ], child: const GkmApp()));
 }
@@ -60,7 +57,7 @@ class GkmApp extends StatelessWidget {
         navigatorKey: rootNavigatorKey,
         debugShowCheckedModeBanner: false,
         theme: AT.light,
-        home: const _Root(),
+        home: const GGlassBg(child: _Root()),
         onGenerateRoute: _onRoute,
       );
 
@@ -87,8 +84,6 @@ class GkmApp extends StatelessWidget {
         break;
       case '/shop/orders':
         return _slide(const MyOrdersScreen(), s);
-      case '/wishlist':
-        return _slide(const WishlistScreen(), s);
       case '/plantopedia':
         page = const PlantopediaScreen();
         break;
@@ -115,7 +110,7 @@ class GkmApp extends StatelessWidget {
       settings: s,
       transitionDuration: 200.ms,
       reverseTransitionDuration: 180.ms,
-      pageBuilder: (_, __, ___) => pg,
+      pageBuilder: (_, __, ___) => GGlassBg(child: pg),
       transitionsBuilder: (_, a, __, child) {
         final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
         return FadeTransition(
@@ -131,7 +126,7 @@ class GkmApp extends StatelessWidget {
       settings: s,
       transitionDuration: 260.ms,
       reverseTransitionDuration: 200.ms,
-      pageBuilder: (_, __, ___) => pg,
+      pageBuilder: (_, __, ___) => GGlassBg(child: pg),
       transitionsBuilder: (_, a, __, child) {
         final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
         return SlideTransition(
@@ -174,7 +169,7 @@ class _RootState extends State<_Root> {
       ctx,
       PageRouteBuilder(
           transitionDuration: 380.ms,
-          pageBuilder: (_, __, ___) => const _Shell(),
+          pageBuilder: (_, __, ___) => const GGlassBg(child: _Shell()),
           transitionsBuilder: (_, a, __, child) =>
               FadeTransition(opacity: a, child: child)),
       (_) => false);
@@ -197,9 +192,6 @@ class _ShellState extends State<_Shell> {
       print('>>> [Shell] Initializing...');
       context.read<AuthProvider>().refreshProfile();
 
-      // Load the wishlist once per app start (no-op when logged out)
-      context.read<WishlistProvider>().load();
-
       // Operations kill-switch — fetch now, then re-check every 5 minutes.
       context.read<OpsStatusProvider>()
         ..load()
@@ -214,7 +206,7 @@ class _ShellState extends State<_Shell> {
       context,
       PageRouteBuilder(
           transitionDuration: 360.ms,
-          pageBuilder: (_, __, ___) => const _Root(),
+          pageBuilder: (_, __, ___) => const GGlassBg(child: _Root()),
           transitionsBuilder: (_, a, __, child) =>
               FadeTransition(opacity: a, child: child)),
       (_) => false);

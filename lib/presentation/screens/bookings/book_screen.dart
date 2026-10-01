@@ -421,7 +421,7 @@ class _BookState extends State<BookScreen> {
   Widget build(BuildContext ctx) {
     final labels = _labels;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       body: Column(children: [
         _buildHeader(ctx, labels),
         const GOpsBanner(margin: EdgeInsets.fromLTRB(16, 16, 16, 0)),

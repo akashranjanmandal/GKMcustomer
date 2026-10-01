@@ -39,10 +39,9 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFFFAFAFA); // Pure light theme background
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           // Subtle background orbs (No heavy blurs!)
@@ -117,7 +116,7 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
   Widget _buildAppBar() {
     return SliverAppBar(
       pinned: true,
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Colors.white.withValues(alpha: 0.7),
       surfaceTintColor: const Color(0xFFFAFAFA),
       elevation: 0,
       scrolledUnderElevation: 0,

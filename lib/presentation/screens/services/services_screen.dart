@@ -35,7 +35,7 @@ class _ServicesState extends State<ServicesScreen> {
 
   @override
   Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: C.bg,
+    backgroundColor: Colors.transparent,
     body: Column(children: [
       GHeader(pb: 20, child: Row(children: [
         GestureDetector(onTap: () => Navigator.pop(ctx),

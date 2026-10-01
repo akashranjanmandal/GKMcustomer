@@ -47,7 +47,7 @@ class _PlansState extends State<PlansScreen> {
   @override
   Widget build(BuildContext ctx) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       body: CustomScrollView(slivers: [
         SliverToBoxAdapter(child: GHeader(pb: 22, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [

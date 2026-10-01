@@ -86,7 +86,7 @@ class _SubsState extends State<SubscriptionsScreen> {
 
   @override
   Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: C.bg,
+    backgroundColor: Colors.transparent,
     body: NestedScrollView(
       headerSliverBuilder: (_, __) => [
         SliverToBoxAdapter(child: GHeader(pb: 16,

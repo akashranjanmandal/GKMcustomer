@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -67,7 +68,9 @@ class AT {
         seedColor: C.forest, primary: C.forest, secondary: C.gold,
         surface: C.white, background: C.bg, error: C.red,
       ),
-      scaffoldBackgroundColor: C.bg,
+      // Pages sit on the app-wide frosted backdrop (GGlassBg), so scaffolds
+      // are transparent by default.
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: AppBarTheme(
         backgroundColor: C.forest, foregroundColor: Colors.white,
         elevation: 0, centerTitle: false,
@@ -105,8 +108,8 @@ class AT {
       ),
       dividerTheme: const DividerThemeData(color: C.divider, thickness: 1, space: 0),
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.android: GlassPageTransitionsBuilder(),
+        TargetPlatform.iOS: GlassPageTransitionsBuilder(),
       }),
     );
   }
@@ -118,3 +121,100 @@ class AT {
 // helper used in multiple files
 TextStyle p(double size, {FontWeight w = FontWeight.w400, Color? color, double ls = 0, double h = 1, TextDecoration? decoration, bool italic = false}) =>
   GoogleFonts.poppins(fontSize: size, fontWeight: w, color: color ?? C.t2, letterSpacing: ls, height: h, decoration: decoration, fontStyle: italic ? FontStyle.italic : FontStyle.normal);
+
+// ─── Glassmorphism ───────────────────────────────────────────────────────────
+// App-wide backdrop: soft white "frosted" surface with blurred colour washes
+// behind it so translucent glass cards have something to refract.
+class GGlassBg extends StatelessWidget {
+  final Widget child;
+  const GGlassBg({super.key, required this.child});
+
+  static Widget _wash(Color c, double size) => Container(
+        width: size, height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [c, c.withValues(alpha: 0)]),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext ctx) {
+    final w = MediaQuery.of(ctx).size.width;
+    return Stack(children: [
+      Positioned.fill(
+        child: RepaintBoundary(
+          child: ColoredBox(
+            color: const Color(0xFFF5F9F4),
+            child: Stack(clipBehavior: Clip.hardEdge, children: [
+              Positioned(top: -w * 0.35, left: -w * 0.35, child: _wash(const Color(0xFFA8E6BF).withValues(alpha: 0.55), w * 1.1)),
+              Positioned(top: w * 0.55, right: -w * 0.45, child: _wash(const Color(0xFF5DBB84).withValues(alpha: 0.28), w * 1.2)),
+              Positioned(bottom: -w * 0.4, left: -w * 0.3, child: _wash(C.gold.withValues(alpha: 0.30), w * 1.1)),
+              Positioned(bottom: w * 0.2, right: -w * 0.2, child: _wash(const Color(0xFFBFE9D2).withValues(alpha: 0.40), w * 0.8)),
+              // White frost over the washes
+              Positioned.fill(child: ColoredBox(color: Colors.white.withValues(alpha: 0.38))),
+            ]),
+          ),
+        ),
+      ),
+      Positioned.fill(child: child),
+    ]);
+  }
+}
+
+// Frosted glass panel. [tint] overrides the default white glass (e.g. green
+// glass cards); [blur] can be disabled for long lists on low-end devices.
+class GGlass extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final BorderRadius radius;
+  final Color? tint;
+  final Gradient? gradient;
+  final double blur;
+  final Color? borderColor;
+  final List<BoxShadow>? shadows;
+  const GGlass({
+    super.key,
+    required this.child,
+    this.padding,
+    this.radius = const BorderRadius.all(Radius.circular(22)),
+    this.tint,
+    this.gradient,
+    this.blur = 14,
+    this.borderColor,
+    this.shadows,
+  });
+
+  @override
+  Widget build(BuildContext ctx) => DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          boxShadow: shadows ?? [BoxShadow(color: C.forest.withValues(alpha: 0.07), blurRadius: 24, offset: const Offset(0, 10))],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: Container(
+              padding: padding,
+              decoration: BoxDecoration(
+                color: gradient == null ? (tint ?? Colors.white.withValues(alpha: 0.55)) : null,
+                gradient: gradient,
+                borderRadius: radius,
+                border: Border.all(color: borderColor ?? Colors.white.withValues(alpha: 0.75), width: 1.2),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      );
+}
+
+// Every pushed page gets the frosted backdrop under the usual iOS-style slide.
+class GlassPageTransitionsBuilder extends PageTransitionsBuilder {
+  const GlassPageTransitionsBuilder();
+  @override
+  Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation,
+          Animation<double> secondaryAnimation, Widget child) =>
+      const CupertinoPageTransitionsBuilder()
+          .buildTransitions(route, context, animation, secondaryAnimation, GGlassBg(child: child));
+}

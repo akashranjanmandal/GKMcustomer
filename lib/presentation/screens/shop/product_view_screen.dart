@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart' show Drag;
 import 'package:flutter/material.dart';
@@ -11,14 +12,13 @@ import '../../widgets/product_card.dart';
 import '../../widgets/widgets.dart';
 import 'shop_screen.dart';
 
-const _kBg = Color(0xFF5B8A61); // sage green page
-const _kCream = Color(0xFFF1E7B6); // title / price
 const _kRailVisible = 5; // products visible in the left rail at once
 
-// Full-screen product viewer: a white rail of product thumbnails on the left
-// with a notch that follows the selected product, and a vertical pager on the
-// right — swiping up/down moves to the next/previous product while the notch
-// and rail track the scroll position continuously.
+// Full-screen product viewer on the frosted white page: a green glass rail of
+// product thumbnails on the left with a notch cut where the selected product
+// sits, and a vertical pager on the right — swiping up/down moves to the
+// next/previous product while the notch and rail track the scroll position
+// continuously.
 //
 // Pops with 'search' when the search icon is tapped so the caller can focus
 // its search field.
@@ -33,9 +33,11 @@ class ProductViewScreen extends StatefulWidget {
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 380),
           reverseTransitionDuration: const Duration(milliseconds: 260),
-          pageBuilder: (_, __, ___) => ProductViewScreen(
-            products: products.map((e) => asMap(e)).toList(),
-            initialIndex: index,
+          pageBuilder: (_, __, ___) => GGlassBg(
+            child: ProductViewScreen(
+              products: products.map((e) => asMap(e)).toList(),
+              initialIndex: index,
+            ),
           ),
           transitionsBuilder: (_, a, __, child) {
             final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
@@ -107,12 +109,12 @@ class _ProductViewState extends State<ProductViewScreen> {
   @override
   Widget build(BuildContext ctx) {
     final mq = MediaQuery.of(ctx);
-    final railW = math.min(mq.size.width * 0.36, 168.0);
+    final railW = math.min(mq.size.width * 0.32, 150.0);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
+      value: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
-        backgroundColor: _kBg,
+        backgroundColor: Colors.transparent,
         body: Column(children: [
           SizedBox(height: mq.padding.top),
           _TopBar(onBack: () => Navigator.pop(ctx), onSearch: () => Navigator.pop(ctx, 'search')),
@@ -120,8 +122,7 @@ class _ProductViewState extends State<ProductViewScreen> {
             child: LayoutBuilder(builder: (_, box) {
               final h = box.maxHeight;
               return Stack(children: [
-                // Product pages — full width so the big image can sit to the
-                // right of the rail; content is padded past the rail.
+                // Product pages — content is laid out to the right of the rail.
                 Positioned.fill(
                   child: PageView.builder(
                     controller: _pc,
@@ -192,16 +193,16 @@ class _TopBar extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
             child: Row(children: [
-              const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
+              const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: C.t1),
               const SizedBox(width: 8),
-              Text('Back', style: p(15, w: FontWeight.w500, color: Colors.white)),
+              Text('Back', style: p(15, w: FontWeight.w600, color: C.t1)),
             ]),
           ),
         ),
         const Spacer(),
         IconButton(
           onPressed: onSearch,
-          icon: const Icon(Icons.search_rounded, color: Colors.white, size: 24),
+          icon: const Icon(Icons.search_rounded, color: C.t1, size: 24),
         ),
         const SizedBox(width: 4),
         GestureDetector(
@@ -212,10 +213,12 @@ class _TopBar extends StatelessWidget {
             ));
           },
           child: Stack(clipBehavior: Clip.none, children: [
-            Container(
-              width: 50, height: 50,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-              child: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 23),
+            GGlass(
+              radius: BorderRadius.circular(99),
+              child: const SizedBox(
+                width: 48, height: 48,
+                child: Icon(Icons.shopping_bag_outlined, color: C.forest, size: 22),
+              ),
             ),
             if (cart.count > 0)
               Positioned(
@@ -225,8 +228,8 @@ class _TopBar extends StatelessWidget {
                   height: 18,
                   padding: const EdgeInsets.symmetric(horizontal: 5),
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: _kCream, borderRadius: BorderRadius.circular(99)),
-                  child: Text('${cart.count}', style: p(10, w: FontWeight.w800, color: C.forest)),
+                  decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(99)),
+                  child: Text('${cart.count}', style: p(10, w: FontWeight.w800, color: Colors.white)),
                 ),
               ),
           ]),
@@ -264,9 +267,27 @@ class _Rail extends StatelessWidget {
     final notchTop = page * cellH - scroll;
     final atEnd = page.round() >= n - 1;
 
-    return CustomPaint(
-      painter: _RailPainter(notchTop: notchTop, notchH: cellH, bg: _kBg),
-      child: Column(children: [
+    return Stack(children: [
+      // Green glass panel with the notch cut out, so the frosted page shows
+      // through behind the selected product.
+      Positioned.fill(
+        child: ClipPath(
+          clipper: _RailClipper(notchTop: notchTop, notchH: cellH),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [kCardTop.withValues(alpha: 0.88), kCardBottom.withValues(alpha: 0.94)],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      Column(children: [
         SizedBox(
           height: listH,
           child: ClipRect(
@@ -274,13 +295,13 @@ class _Rail extends StatelessWidget {
               for (var i = 0; i < n; i++)
                 if ((i * cellH - scroll) > -cellH && (i * cellH - scroll) < listH)
                   Positioned(
-                    left: _RailPainter.inset, right: 0,
+                    left: _RailClipper.inset, right: 0,
                     top: i * cellH - scroll, height: cellH,
                     child: _RailThumb(
                       url: productImageUrl(products[i]),
                       // 0 → far, 1 → selected; drives scale smoothly mid-swipe
                       focus: (1 - (page - i).abs()).clamp(0.0, 1.0),
-                      size: math.min(cellH, width - _RailPainter.inset) * 0.66,
+                      size: math.min(cellH, width - _RailClipper.inset) * 0.68,
                       onTap: () => onSelect(i),
                     ),
                   ),
@@ -295,14 +316,14 @@ class _Rail extends StatelessWidget {
             width: double.infinity,
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
-              opacity: atEnd ? 0.25 : 1,
-              child: const Icon(Icons.keyboard_arrow_down_rounded, size: 32, color: C.t1),
+              opacity: atEnd ? 0.3 : 1,
+              child: const Icon(Icons.keyboard_arrow_down_rounded, size: 32, color: Colors.white),
             ),
           ),
         ),
         SizedBox(height: bottomInset),
       ]),
-    );
+    ]);
   }
 }
 
@@ -318,26 +339,27 @@ class _RailThumb extends StatelessWidget {
         onTap: onTap,
         child: Center(
           child: Transform.scale(
-            scale: 0.92 + 0.14 * focus,
+            scale: 0.9 + 0.16 * focus,
             child: Container(
               width: size, height: size,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(size * 0.24),
+                borderRadius: BorderRadius.circular(size * 0.26),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.6 + 0.4 * focus), width: 1.5),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10 + 0.18 * focus),
+                    color: C.forest.withValues(alpha: 0.12 + 0.16 * focus),
                     blurRadius: 10 + 8 * focus,
                     offset: Offset(0, 4 + 4 * focus),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(size * 0.24),
+                borderRadius: BorderRadius.circular(size * 0.26),
                 child: CachedNetworkImage(
                   imageUrl: url,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: const Color(0xFFF1F5F1)),
-                  errorWidget: (_, __, ___) => Container(
+                  placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F1)),
+                  errorWidget: (_, __, ___) => ColoredBox(
                     color: const Color(0xFFF1F5F1),
                     child: Icon(Icons.eco_rounded, color: C.green.withValues(alpha: 0.4)),
                   ),
@@ -349,52 +371,40 @@ class _RailThumb extends StatelessWidget {
       );
 }
 
-// White panel with a rounded notch cut where the selected product sits, so the
-// selected thumbnail appears to sit on the green page background.
-class _RailPainter extends CustomPainter {
-  static const inset = 14.0; // white strip kept on the left of the notch
+// Rail outline: full-height panel (rounded on the right) minus a rounded
+// notch where the selected product sits. The segments above/below the notch
+// get rounded corners where they meet it, and the notch has concave corners
+// against the thin strip kept on the left.
+class _RailClipper extends CustomClipper<Path> {
+  static const inset = 12.0; // panel strip kept on the left of the notch
   static const r = 24.0; // notch + panel corner radius
   final double notchTop, notchH;
-  final Color bg;
-  _RailPainter({required this.notchTop, required this.notchH, required this.bg});
+  _RailClipper({required this.notchTop, required this.notchH});
 
   @override
-  void paint(Canvas canvas, Size size) {
+  Path getClip(Size size) {
     final w = size.width, h = size.height;
-    final white = Paint()..color = Colors.white;
     final top = notchTop.clamp(0.0, h);
     final bot = (notchTop + notchH).clamp(0.0, h);
-
     Radius rr(double avail) => Radius.circular(math.max(0, math.min(r, avail / 2)));
 
-    // Segment above the notch: rounded top-right (panel) + bottom-right (notch)
+    final panel = Path();
     if (top > 0) {
-      canvas.drawRRect(
-        RRect.fromLTRBAndCorners(0, 0, w, top, topRight: rr(top), bottomRight: rr(top)),
-        white,
-      );
+      panel.addRRect(RRect.fromLTRBAndCorners(0, 0, w, top, topRight: rr(top), bottomRight: rr(top)));
     }
-    // Segment below the notch
     if (bot < h) {
-      canvas.drawRRect(
-        RRect.fromLTRBAndCorners(0, bot, w, h, topRight: rr(h - bot), bottomRight: rr(h - bot)),
-        white,
-      );
+      panel.addRRect(RRect.fromLTRBAndCorners(0, bot, w, h, topRight: rr(h - bot), bottomRight: rr(h - bot)));
     }
-    // Left strip beside the notch, then the notch itself painted in the page
-    // colour — leaves concave white corners on its left edge.
-    if (bot > top) {
-      canvas.drawRect(Rect.fromLTRB(0, top, inset + r, bot), white);
-      canvas.drawRRect(
-        RRect.fromLTRBAndCorners(inset, notchTop, w + 0.5, notchTop + notchH,
-            topLeft: rr(notchH), bottomLeft: rr(notchH)),
-        Paint()..color = bg,
-      );
-    }
+    if (bot <= top) return panel;
+    panel.addRect(Rect.fromLTRB(0, top, inset + r, bot));
+    final notch = Path()
+      ..addRRect(RRect.fromLTRBAndCorners(inset, notchTop, w + r, notchTop + notchH,
+          topLeft: rr(notchH), bottomLeft: rr(notchH)));
+    return Path.combine(PathOperation.difference, panel, notch);
   }
 
   @override
-  bool shouldRepaint(_RailPainter old) => old.notchTop != notchTop || old.notchH != notchH || old.bg != bg;
+  bool shouldReclip(_RailClipper old) => old.notchTop != notchTop || old.notchH != notchH;
 }
 
 // ─── One product page ─────────────────────────────────────────────────────────
@@ -413,8 +423,11 @@ class _ProductPage extends StatelessWidget {
   @override
   Widget build(BuildContext ctx) {
     final screenW = MediaQuery.of(ctx).size.width;
-    final contentW = screenW - railW - 20 - 18;
-    final imgSize = math.min(contentW + 30, height * 0.36);
+    final left = railW + 18;
+    const right = 18.0;
+    final contentW = screenW - left - right;
+    // Image stays fully inside the page column.
+    final imgSize = math.min(contentW, height * 0.34);
     final d = delta.clamp(-1.0, 1.0);
     final fade = (1 - d.abs() * 1.6).clamp(0.0, 1.0);
 
@@ -422,48 +435,44 @@ class _ProductPage extends StatelessWidget {
     final qty = ctx.select<CartProvider, int>((c) => c.qty(id));
     final price = asDouble(data['price']);
     final mrp = asDouble(data['mrp']);
-    final rating = asDouble(data['rating']);
+    final discount = mrp > price ? ((mrp - price) / mrp * 100).round() : 0;
     final stock = data['stock_quantity'] == null ? null : asInt(data['stock_quantity']);
     final outOfStock = stock != null && stock <= 0;
+    final category = asStr(asMap(data['category'])['name']);
     final longDesc = asStr(data['long_description']);
     final desc = longDesc.isNotEmpty
         ? longDesc
         : asStr(data['description'], 'A premium pick from the Ghar Ka Mali shop, chosen to keep your garden healthy and thriving.');
 
-    void add() {
-      if (outOfStock) return;
-      HapticFeedback.lightImpact();
-      ctx.read<CartProvider>().add(data);
-    }
-
-    return SizedBox(
-      height: height,
-      child: Stack(clipBehavior: Clip.none, children: [
-        // Big product image — parallax: drifts slower than the page and
-        // shrinks slightly as it leaves.
-        Positioned(
-          top: 4, right: -14,
-          width: imgSize, height: imgSize,
-          child: Transform.translate(
-            offset: Offset(0, d * height * 0.32),
-            child: Transform.scale(
-              scale: 1 - d.abs() * 0.14,
-              child: Transform.rotate(
-                angle: d * 0.12,
+    return ClipRect(
+      child: SizedBox(
+        height: height,
+        child: Stack(children: [
+          // Big product image — parallax: drifts slower than the page and
+          // shrinks slightly as it leaves.
+          Positioned(
+            top: 4, left: left + (contentW - imgSize) / 2,
+            width: imgSize, height: imgSize,
+            child: Transform.translate(
+              offset: Offset(0, d * height * 0.3),
+              child: Transform.scale(
+                scale: 1 - d.abs() * 0.14,
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(imgSize * 0.16),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 28, offset: const Offset(0, 14))],
+                    borderRadius: BorderRadius.circular(28),
+                    color: Colors.white,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [BoxShadow(color: C.forest.withValues(alpha: 0.16), blurRadius: 28, offset: const Offset(0, 14))],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(imgSize * 0.16),
+                    borderRadius: BorderRadius.circular(25),
                     child: CachedNetworkImage(
                       imageUrl: productImageUrl(data),
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: Colors.white.withValues(alpha: 0.08)),
-                      errorWidget: (_, __, ___) => Container(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        child: Icon(Icons.eco_rounded, size: 64, color: Colors.white.withValues(alpha: 0.4)),
+                      placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F1)),
+                      errorWidget: (_, __, ___) => ColoredBox(
+                        color: const Color(0xFFF1F5F1),
+                        child: Icon(Icons.eco_rounded, size: 64, color: C.green.withValues(alpha: 0.4)),
                       ),
                     ),
                   ),
@@ -471,131 +480,70 @@ class _ProductPage extends StatelessWidget {
               ),
             ),
           ),
-        ),
 
-        // Details column
-        Positioned(
-          left: railW + 20, right: 18,
-          top: imgSize + 22, bottom: bottomInset + 16,
-          child: Opacity(
-            opacity: fade,
-            child: Transform.translate(
-              offset: Offset(0, d * 60),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(asStr(data['name']),
-                    maxLines: 3, overflow: TextOverflow.ellipsis,
-                    style: p(25, w: FontWeight.w700, color: _kCream, h: 1.18)),
-                const SizedBox(height: 10),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text('₹${price.toStringAsFixed(2)}', style: p(17, w: FontWeight.w600, color: _kCream)),
-                  if (mrp > price) ...[
-                    const SizedBox(width: 6),
-                    Flexible(child: Text('₹${mrp.toStringAsFixed(0)}',
-                        overflow: TextOverflow.ellipsis,
-                        style: p(12, color: Colors.white54, decoration: TextDecoration.lineThrough))),
+          // Details column
+          Positioned(
+            left: left, right: right,
+            top: imgSize + 20, bottom: bottomInset + 16,
+            child: Opacity(
+              opacity: fade,
+              child: Transform.translate(
+                offset: Offset(0, d * 60),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (category.isNotEmpty) ...[
+                    Text(category.toUpperCase(), style: p(10, w: FontWeight.w700, color: C.t3, ls: 0.8)),
+                    const SizedBox(height: 4),
                   ],
-                ]),
-                const SizedBox(height: 14),
-                Row(children: [
-                  _IconBox(child: GWishHeart(product: data, size: 26, bg: Colors.transparent, fg: Colors.white)),
-                  const SizedBox(width: 10),
-                  _IconBox(
-                    child: rating > 0
-                        ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            const Icon(Icons.star_outline_rounded, size: 15, color: Colors.white),
-                            Text(rating.toStringAsFixed(1), style: p(8.5, w: FontWeight.w700, color: Colors.white)),
-                          ])
-                        : const Icon(Icons.eco_outlined, size: 18, color: Colors.white),
-                  ),
-                  const SizedBox(width: 10),
-                  _IconBox(
-                    child: Icon(
-                      outOfStock ? Icons.remove_shopping_cart_outlined : Icons.inventory_2_outlined,
-                      size: 17, color: Colors.white,
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: Text(desc,
-                      overflow: TextOverflow.fade,
-                      style: p(13.5, color: Colors.white.withValues(alpha: 0.88), h: 1.55)),
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () => showProductDetailSheet(ctx, data),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text('View full details',
-                        style: p(12.5, w: FontWeight.w600, color: _kCream, decoration: TextDecoration.underline)),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (qty > 0)
-                  Container(
-                    height: 46,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(color: _kCream.withValues(alpha: 0.7), width: 1.3),
-                    ),
-                    child: Row(children: [
-                      _PillBtn(icon: Icons.remove_rounded, onTap: () {
-                        HapticFeedback.lightImpact();
-                        ctx.read<CartProvider>().remove(id);
-                      }),
-                      Expanded(child: Center(child: Text('$qty in cart', style: p(13.5, w: FontWeight.w700, color: _kCream)))),
-                      _PillBtn(icon: Icons.add_rounded, onTap: add),
-                    ]),
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity, height: 46,
-                    child: ElevatedButton(
-                      onPressed: outOfStock ? null : add,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kCream,
-                        foregroundColor: C.forest,
-                        disabledBackgroundColor: Colors.white24,
-                        disabledForegroundColor: Colors.white70,
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+                  // Full product name — never truncated
+                  Text(asStr(data['name']), style: p(20, w: FontWeight.w700, color: C.forest, h: 1.25)),
+                  const SizedBox(height: 10),
+                  Wrap(crossAxisAlignment: WrapCrossAlignment.end, spacing: 8, runSpacing: 4, children: [
+                    Text('₹${price.toStringAsFixed(0)}', style: p(20, w: FontWeight.w800, color: C.t1)),
+                    if (mrp > price)
+                      Text('₹${mrp.toStringAsFixed(0)}',
+                          style: p(13, color: C.t4, decoration: TextDecoration.lineThrough)),
+                    if (discount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(8)),
+                        child: Text('$discount% OFF', style: p(10, w: FontWeight.w800, color: C.forest)),
                       ),
-                      child: Text(outOfStock ? 'Out of stock' : 'Add to Cart',
-                          style: p(14, w: FontWeight.w700, color: outOfStock ? Colors.white70 : C.forest)),
+                  ]),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: Text(desc,
+                        overflow: TextOverflow.fade,
+                        style: p(13, color: C.t3, h: 1.55)),
+                  ),
+                  GestureDetector(
+                    onTap: () => showProductDetailSheet(ctx, data),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text('View full details',
+                          style: p(12.5, w: FontWeight.w700, color: C.forest, decoration: TextDecoration.underline)),
                     ),
                   ),
-              ]),
+                  const SizedBox(height: 6),
+                  GCartStepper(
+                    qty: qty,
+                    height: 48,
+                    light: false,
+                    disabled: outOfStock,
+                    onAdd: () {
+                      HapticFeedback.lightImpact();
+                      ctx.read<CartProvider>().add(data);
+                    },
+                    onRemove: () {
+                      HapticFeedback.lightImpact();
+                      ctx.read<CartProvider>().remove(id);
+                    },
+                  ),
+                ]),
+              ),
             ),
           ),
-        ),
-      ]),
+        ]),
+      ),
     );
   }
-}
-
-class _IconBox extends StatelessWidget {
-  final Widget child;
-  const _IconBox({required this.child});
-  @override
-  Widget build(BuildContext ctx) => Container(
-        width: 38, height: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1.1),
-        ),
-        child: child,
-      );
-}
-
-class _PillBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _PillBtn({required this.icon, required this.onTap});
-  @override
-  Widget build(BuildContext ctx) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox(width: 48, height: 46, child: Icon(icon, size: 20, color: _kCream)),
-      );
 }

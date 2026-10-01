@@ -392,17 +392,6 @@ class Api {
     if (couponCode != null && couponCode.isNotEmpty) 'coupon_code': couponCode,
   });
 
-  // ─── WISHLIST ─────────────────────────────────────────────────────────────
-  // Rows: { id, product_id, created_at, product: {...} }
-  Future<dynamic> getWishlist() => req('GET', '/shop/wishlist');
-
-  // Toggles; returns the full envelope { success, added: true|false }.
-  Future<dynamic> toggleWishlist(int productId) =>
-      req('POST', '/shop/wishlist', body: {'product_id': productId}, raw: true);
-
-  Future<dynamic> removeFromWishlist(int productId) =>
-      req('DELETE', '/shop/wishlist/$productId');
-
   // ─── COUPONS ──────────────────────────────────────────────────────────────
   // On success returns { code, discount_amount, ... }; on a (200) validation
   // failure returns the { success:false, message } envelope.

@@ -34,10 +34,10 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     final addresses = lp.locations;
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text('Saved Addresses', style: p(17, w: FontWeight.w800, color: C.t1)),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent,
         centerTitle: true,
         elevation: 0,
         leading: IconButton(

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -5,9 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../data/services/api.dart';
-import '../../data/services/auth.dart';
 import '../../data/services/cart_provider.dart';
-import '../../data/services/wishlist_provider.dart';
 import '../../data/services/ops_status_provider.dart';
 import '../theme/theme.dart';
 export 'location_picker_sheet.dart';
@@ -59,9 +58,13 @@ class GHeader extends StatelessWidget {
   const GHeader({super.key, required this.child, this.pb = 36});
   @override
   Widget build(BuildContext ctx) => Container(
-    decoration: const BoxDecoration(
+    clipBehavior: Clip.antiAlias,
+    // Green glass header — rounded into the frosted page below it.
+    decoration: BoxDecoration(
       gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-        stops: [0, 0.45, 1], colors: [C.forest, Color(0xFF1E5D31), Color(0xFF144D24)]),
+        stops: const [0, 0.45, 1], colors: [C.forest.withValues(alpha: 0.96), const Color(0xFF1E5D31).withValues(alpha: 0.93), const Color(0xFF2E7D4F).withValues(alpha: 0.90)]),
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+      boxShadow: [BoxShadow(color: C.forest.withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(0, 10))],
     ),
     child: SafeArea(bottom: false, child: Stack(children: [
       Positioned(top: -60, right: -60,
@@ -116,18 +119,19 @@ class _GCardState extends State<GCard> {
     onTapDown: widget.onTap != null ? (_) => setState(() => _pressed = true) : null,
     onTapUp:   widget.onTap != null ? (_) { setState(() => _pressed = false); widget.onTap!(); } : null,
     onTapCancel: () => setState(() => _pressed = false),
-    child: AnimatedContainer(
+    child: AnimatedScale(
       duration: const Duration(milliseconds: 110),
-      transform: Matrix4.identity()..scale(_pressed ? 0.974 : 1.0),
-      transformAlignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: widget.bg ?? C.white,
-        borderRadius: widget.radius ?? BorderRadius.circular(22),
-        border: widget.bordered ? Border.all(color: Colors.black.withOpacity(0.05)) : null,
-        boxShadow: _pressed ? [] : (widget.shadows ?? [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 8))]),
+      scale: _pressed ? 0.974 : 1.0,
+      // Frosted white glass by default; an explicit bg keeps its colour but
+      // stays slightly translucent so the glass backdrop shows through.
+      child: GGlass(
+        radius: widget.radius ?? BorderRadius.circular(22),
+        tint: widget.bg == null || widget.bg == C.white ? null : widget.bg!.withValues(alpha: widget.bg!.a * 0.85),
+        borderColor: widget.bordered ? null : Colors.transparent,
+        shadows: _pressed ? const [] : widget.shadows,
+        padding: widget.padding,
+        child: widget.child,
       ),
-      padding: widget.padding,
-      child: widget.child,
     ),
   );
 }
@@ -575,47 +579,6 @@ class _GFloatingCartBarState extends State<GFloatingCartBar> {
   }
 }
 
-// ─── Wishlist heart toggle ────────────────────────────────────────────────────
-// ♡/♥ toggle shown on product cards and the product detail sheet. Red when
-// wishlisted. Requires login — logged-out taps get the usual toast. The
-// toggle is optimistic (WishlistProvider reverts on API failure).
-class GWishHeart extends StatelessWidget {
-  final Map<String, dynamic> product;
-  final double size;
-  // Optional colours for use on dark surfaces (e.g. the green product cards).
-  final Color? bg, fg;
-  const GWishHeart({super.key, required this.product, this.size = 32, this.bg, this.fg});
-
-  @override
-  Widget build(BuildContext ctx) {
-    final id = asInt(product['id']);
-    final wished = ctx.watch<WishlistProvider>().contains(id);
-    return GestureDetector(
-      onTap: () {
-        if (!ctx.read<AuthProvider>().isAuthed) {
-          showMsg(ctx, 'Please log in to save items to your wishlist');
-          return;
-        }
-        HapticFeedback.lightImpact();
-        ctx.read<WishlistProvider>().toggle(id, product: product);
-      },
-      child: Container(
-        width: size, height: size,
-        decoration: BoxDecoration(
-          color: bg ?? Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Icon(
-          wished ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          size: size * 0.55,
-          color: wished ? C.red : (fg ?? C.t4),
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Bottom nav ───────────────────────────────────────────────────────────────
 class GNavBar extends StatelessWidget {
   final int idx;
@@ -630,12 +593,16 @@ class GNavBar extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext ctx) => Container(
+  Widget build(BuildContext ctx) => ClipRect(child: BackdropFilter(
+    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+    child: Container(
     padding: const EdgeInsets.symmetric(horizontal: 14),
     height: 74 + MediaQuery.of(ctx).padding.bottom,
+    // Frosted white glass bar
     decoration: BoxDecoration(
-      color: Colors.white,
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0,-4))],
+      color: Colors.white.withValues(alpha: 0.72),
+      border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.9), width: 1.2)),
+      boxShadow: [BoxShadow(color: C.forest.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0,-4))],
     ),
     child: SafeArea(top: false,
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: List.generate(_items.length, (i) {
@@ -688,5 +655,5 @@ class GNavBar extends StatelessWidget {
           ),
         );
       }))),
-  );
+  )));
 }
