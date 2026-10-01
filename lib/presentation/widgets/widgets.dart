@@ -131,12 +131,7 @@ class _GCardState extends State<GCard> {
           tint: plain ? null : widget.bg!.withValues(alpha: widget.bg!.a * 0.88),
           borderColor: widget.bordered ? Colors.white.withValues(alpha: 0.9) : Colors.transparent,
           shadows: _pressed ? const [] : (widget.shadows ?? [BoxShadow(color: V.deep.withValues(alpha: 0.08), blurRadius: 26, offset: const Offset(0, 12))]),
-          child: Stack(children: [
-            Positioned(top: 0, left: 18, right: 60, height: 1.2,
-              child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
-                colors: [V.neon.withValues(alpha: 0), V.neon.withValues(alpha: 0.55), V.neon.withValues(alpha: 0)])))),
-            Padding(padding: widget.padding, child: widget.child),
-          ]),
+          child: Padding(padding: widget.padding, child: widget.child),
         ),
       ),
     );
@@ -201,9 +196,9 @@ class _GBtnState extends State<GBtn> {
               borderRadius: BorderRadius.circular(99),
               border: widget.outline
                 ? Border.all(color: (_brand ? V.leaf : _base).withValues(alpha: 0.6), width: 1.4)
-                : Border.all(color: (_brand ? V.neon : Colors.white).withValues(alpha: 0.25)),
+                : Border.all(color: Colors.white.withValues(alpha: 0.12)),
               boxShadow: widget.outline || _dis ? [] : [
-                BoxShadow(color: (_brand ? V.neon : _base).withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10), spreadRadius: -4),
+                BoxShadow(color: (_brand ? V.ink : _base).withValues(alpha: 0.22), blurRadius: 18, offset: const Offset(0, 8), spreadRadius: -4),
               ],
             ),
             child: widget.loading
@@ -221,8 +216,7 @@ class _GBtnState extends State<GBtn> {
                   if (node)
                     Positioned(right: 6, child: Container(
                       width: widget.h - 12, height: widget.h - 12,
-                      decoration: BoxDecoration(color: V.lime, shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(color: V.lime.withValues(alpha: 0.45), blurRadius: 10)]),
+                      decoration: const BoxDecoration(color: V.lime, shape: BoxShape.circle),
                       child: const Icon(Icons.arrow_forward_rounded, size: 18, color: V.ink),
                     )),
                 ]),
@@ -250,12 +244,7 @@ class GBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(99),
         border: Border.all(color: c.withValues(alpha: 0.35), width: 1),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 6, height: 6, decoration: BoxDecoration(color: c, shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 5)])),
-        const SizedBox(width: 6),
-        Text(label, style: vx(small ? 9 : 10, w: FontWeight.w700, color: c, ls: 0.8)),
-      ]),
+      child: Text(label, style: vx(small ? 9 : 10, w: FontWeight.w700, color: c, ls: 0.8)),
     );
   }
 }
@@ -342,11 +331,11 @@ class _MsgBannerState extends State<_MsgBanner> with SingleTickerProviderStateMi
             decoration: BoxDecoration(
               color: V.ink.withValues(alpha: 0.94),
               borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: col == C.forest ? V.neon.withValues(alpha: 0.4) : col.withValues(alpha: 0.6)),
-              boxShadow: [BoxShadow(color: (col == C.forest ? V.neon : col).withValues(alpha: 0.25), blurRadius: 22, offset: const Offset(0, 8))],
+              border: Border.all(color: col == C.forest ? Colors.white.withValues(alpha: 0.12) : col.withValues(alpha: 0.6)),
+              boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.2), blurRadius: 18, offset: const Offset(0, 8))],
             ),
             child: Row(children: [
-              Icon(icon, color: col == C.forest ? V.neon : col, size: 20),
+              Icon(icon, color: col == C.forest ? V.lime : col, size: 20),
               const SizedBox(width: 12),
               Expanded(child: Text(widget.msg,
                 style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white))),
@@ -365,10 +354,8 @@ class GEmpty extends StatelessWidget {
   Widget build(BuildContext ctx) => Center(child: Padding(
     padding: const EdgeInsets.all(36),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Stack(alignment: Alignment.center, children: [
-        const VPulse(size: 120),
-        VOrb(icon: icon, size: 76),
-      ]).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+      VOrb(icon: icon, size: 72, dark: false)
+        .animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
       const SizedBox(height: 14),
       Text(title, textAlign: TextAlign.center, style: vx(19, w: FontWeight.w700, color: V.ink))
         .animate().fadeIn(delay: 100.ms),
@@ -391,15 +378,10 @@ class GSec extends StatelessWidget {
   final VoidCallback? onAction;
   const GSec(this.title, {super.key, this.action, this.onAction});
   @override
-  Widget build(BuildContext ctx) => Row(children: [
-    VLabel(title),
-    const SizedBox(width: 10),
-    Expanded(child: Container(height: 1, decoration: BoxDecoration(gradient: LinearGradient(
-      colors: [V.leaf.withValues(alpha: 0.35), V.leaf.withValues(alpha: 0)])))),
-    if (action != null && onAction != null) ...[
-      const SizedBox(width: 10),
-      GestureDetector(onTap: onAction, child: Text(action!, style: vx(12.5, w: FontWeight.w700, color: V.deep))),
-    ],
+  Widget build(BuildContext ctx) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+    Expanded(child: Text(title, style: vx(18, w: FontWeight.w600, color: V.ink, ls: -0.2))),
+    if (action != null && onAction != null)
+      GestureDetector(onTap: onAction, child: Text(action!, style: vx(13, w: FontWeight.w600, color: V.leaf))),
   ]);
 }
 
@@ -652,8 +634,8 @@ class GNavBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(32),
-            gradient: const LinearGradient(colors: [Color(0xF0041A0E), Color(0xEB0B3320)]),
-            border: Border.all(color: V.neon.withValues(alpha: 0.25)),
+            gradient: const LinearGradient(colors: [Color(0xF2102A1C), Color(0xED153A26)]),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Row(children: List.generate(_items.length, (i) {
             final sel = i == idx;
@@ -672,7 +654,6 @@ class GNavBar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: sel ? V.lime : Colors.transparent,
                       borderRadius: BorderRadius.circular(99),
-                      boxShadow: sel ? [BoxShadow(color: V.lime.withValues(alpha: 0.35), blurRadius: 16)] : null,
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Stack(clipBehavior: Clip.none, children: [
@@ -680,7 +661,7 @@ class GNavBar extends StatelessWidget {
                         if (badge) Positioned(top: -6, right: -9, child: Container(
                           constraints: const BoxConstraints(minWidth: 16),
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(color: sel ? V.ink : V.neon, borderRadius: BorderRadius.circular(99)),
+                          decoration: BoxDecoration(color: sel ? V.ink : V.lime, borderRadius: BorderRadius.circular(99)),
                           child: Text('$cartCount', textAlign: TextAlign.center,
                             style: vx(9, w: FontWeight.w800, color: sel ? V.lime : V.ink)),
                         )),

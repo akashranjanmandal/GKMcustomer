@@ -18,7 +18,10 @@ const _legalUrl = 'https://gharkamali.com/terms';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoggedIn;
-  const LoginScreen({super.key, required this.onLoggedIn});
+  // Shown over a page because the session ended: opens straight on the number
+  // step, and backing out closes the screen instead of going to "Hello!".
+  final bool reauth;
+  const LoginScreen({super.key, required this.onLoggedIn, this.reauth = false});
   @override
   State<LoginScreen> createState() => _LoginState();
 }
@@ -31,7 +34,7 @@ class _LoginState extends State<LoginScreen> {
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _otpFocus = List.generate(6, (_) => FocusNode());
   // welcome → phone → otp → (name, for new users)
-  String _step = 'welcome';
+  late String _step = widget.reauth ? 'phone' : 'welcome';
   bool _busy = false;
   int _cd = 0;
   Timer? _timer;
@@ -122,6 +125,10 @@ class _LoginState extends State<LoginScreen> {
     setState(() {
       switch (_step) {
         case 'phone':
+          if (widget.reauth) {
+            Navigator.of(context).pop(false);
+            return;
+          }
           _step = 'welcome';
         case 'otp':
         case 'name':
@@ -139,6 +146,7 @@ class _LoginState extends State<LoginScreen> {
       'phone' => _PhoneCard(
           key: const ValueKey('phone'),
           phoneCtrl: _phoneCtrl,
+          reauth: widget.reauth,
           busy: _busy,
           onSend: _sendOtp,
           onChanged: (_) => setState(() {})),
@@ -164,7 +172,7 @@ class _LoginState extends State<LoginScreen> {
     };
 
     return PopScope(
-      canPop: _step == 'welcome',
+      canPop: _step == 'welcome' || (widget.reauth && _step == 'phone'),
       onPopInvokedWithResult: (didPop, _) { if (!didPop) _back(); },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
@@ -391,13 +399,14 @@ class _WelcomeCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _PhoneCard extends StatelessWidget {
   final TextEditingController phoneCtrl;
-  final bool busy;
+  final bool busy, reauth;
   final VoidCallback onSend;
   final ValueChanged<String> onChanged;
   const _PhoneCard({
     super.key,
     required this.phoneCtrl,
     required this.busy,
+    this.reauth = false,
     required this.onSend,
     required this.onChanged,
   });
@@ -410,7 +419,9 @@ class _PhoneCard extends StatelessWidget {
         Text('Sign in',
             style: p(20, w: FontWeight.w500, color: Colors.white)),
         const SizedBox(height: 6),
-        Text('We\'ll send a one-time code to your mobile number.',
+        Text(reauth
+            ? 'Please sign in to continue. You\'ll be brought right back to where you were.'
+            : 'We\'ll send a one-time code to your mobile number.',
             style: p(12, color: Colors.white.withValues(alpha: 0.75), h: 1.4)),
         const SizedBox(height: 22),
         _PillField(

@@ -37,6 +37,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Re-read the stored session (after Api.verifyOtp has saved a new token).
+  Future<void> reload() => _hydrate();
+
   Future<void> login(Map<String, dynamic> user, String token) async {
     _user = user; _token = token;
     final p = await SharedPreferences.getInstance();

@@ -24,6 +24,51 @@ class Api {
   factory Api() => _i;
   Api._();
 
+  // Called when a request needs a signed-in user but the session is missing or
+  // has expired. The app (main.dart) shows the sign-in screen over the current
+  // page and resolves true once the user has signed in again — the original
+  // request is then retried, so the user carries on exactly where they were.
+  static Future<bool> Function()? onAuthRequired;
+  static Future<bool>? _signInInFlight;
+
+  Future<bool> _requireSignIn() {
+    final handler = onAuthRequired;
+    if (handler == null) return Future.value(false);
+    // Several requests can fail at once — show the sign-in screen only once.
+    return _signInInFlight ??= handler().whenComplete(() => _signInInFlight = null);
+  }
+
+  static bool _isAuthError(int code, String msg) {
+    if (code == 401) return true;
+    final m = msg.toLowerCase();
+    return m.contains('token') || m.contains('unauthori') || m.contains('not authenticated') ||
+        m.contains('jwt') || m.contains('session expired') || m.contains('please login') || m.contains('please log in');
+  }
+
+  // Turns server/technical errors into messages a customer understands.
+  // Plain, human messages from the server (e.g. "Slot not available") pass
+  // through; database errors, stack traces and codes never reach the UI.
+  static String friendly(String? raw, int code) {
+    final msg = (raw ?? '').trim();
+    final m = msg.toLowerCase();
+    const technical = [
+      'constraint', 'foreign key', 'sql', 'sequelize', 'syntax', 'undefined', 'null', 'cannot read',
+      'cannot add', 'duplicate entry', 'econn', 'stack', 'exception', 'typeerror', 'referenceerror',
+      'violat', 'column', 'table', 'errno', 'internal server',
+    ];
+    final looksTechnical = msg.isEmpty || msg.length > 160 || technical.any(m.contains) || RegExp(r'^error \d+$').hasMatch(m);
+    if (code == 429) return 'Too many attempts. Please wait a moment and try again.';
+    if (code >= 500 || (looksTechnical && code != 404)) {
+      if (m.contains('zone') || m.contains('geofence')) {
+        return "We couldn't confirm service at this address. Please re-select your location and try again.";
+      }
+      return 'Something went wrong on our side. Please try again in a moment.';
+    }
+    if (looksTechnical && code == 404) return "We couldn't find what you were looking for.";
+    if (code == 403) return looksTechnical ? "You don't have access to this." : msg;
+    return msg;
+  }
+
   // Token helpers
   Future<String?> token() async => (await SharedPreferences.getInstance()).getString(kTokKey);
 
@@ -44,6 +89,7 @@ class Api {
     Map<String, dynamic>? body,
     Map<String, String>? query,
     bool raw = false, // return the full {success,data,...} envelope instead of just data
+    bool retried = false, // internal: request already retried after re-sign-in
   }) async {
     var uri = Uri.parse('$kBase$path');
     if (query != null && query.isNotEmpty) {
@@ -70,7 +116,7 @@ class Api {
         _        => http.get(uri, headers: headers).timeout(to),
       };
     } on SocketException   { throw ApiError('No internet connection. Please check your network.'); }
-    on TimeoutException    { throw ApiError('Request timed out. Please try again.'); }
+    on TimeoutException    { throw ApiError('This is taking longer than usual. Please try again.'); }
     catch (e)              { if (e is ApiError) rethrow; throw ApiError('Something went wrong. Please try again.'); }
 
     if (showLogs) {
@@ -94,8 +140,22 @@ class Api {
       if (!raw && json is Map && json.containsKey('data')) return json['data'];
       return json;
     }
-    final msg = (json is Map ? json['message'] : null) as String? ?? 'Error ${res.statusCode}';
-    throw ApiError(msg, res.statusCode);
+    final serverMsg = (json is Map ? json['message'] : null)?.toString() ?? '';
+    if (auth && _isAuthError(res.statusCode, serverMsg)) {
+      if (!retried) {
+        await _clearSession();
+        if (await _requireSignIn()) {
+          return req(method, path, auth: auth, body: body, query: query, raw: raw, retried: true);
+        }
+      }
+      throw ApiError('Please sign in to continue.', 401);
+    }
+    throw ApiError(friendly(serverMsg, res.statusCode), res.statusCode);
+  }
+
+  Future<void> _clearSession() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove(kTokKey);
   }
 
   // Multipart request for file uploads
@@ -103,6 +163,7 @@ class Api {
     String method, String path, {
     required Map<String, String> fields,
     Map<String, File>? files,
+    bool retried = false,
   }) async {
     final headers = await _headers(auth: true, isJson: false);
     final req = http.MultipartRequest(method, Uri.parse('$kBase$path'))
@@ -119,8 +180,9 @@ class Api {
     try {
       final stream = await req.send().timeout(const Duration(seconds: 40));
       res = await http.Response.fromStream(stream);
-    } on SocketException  { throw ApiError('No internet connection.'); }
-    on TimeoutException   { throw ApiError('Upload timed out. Please try again.'); }
+    } on SocketException  { throw ApiError('No internet connection. Please check your network and try again.'); }
+    on TimeoutException   { throw ApiError('This is taking longer than usual. Please try again.'); }
+    catch (e)             { if (e is ApiError) rethrow; throw ApiError('Something went wrong. Please try again.'); }
 
     if (showLogs) print('<<< API RES: ${res.statusCode} ${res.body}');
 
@@ -130,8 +192,15 @@ class Api {
       if (json is Map && json.containsKey('data')) return json['data'];
       return json;
     }
-    final msg = (json is Map ? json['message'] : null) as String? ?? 'Upload error ${res.statusCode}';
-    throw ApiError(msg, res.statusCode);
+    final serverMsg = (json is Map ? json['message'] : null)?.toString() ?? '';
+    if (_isAuthError(res.statusCode, serverMsg)) {
+      if (!retried) {
+        await _clearSession();
+        if (await _requireSignIn()) return upload(method, path, fields: fields, files: files, retried: true);
+      }
+      throw ApiError('Please sign in to continue.', 401);
+    }
+    throw ApiError(friendly(serverMsg, res.statusCode), res.statusCode);
   }
 
   // ─── AUTH ─────────────────────────────────────────────────────────────────

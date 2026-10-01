@@ -332,10 +332,19 @@ class _BookState extends State<BookScreen> {
     final ops = context.read<OpsStatusProvider>();
     if (ops.paused) { showMsg(context, ops.displayMessage, err: true); return; }
     setState(() => _submitting = true);
-    final zoneId = _zone != null && asInt(_zone!['id']) > 0 ? asInt(_zone!['id']) : 0;
+    var zoneId = _zone != null && asInt(_zone!['id']) > 0 ? asInt(_zone!['id']) : 0;
 
     try {
       if (zoneId == 0) throw ApiError('Please select a serviceable location first.', 404);
+
+      // Re-confirm the address with the server right before booking — zones
+      // cached on the device can be stale (area removed / boundaries changed).
+      final fresh = asMap(asMap(await _api.checkServiceability(_picked!.lat, _picked!.lng))['zone']);
+      if (fresh.isEmpty) {
+        throw ApiError("We don't serve this address yet. Please choose another location.", 404);
+      }
+      zoneId = asInt(fresh['id']);
+      if (mounted) context.read<LocationProvider>().updateZoneForCurrent(fresh);
 
       final addonsPayload = _selectedAddons.map((id) => {'addon_id': id, 'quantity': 1}).toList();
       final totalAmount = _total; // client estimate; server recomputes and is authoritative

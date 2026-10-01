@@ -8,6 +8,7 @@ import '../../../data/services/cart_provider.dart';
 import '../shop/shop_screen.dart';
 import '../shop/product_view_screen.dart';
 import '../../widgets/product_card.dart';
+import '../../widgets/plan_card.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/location_provider.dart';
 import '../../../data/services/ops_status_provider.dart';
@@ -103,14 +104,14 @@ class _HomeState extends State<HomeScreen> {
                 _buildShopSection(ctx),
                 const SizedBox(height: 30),
                 if (_plans.isNotEmpty) ...[
-                  VSection(index: '05', title: 'Care plans', action: 'All plans', onAction: () => Navigator.pushNamed(ctx, '/plans')),
+                  VSection(title: 'Care plans', action: 'All plans', onAction: () => Navigator.pushNamed(ctx, '/plans')),
                   const SizedBox(height: 16),
                   _PlanDeck(plans: _plans, onTap: (id) => Navigator.pushNamed(ctx, '/book', arguments: id)),
                   const SizedBox(height: 30),
                 ],
                 _buildWhy(),
                 const SizedBox(height: 34),
-                const VSection(index: '07', title: 'Inspiration'),
+                const VSection(title: 'Inspiration'),
                 const SizedBox(height: 16),
                 const _PromoStrip(images: [
                   'assets/images/marketting-1.jpeg',
@@ -160,10 +161,10 @@ class _HomeState extends State<HomeScreen> {
           boxShadow: [BoxShadow(color: V.deep.withValues(alpha: 0.06), blurRadius: 14, offset: const Offset(0, 6))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const VOrb(icon: Icons.near_me_rounded, size: 34),
+          const VOrb(icon: Icons.location_on_outlined, size: 34),
           const SizedBox(width: 10),
           Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text('SERVICE AT', style: vx(9, w: FontWeight.w700, color: V.fog, ls: 1.4)),
+            Text('Your location', style: p(10.5, color: V.fog)),
             const SizedBox(height: 2),
             Text(lp.label, style: vx(14, w: FontWeight.w700, color: V.ink), maxLines: 1, overflow: TextOverflow.ellipsis),
           ])),
@@ -184,11 +185,14 @@ class _HomeState extends State<HomeScreen> {
           ),
           child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
             const Icon(Icons.notifications_none_rounded, color: V.ink, size: 21),
-            if (_notifCount > 0) Positioned(top: 9, right: 10, child: Container(
-              width: 9, height: 9,
-              decoration: BoxDecoration(color: V.neon, shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.5),
-                boxShadow: [BoxShadow(color: V.neon.withValues(alpha: 0.7), blurRadius: 6)]),
+            if (_notifCount > 0) Positioned(top: 4, right: 2, child: Container(
+              constraints: const BoxConstraints(minWidth: 17),
+              height: 17,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: Colors.white, width: 1.5)),
+              child: Text(_notifCount > 9 ? '9+' : '$_notifCount', style: p(9, w: FontWeight.w700, color: Colors.white)),
             )),
           ]),
         ),
@@ -199,15 +203,15 @@ class _HomeState extends State<HomeScreen> {
           margin: const EdgeInsets.only(right: 16, left: 10),
           width: 44, height: 44,
           padding: const EdgeInsets.all(2.5),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: SweepGradient(colors: [V.neon, V.lime, V.leaf, V.neon]),
+            color: Colors.white.withValues(alpha: 0.8),
           ),
           child: Container(
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: V.ink),
+            decoration: const BoxDecoration(shape: BoxShape.circle, color: V.deep),
             child: ClipOval(child: auth.profileImage != null
-              ? Image.network(auth.profileImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: V.lime, size: 20))
-              : const Icon(Icons.person_rounded, color: V.lime, size: 20)),
+              ? Image.network(auth.profileImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20))
+              : const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20)),
           ),
         ),
       )),
@@ -218,13 +222,11 @@ class _HomeState extends State<HomeScreen> {
   Widget _buildGreeting(String firstName) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 20),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      VLabel('$_greeting${firstName.isEmpty || firstName == 'User' ? '' : ', $firstName'}'),
-      const SizedBox(height: 10),
-      ShaderMask(
-        shaderCallback: (r) => const LinearGradient(colors: [V.ink, V.leaf, Color(0xFF2BB673)]).createShader(r),
-        child: Text('Grow something\nalive today.', style: vx(34, w: FontWeight.w700, color: Colors.white, ls: -1.2, h: 1.02)),
-      ),
-    ]).animate().fadeIn(duration: 500.ms).slideX(begin: -0.04, end: 0, curve: Curves.easeOutCubic),
+      Text(_greeting, style: p(14, color: V.fog)),
+      const SizedBox(height: 2),
+      Text(firstName.isEmpty || firstName == 'User' ? 'Welcome back' : firstName,
+        style: vx(30, w: FontWeight.w600, color: V.ink, ls: -0.6)),
+    ]).animate().fadeIn(duration: 400.ms),
   );
 
   // ── Bento action deck: one tall dark pod + two stacked glass tiles ───────
@@ -242,15 +244,16 @@ class _HomeState extends State<HomeScreen> {
               padding: const EdgeInsets.all(18),
               contourCenter: const Offset(1, 0),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Stack(alignment: Alignment.center, children: [
-                  VPulse(size: 56),
-                  VOrb(icon: Icons.bolt_rounded, size: 38, accent: V.lime),
-                ]),
+                Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(13)),
+                  child: const Icon(Icons.event_available_outlined, color: Colors.white, size: 21),
+                ),
                 const Spacer(),
-                Text('MALI ON\nDEMAND', style: vx(10, w: FontWeight.w700, color: V.neon, ls: 1.6, h: 1.3)),
+                Text('Schedule\na visit', style: vx(24, w: FontWeight.w600, color: Colors.white, ls: -0.5, h: 1.05)),
                 const SizedBox(height: 6),
-                Text('Schedule\na visit', style: vx(23, w: FontWeight.w700, color: Colors.white, ls: -0.6, h: 1.0)),
-                const SizedBox(height: 12),
+                Text('A gardener at your door', style: p(12, color: Colors.white.withValues(alpha: 0.65))),
+                const SizedBox(height: 14),
                 const VChip('Book'),
               ]),
             ),
@@ -261,16 +264,14 @@ class _HomeState extends State<HomeScreen> {
           flex: 10,
           child: Column(children: [
             Expanded(child: _BentoTile(
-              icon: Icons.auto_awesome_rounded,
-              eyebrow: 'DESIGN',
+              icon: Icons.yard_outlined,
               title: 'Green\nMakeover',
               tint: C.gold,
               onTap: () => Navigator.pushNamed(ctx, '/green-makeover'),
             )),
             const SizedBox(height: 12),
             Expanded(child: _BentoTile(
-              icon: Icons.all_inclusive_rounded,
-              eyebrow: 'SUBSCRIBE',
+              icon: Icons.event_repeat_outlined,
               title: 'Care\nPlans',
               tint: V.mint,
               onTap: () => Navigator.pushNamed(ctx, '/plans'),
@@ -281,23 +282,21 @@ class _HomeState extends State<HomeScreen> {
     ).animate().fadeIn(delay: 120.ms, duration: 450.ms).slideY(begin: 0.06, end: 0),
   );
 
-  // ── 01 Services — tall glass capsules, title only ───────────────────────
+  // ── Services — photo cards ──────────────────────────────────────────
   static const _services = [
-    (icon: Icons.bolt_rounded, title: 'Mali on Demand'),
-    (icon: Icons.event_repeat_rounded, title: 'Monthly Care'),
-    (icon: Icons.balcony_rounded, title: 'Balcony & Terrace'),
-    (icon: Icons.local_florist_rounded, title: 'Plants & Pots'),
-    (icon: Icons.auto_awesome_rounded, title: 'Garden Makeover'),
-    (icon: Icons.grass_rounded, title: 'Lawn Care'),
-    (icon: Icons.pest_control_rounded, title: 'Pest Control'),
-    (icon: Icons.eco_rounded, title: 'Soil & Compost'),
+    (img: 'assets/images/img-6.jpeg', title: 'Garden care visit'),
+    (img: 'assets/images/backyard.jpeg', title: 'Monthly maintenance'),
+    (img: 'assets/images/terrace.jpeg', title: 'Balcony & terrace'),
+    (img: 'assets/images/office_mobile.jpeg', title: 'Indoor & office plants'),
+    (img: 'assets/images/img-3.jpeg', title: 'Garden makeover'),
+    (img: 'assets/images/Lawn.jpeg', title: 'Lawn care'),
   ];
 
   Widget _buildServices(BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    VSection(index: '01', title: 'Services', action: 'See all', onAction: () => Navigator.pushNamed(ctx, '/services')),
-    const SizedBox(height: 16),
+    VSection(title: 'Services', action: 'See all', onAction: () => Navigator.pushNamed(ctx, '/services')),
+    const SizedBox(height: 14),
     SizedBox(
-      height: 168,
+      height: 196,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -307,20 +306,21 @@ class _HomeState extends State<HomeScreen> {
           final s = _services[i];
           return GestureDetector(
             onTap: () => Navigator.pushNamed(ctx, '/services'),
-            child: SizedBox(
-              width: 118,
-              child: VGlassTile(
-                radius: 60,
-                padding: const EdgeInsets.fromLTRB(10, 16, 10, 16),
-                child: Column(children: [
-                  VOrb(icon: s.icon, size: 54),
-                  const Spacer(),
-                  Text(s.title, textAlign: TextAlign.center, maxLines: 2,
-                    style: vx(13, w: FontWeight.w700, color: V.ink, h: 1.15)),
-                  const SizedBox(height: 8),
-                  Text((i + 1).toString().padLeft(2, '0'), style: vx(10, w: FontWeight.w600, color: V.fog, ls: 1.2)),
-                ]),
+            child: Container(
+              width: 148,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 8))],
               ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(fit: StackFit.expand, children: [
+                Image.asset(s.img, fit: BoxFit.cover, cacheWidth: 450),
+                const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Color(0xD90B1F14)], stops: [0.4, 1]))),
+                Positioned(left: 14, right: 14, bottom: 14,
+                  child: Text(s.title, style: vx(16.5, w: FontWeight.w600, color: Colors.white, h: 1.15))),
+              ]),
             ),
           );
         },
@@ -331,17 +331,17 @@ class _HomeState extends State<HomeScreen> {
   // ── 02 Explore — glowing orb launcher ───────────────────────────────────
   Widget _buildExplore(BuildContext ctx) {
     final items = [
-      (icon: Icons.yard_rounded, title: 'Plantopedia', soon: true, onTap: () => widget.navTo(3)),
-      (icon: Icons.spa_rounded, title: 'Services', soon: false, onTap: () => Navigator.pushNamed(ctx, '/services')),
-      (icon: Icons.support_agent_rounded, title: 'Support', soon: false, onTap: () => Navigator.pushNamed(ctx, '/complaints')),
-      (icon: Icons.storefront_rounded, title: 'Shop', soon: false, onTap: () => widget.navTo(2)),
-      (icon: Icons.receipt_long_rounded, title: 'Orders', soon: false, onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
-      (icon: Icons.workspace_premium_rounded, title: 'My Plans', soon: false, onTap: () => Navigator.pushNamed(ctx, '/subscriptions')),
-      (icon: Icons.auto_awesome_rounded, title: 'Makeover', soon: false, onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
-      (icon: Icons.notifications_none_rounded, title: 'Alerts', soon: false, onTap: () => Navigator.pushNamed(ctx, '/notifications')),
+      (icon: Icons.menu_book_outlined, title: 'Plantopedia', soon: true, onTap: () => widget.navTo(3)),
+      (icon: Icons.spa_outlined, title: 'Services', soon: false, onTap: () => Navigator.pushNamed(ctx, '/services')),
+      (icon: Icons.headset_mic_outlined, title: 'Support', soon: false, onTap: () => Navigator.pushNamed(ctx, '/complaints')),
+      (icon: Icons.storefront_outlined, title: 'Shop', soon: false, onTap: () => widget.navTo(2)),
+      (icon: Icons.receipt_long_outlined, title: 'Orders', soon: false, onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
+      (icon: Icons.event_repeat_outlined, title: 'My Plans', soon: false, onTap: () => Navigator.pushNamed(ctx, '/subscriptions')),
+      (icon: Icons.yard_outlined, title: 'Makeover', soon: false, onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
+      (icon: Icons.notifications_none_outlined, title: 'Alerts', soon: false, onTap: () => Navigator.pushNamed(ctx, '/notifications')),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const VSection(index: '02', title: 'Explore'),
+      const VSection(title: 'Explore'),
       const SizedBox(height: 16),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -362,11 +362,11 @@ class _HomeState extends State<HomeScreen> {
                   onTap: it.onTap,
                   child: Column(children: [
                     Stack(clipBehavior: Clip.none, children: [
-                      VOrb(icon: it.icon, size: 52, dark: false, accent: V.leaf),
+                      VOrb(icon: it.icon, size: 50, dark: false),
                       if (it.soon) Positioned(top: -6, right: -10, child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                         decoration: BoxDecoration(color: V.ink, borderRadius: BorderRadius.circular(99)),
-                        child: Text('SOON', style: vx(7.5, w: FontWeight.w700, color: V.lime, ls: 0.8)),
+                        child: Text('Soon', style: p(8.5, w: FontWeight.w600, color: Colors.white)),
                       )),
                     ]),
                     const SizedBox(height: 8),
@@ -385,7 +385,7 @@ class _HomeState extends State<HomeScreen> {
   Widget _buildShopSection(BuildContext ctx) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      VSection(index: '03', title: 'Shop', action: 'See all', onAction: () => widget.navTo(2)),
+      VSection(title: 'Shop', action: 'See all', onAction: () => widget.navTo(2)),
       const SizedBox(height: 16),
       _products.isEmpty
         ? const SizedBox(height: 200, child: Center(child: Text('No products available')))
@@ -418,16 +418,16 @@ class _HomeState extends State<HomeScreen> {
 
   // ── 06 Why GKM — dark pod with a 2×N grid of short trust points ─────────
   static const _why = [
-    (icon: Icons.verified_user_rounded, title: 'Verified\nexperts'),
-    (icon: Icons.touch_app_rounded, title: 'Book in\na few taps'),
-    (icon: Icons.price_check_rounded, title: 'Upfront\npricing'),
-    (icon: Icons.event_available_rounded, title: 'Flexible\nslots'),
-    (icon: Icons.local_florist_rounded, title: 'Quality\nplants'),
-    (icon: Icons.support_agent_rounded, title: 'Real\nsupport'),
+    (icon: Icons.verified_outlined, title: 'Verified\nexperts'),
+    (icon: Icons.touch_app_outlined, title: 'Book in\na few taps'),
+    (icon: Icons.sell_outlined, title: 'Upfront\npricing'),
+    (icon: Icons.schedule_outlined, title: 'Flexible\nslots'),
+    (icon: Icons.local_florist_outlined, title: 'Quality\nplants'),
+    (icon: Icons.headset_mic_outlined, title: 'Real\nsupport'),
   ];
 
   Widget _buildWhy() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const VSection(index: '06', title: 'Why GKM'),
+    const VSection(title: 'Why GKM'),
     const SizedBox(height: 16),
     Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -449,11 +449,9 @@ class _HomeState extends State<HomeScreen> {
             children: [
               for (final w in _why)
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(w.icon, color: V.neon, size: 22),
+                  Icon(w.icon, color: Colors.white, size: 22),
                   const SizedBox(height: 8),
-                  Container(width: 18, height: 1.5, color: V.lime.withValues(alpha: 0.6)),
-                  const SizedBox(height: 8),
-                  Text(w.title, style: vx(12.5, w: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9), h: 1.2)),
+                                    Text(w.title, style: vx(12.5, w: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9), h: 1.2)),
                 ]),
             ],
           ),
@@ -564,33 +562,29 @@ class _BannerCapsuleState extends State<_BannerCapsule> {
 // ─── Bento glass tile ───────────────────────────────────────────────────────
 class _BentoTile extends StatelessWidget {
   final IconData icon;
-  final String eyebrow, title;
+  final String title;
   final Color tint;
   final VoidCallback onTap;
-  const _BentoTile({required this.icon, required this.eyebrow, required this.title, required this.tint, required this.onTap});
+  const _BentoTile({required this.icon, required this.title, required this.tint, required this.onTap});
   @override
   Widget build(BuildContext ctx) => GestureDetector(
     onTap: onTap,
     child: VGlassTile(
-      radius: 26,
+      radius: 24,
       tint: tint,
-      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
       child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(eyebrow, style: vx(9, w: FontWeight.w700, color: V.leaf, ls: 1.4)),
-          const SizedBox(height: 4),
-          Text(title, style: vx(16, w: FontWeight.w700, color: V.ink, h: 1.0, ls: -0.3)),
-        ])),
+        Expanded(child: Text(title, style: vx(18, w: FontWeight.w600, color: V.ink, h: 1.05, ls: -0.3))),
         Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          VOrb(icon: icon, size: 34),
-          const Icon(Icons.north_east_rounded, size: 16, color: V.deep),
+          Icon(icon, size: 24, color: V.deep),
+          const Icon(Icons.arrow_forward_rounded, size: 18, color: V.fog),
         ]),
       ]),
     ),
   );
 }
 
-// ─── Plan deck — dark data cards ────────────────────────────────────────────
+// ─── Plan deck — compact plan cards ─────────────────────────────────────────
 class _PlanDeck extends StatefulWidget {
   final List<dynamic> plans;
   final void Function(int id) onTap;
@@ -599,18 +593,15 @@ class _PlanDeck extends StatefulWidget {
 }
 
 class _PlanDeckState extends State<_PlanDeck> {
-  final _pc = PageController(viewportFraction: 0.8);
+  final _pc = PageController(viewportFraction: 0.84);
   int _i = 0;
-
-  // Accent per card, cycled — keeps the deck varied but on-palette.
-  static const _accents = [V.neon, V.lime, Color(0xFF7CE7FF), C.gold, Color(0xFFB9F6CA)];
 
   @override
   void dispose() { _pc.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext ctx) => SizedBox(
-    height: 268,
+    height: 410,
     child: PageView.builder(
       controller: _pc,
       clipBehavior: Clip.none,
@@ -618,75 +609,18 @@ class _PlanDeckState extends State<_PlanDeck> {
       onPageChanged: (i) => setState(() => _i = i),
       itemBuilder: (_, i) {
         final plan = asMap(widget.plans[i]);
-        final accent = _accents[i % _accents.length];
-        final price = asDouble(plan['price']);
-        final visits = asInt(plan['visits_per_month']);
-        final plants = asInt(plan['max_plants']);
-        final sub = asStr(plan['price_subtitle']).isNotEmpty ? asStr(plan['price_subtitle']) : '/ plan';
-        final features = asList(plan['features']).map((e) => e.toString()).where((s) => s.isNotEmpty).take(3).toList();
-        final best = asBool(plan['is_best_value']);
         return AnimatedScale(
-          scale: i == _i ? 1 : 0.93,
+          scale: i == _i ? 1 : 0.95,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
-          child: GestureDetector(
-            onTap: () => widget.onTap(asInt(plan['id'])),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 4, 6, 18),
-              child: VPod(
-                radius: 30,
-                glow: accent,
-                contourCenter: Offset(i.isEven ? 1 : 0, 0),
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text(asStr(plan['name']).toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: vx(11, w: FontWeight.w700, color: accent, ls: 1.6))),
-                    if (best) Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(99)),
-                      child: Text('BEST', style: vx(9, w: FontWeight.w800, color: V.ink, ls: 1)),
-                    ),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('₹${price.toStringAsFixed(0)}', style: vx(36, w: FontWeight.w700, color: Colors.white, ls: -1.4, h: 1)),
-                    const SizedBox(width: 6),
-                    Flexible(child: Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: vx(11.5, color: Colors.white54)),
-                    )),
-                  ]),
-                  const SizedBox(height: 14),
-                  if (visits > 0 || plants > 0) Row(children: [
-                    if (visits > 0) _readout('$visits', 'VISITS / MO', accent),
-                    if (visits > 0 && plants > 0) Container(width: 1, height: 28, margin: const EdgeInsets.symmetric(horizontal: 14), color: Colors.white24),
-                    if (plants > 0) _readout('$plants', 'PLANTS', accent),
-                  ]),
-                  const Spacer(),
-                  for (final f in features) Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Row(children: [
-                      Icon(Icons.check_rounded, size: 13, color: accent),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(f, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: vx(12, w: FontWeight.w500, color: Colors.white70))),
-                    ]),
-                  ),
-                ]),
-              ),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 2, 6, 16),
+            child: GPlanCard(plan: plan, compact: true, onSelect: () => widget.onTap(asInt(plan['id']))),
           ),
         );
       },
     ),
   );
-
-  Widget _readout(String v, String label, Color accent) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(v, style: vx(20, w: FontWeight.w700, color: accent, h: 1)),
-    const SizedBox(height: 3),
-    Text(label, style: vx(8.5, w: FontWeight.w700, color: Colors.white54, ls: 1.2)),
-  ]);
 }
 
 // ─── Promotions — tilted-deck image strip ───────────────────────────────────

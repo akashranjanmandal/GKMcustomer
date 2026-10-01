@@ -1,39 +1,41 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/theme.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Verdant — the app's futuristic green design language.
-// Dark "bio-glass" pods with topographic contour lines (think leaf veins /
-// growth rings), neon-leaf glow accents and lime highlights, floating over the
-// frosted white backdrop (GGlassBg).
+// Verdant — the app's green glass design language.
+// Calm and editorial: deep-green glass panels with faint contour lines, a
+// botanical serif for headings, flat icon tiles, and lime used sparingly as
+// the one highlight colour. No glows, pulses or decorative dots.
 // ═════════════════════════════════════════════════════════════════════════════
 
 class V {
-  static const ink = Color(0xFF04140B); // near-black green
-  static const deep = Color(0xFF0A2E1A);
-  static const leaf = Color(0xFF1F7A4A);
-  static const neon = Color(0xFF2EF29A); // bio-luminescent accent
-  static const lime = Color(0xFFD4FF4F); // highlight / active
-  static const mint = Color(0xFFBFF5DA);
-  static const fog = Color(0xFF6E8C7B); // muted text on light
+  static const ink = Color(0xFF0B1F14); // near-black green
+  static const deep = Color(0xFF123824);
+  static const leaf = Color(0xFF2F6B47);
+  static const neon = Color(0xFF8FD9AE); // soft accent on dark panels
+  static const lime = Color(0xFFD9F27A); // single highlight colour
+  static const mint = Color(0xFFE4F1E8); // icon tiles / light fills
+  static const fog = Color(0xFF6B7F73); // muted text on light
 }
 
-// Display type — Space Grotesk reads technical/futuristic next to Poppins body.
-TextStyle vx(double size, {FontWeight w = FontWeight.w600, Color? color, double ls = 0, double h = 1.1}) =>
-    GoogleFonts.spaceGrotesk(fontSize: size, fontWeight: w, color: color ?? V.ink, letterSpacing: ls, height: h);
+// Display type — a botanical serif (Fraunces) for headings and figures;
+// small sizes fall back to Poppins so labels stay crisp.
+TextStyle vx(double size, {FontWeight w = FontWeight.w600, Color? color, double ls = 0, double h = 1.15}) =>
+    size >= 17
+        ? GoogleFonts.fraunces(fontSize: size, fontWeight: w, color: color ?? V.ink, letterSpacing: ls, height: h)
+        : GoogleFonts.poppins(fontSize: size, fontWeight: w, color: color ?? V.ink, letterSpacing: ls, height: h);
 
 // ─── Topographic contour lines ───────────────────────────────────────────────
-// Concentric, organically wobbling rings — drawn once and cached.
+// Concentric, organically wobbling rings (leaf veins / growth rings).
 class ContourPainter extends CustomPainter {
   final Color color;
   final Offset center; // fractional (0..1) origin of the rings
   final int rings;
   final double seed;
-  const ContourPainter({required this.color, this.center = const Offset(0.85, 0.15), this.rings = 9, this.seed = 1});
+  const ContourPainter({required this.color, this.center = const Offset(0.85, 0.15), this.rings = 8, this.seed = 1});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -63,20 +65,17 @@ class ContourPainter extends CustomPainter {
   bool shouldRepaint(ContourPainter old) => old.color != color || old.center != center || old.rings != rings;
 }
 
-// ─── Dark bio-glass pod ──────────────────────────────────────────────────────
-BoxDecoration vPodDecoration({double radius = 30, Color? glow}) => BoxDecoration(
+// ─── Deep-green glass panel ──────────────────────────────────────────────────
+BoxDecoration vPodDecoration({double radius = 28, Color? glow}) => BoxDecoration(
       borderRadius: BorderRadius.circular(radius),
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xF2062014), Color(0xEB0B3320), Color(0xE6124A2D)],
+        colors: [Color(0xF5102A1C), Color(0xF0153A26), Color(0xEB1D4A31)],
         stops: [0, 0.55, 1],
       ),
-      border: Border.all(color: V.neon.withValues(alpha: 0.22), width: 1),
-      boxShadow: [
-        BoxShadow(color: (glow ?? V.neon).withValues(alpha: 0.14), blurRadius: 30, offset: const Offset(0, 12)),
-        BoxShadow(color: V.ink.withValues(alpha: 0.18), blurRadius: 18, offset: const Offset(0, 8)),
-      ],
+      border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
+      boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.16), blurRadius: 24, offset: const Offset(0, 12))],
     );
 
 class VPod extends StatelessWidget {
@@ -84,38 +83,24 @@ class VPod extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double radius;
   final Offset contourCenter;
-  final Color? glow;
+  final Color? glow; // kept for API compatibility; panels no longer glow
   const VPod({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.radius = 30,
+    this.radius = 28,
     this.contourCenter = const Offset(0.9, 0.1),
     this.glow,
   });
 
   @override
   Widget build(BuildContext ctx) => Container(
-        decoration: vPodDecoration(radius: radius, glow: glow),
+        decoration: vPodDecoration(radius: radius),
         clipBehavior: Clip.antiAlias,
         child: Stack(children: [
           Positioned.fill(
             child: RepaintBoundary(
-              child: CustomPaint(painter: ContourPainter(color: V.neon.withValues(alpha: 0.10), center: contourCenter)),
-            ),
-          ),
-          // Neon bloom in the corner the contours radiate from
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(contourCenter.dx * 2 - 1, contourCenter.dy * 2 - 1),
-                    radius: 0.9,
-                    colors: [(glow ?? V.neon).withValues(alpha: 0.20), Colors.transparent],
-                  ),
-                ),
-              ),
+              child: CustomPaint(painter: ContourPainter(color: Colors.white.withValues(alpha: 0.05), center: contourCenter)),
             ),
           ),
           Padding(padding: padding, child: child),
@@ -125,89 +110,58 @@ class VPod extends StatelessWidget {
 
 // ─── Small UI atoms ──────────────────────────────────────────────────────────
 
-// "● 02 — EXPLORE" style eyebrow label.
+// Small uppercase eyebrow label.
 class VLabel extends StatelessWidget {
   final String text;
   final Color color;
-  final bool dot;
-  const VLabel(this.text, {super.key, this.color = V.leaf, this.dot = true});
+  const VLabel(this.text, {super.key, this.color = V.fog});
   @override
-  Widget build(BuildContext ctx) => Row(mainAxisSize: MainAxisSize.min, children: [
-        if (dot) ...[
-          Container(
-            width: 6, height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 6)],
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        Text(text.toUpperCase(), style: vx(10.5, w: FontWeight.w700, color: color, ls: 1.6)),
-      ]);
+  Widget build(BuildContext ctx) =>
+      Text(text.toUpperCase(), style: vx(10.5, w: FontWeight.w600, color: color, ls: 1.4));
 }
 
-// Numbered section heading with a fading hairline and optional action.
+// Section heading: serif title + optional "See all" link.
 class VSection extends StatelessWidget {
-  final String index, title;
+  final String title;
   final String? action;
   final VoidCallback? onAction;
-  const VSection({super.key, required this.index, required this.title, this.action, this.onAction});
+  const VSection({super.key, required this.title, this.action, this.onAction});
   @override
   Widget build(BuildContext ctx) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            VLabel('$index — $title'),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [V.leaf.withValues(alpha: 0.35), V.leaf.withValues(alpha: 0)]),
-                ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: Text(title, style: vx(22, w: FontWeight.w600, color: V.ink, ls: -0.4))),
+          if (action != null && onAction != null)
+            GestureDetector(
+              onTap: onAction,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(action!, style: vx(13, w: FontWeight.w600, color: V.leaf)),
               ),
             ),
-            if (action != null && onAction != null) ...[
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: onAction,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text(action!, style: vx(12.5, w: FontWeight.w700, color: V.deep)),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.north_east_rounded, size: 14, color: V.deep),
-                ]),
-              ),
-            ],
-          ]),
         ]),
       );
 }
 
-// Icon inside a glowing glass orb.
+// Flat icon tile — rounded square, no glow or gradient.
 class VOrb extends StatelessWidget {
   final IconData icon;
   final double size;
   final bool dark;
-  final Color accent;
-  const VOrb({super.key, required this.icon, this.size = 52, this.dark = true, this.accent = V.neon});
+  final Color accent; // kept for API compatibility
+  const VOrb({super.key, required this.icon, this.size = 48, this.dark = true, this.accent = V.neon});
   @override
   Widget build(BuildContext ctx) => Container(
         width: size, height: size,
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: dark
-              ? const RadialGradient(center: Alignment(-0.4, -0.5), colors: [Color(0xFF1C5A38), V.ink])
-              : RadialGradient(center: const Alignment(-0.4, -0.5), colors: [Colors.white, V.mint.withValues(alpha: 0.7)]),
-          border: Border.all(color: accent.withValues(alpha: dark ? 0.55 : 0.8), width: 1.2),
-          boxShadow: [BoxShadow(color: accent.withValues(alpha: dark ? 0.35 : 0.25), blurRadius: 16, spreadRadius: -2)],
+          color: dark ? V.deep : V.mint,
+          borderRadius: BorderRadius.circular(size * 0.3),
         ),
-        child: Icon(icon, size: size * 0.44, color: dark ? accent : V.deep),
+        child: Icon(icon, size: size * 0.46, color: dark ? Colors.white : V.deep),
       );
 }
 
-// Lime "→ Action" chip used on dark pods.
+// Small "Action →" chip used on dark panels.
 class VChip extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -215,43 +169,15 @@ class VChip extends StatelessWidget {
   const VChip(this.label, {super.key, this.icon = Icons.arrow_forward_rounded, this.onDark = true});
   @override
   Widget build(BuildContext ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
         decoration: BoxDecoration(
           color: onDark ? V.lime : V.ink,
           borderRadius: BorderRadius.circular(99),
-          boxShadow: onDark ? [BoxShadow(color: V.lime.withValues(alpha: 0.35), blurRadius: 12)] : null,
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(label, style: vx(12, w: FontWeight.w700, color: onDark ? V.ink : V.lime)),
+          Text(label, style: vx(12.5, w: FontWeight.w600, color: onDark ? V.ink : Colors.white)),
           const SizedBox(width: 6),
-          Container(
-            width: 18, height: 18,
-            decoration: BoxDecoration(color: onDark ? V.ink : V.lime, shape: BoxShape.circle),
-            child: Icon(icon, size: 11, color: onDark ? V.lime : V.ink),
-          ),
-        ]),
-      );
-}
-
-// Concentric "sonar" rings behind a live element. Plays once on appear —
-// never loops (looping animations keep the GPU busy and heat the phone).
-class VPulse extends StatelessWidget {
-  final double size;
-  final Color color;
-  const VPulse({super.key, this.size = 60, this.color = V.neon});
-  @override
-  Widget build(BuildContext ctx) => SizedBox(
-        width: size, height: size,
-        child: Stack(alignment: Alignment.center, children: [
-          for (var i = 0; i < 3; i++)
-            Container(
-              width: size * (0.55 + i * 0.22), height: size * (0.55 + i * 0.22),
-              decoration: BoxDecoration(shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: 0.55 - i * 0.16), width: 1.1)),
-            )
-                .animate(delay: (i * 140).ms)
-                .scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1), duration: 900.ms, curve: Curves.easeOutCubic)
-                .fadeIn(duration: 700.ms),
+          Icon(icon, size: 15, color: onDark ? V.ink : Colors.white),
         ]),
       );
 }
@@ -262,21 +188,21 @@ class VGlassTile extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double radius;
   final Color? tint;
-  const VGlassTile({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.radius = 26, this.tint});
+  const VGlassTile({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.radius = 24, this.tint});
   @override
   Widget build(BuildContext ctx) => GGlass(
         radius: BorderRadius.circular(radius),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white.withValues(alpha: 0.72), (tint ?? V.mint).withValues(alpha: 0.38)],
+          colors: [Colors.white.withValues(alpha: 0.8), (tint ?? V.mint).withValues(alpha: 0.45)],
         ),
         padding: padding,
         child: child,
       );
 }
 
-// Floating frosted bar (used for the home top bar).
+// Frosted strip (used for the home top bar).
 class VFrost extends StatelessWidget {
   final Widget child;
   final double opacity;

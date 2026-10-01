@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'data/services/api.dart';
 import 'data/services/auth.dart';
 import 'data/services/location_provider.dart';
 import 'data/services/cart_provider.dart';
@@ -40,6 +41,22 @@ void main() {
   // Push notifications — no-op when Firebase isn't configured yet. After init,
   // re-sync the FCM token to the backend if a session already exists.
   PushService.instance.init().then((_) => PushService.instance.syncTokenIfLoggedIn());
+  // Session ended mid-use → sign in over the current page, then come back to
+  // it with everything (e.g. booking details) still filled in. The failed
+  // request is retried automatically by Api once this resolves true.
+  Api.onAuthRequired = () async {
+    final nav = rootNavigatorKey.currentState;
+    if (nav == null) return false;
+    final ok = await nav.push<bool>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => LoginScreen(reauth: true, onLoggedIn: () => nav.pop(true)),
+    ));
+    if (ok == true) {
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) await ctx.read<AuthProvider>().reload();
+    }
+    return ok == true;
+  };
   runApp(MultiProvider(providers: [
     ChangeNotifierProvider(create: (_) => AuthProvider()),
     ChangeNotifierProvider(create: (_) => LocationProvider()),
@@ -165,7 +182,10 @@ class _RootState extends State<_Root> {
     return const _Shell();
   }
 
-  void _goShell(BuildContext ctx) => Navigator.pushAndRemoveUntil(
+  void _goShell(BuildContext ctx) {
+    // Pick up the token Api.verifyOtp just stored so isAuthed is accurate.
+    ctx.read<AuthProvider>().reload();
+    Navigator.pushAndRemoveUntil(
       ctx,
       PageRouteBuilder(
           transitionDuration: 380.ms,
@@ -173,6 +193,7 @@ class _RootState extends State<_Root> {
           transitionsBuilder: (_, a, __, child) =>
               FadeTransition(opacity: a, child: child)),
       (_) => false);
+  }
 }
 
 class _Shell extends StatefulWidget {
