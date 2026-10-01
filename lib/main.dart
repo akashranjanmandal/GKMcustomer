@@ -264,6 +264,10 @@ class _ShellState extends State<_Shell> {
       canPop: _idx == 0,
       onPopInvokedWithResult: (didPop, _) { if (!didPop) toHome(); },
       child: Scaffold(
+      // Pages scroll underneath the floating dock — no strip behind it. The
+      // body's MediaQuery bottom padding grows by the dock height, so lists
+      // and the cart bar keep clear of it.
+      extendBody: true,
       // Hidden tabs stay alive in the IndexedStack, so mute their tickers —
       // otherwise their animations keep rendering off-screen (battery/heat).
       body: IndexedStack(index: _idx, children: [

@@ -40,84 +40,113 @@ class _NotifState extends State<NotificationsScreen> {
   }
 
   static IconData _icon(String type) => switch (type) {
-    'booking_assigned' || 'booking_update' => Icons.calendar_month_rounded,
-    'booking_completed'                    => Icons.check_circle_rounded,
-    'booking_cancelled'                    => Icons.cancel_rounded,
-    'payment'                              => Icons.receipt_rounded,
-    'subscription'                         => Icons.card_membership_rounded,
-    'alert'                                => Icons.warning_rounded,
-    _                                      => Icons.notifications_rounded,
+    'booking_assigned' || 'booking_update' => Icons.calendar_month_outlined,
+    'booking_completed'                    => Icons.task_alt_outlined,
+    'booking_cancelled'                    => Icons.event_busy_outlined,
+    'payment'                              => Icons.receipt_long_outlined,
+    'subscription'                         => Icons.event_repeat_outlined,
+    'alert'                                => Icons.error_outline_rounded,
+    _                                      => Icons.notifications_none_outlined,
   };
 
+  bool _isToday(String s) {
+    final d = DateTime.tryParse(s)?.toLocal();
+    final now = DateTime.now();
+    return d != null && d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
   @override
-  Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: Colors.transparent,
-    body: NestedScrollView(
-      headerSliverBuilder: (_, __) => [
-        SliverToBoxAdapter(child: GHeader(pb: 16,
-          child: Row(children: [
-            GestureDetector(onTap: () => Navigator.pop(ctx),
-              child: Container(width: 36, height: 36,
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
-            const SizedBox(width: 14),
-            Expanded(child: Text('Notifications', style: p(18, w: FontWeight.w800, color: Colors.white))),
-            if (_items.any((n) => n['read_at'] == null))
-              GestureDetector(
-                onTap: _markAllRead,
-                child: Text('Mark all read', style: p(12, w: FontWeight.w700, color: C.gold))),
-          ]))),
-      ],
-      body: RefreshIndicator(
-        color: C.forest, onRefresh: _load,
-        child: _loading
-          ? ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: 6,
-              itemBuilder: (_, __) => const Padding(padding: EdgeInsets.only(bottom: 10), child: GSkelCard()))
-          : _items.isEmpty
-            ? const GEmpty(title: 'No notifications', sub: 'You\'re all caught up! Updates will appear here', icon: Icons.notifications_none_rounded)
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: _items.length,
-                itemBuilder: (_, i) {
-                  final n = _items[i];
-                  final id = asInt(n['id']);
-                  final unread = n['read_at'] == null;
-                  final type = asStr(n['type']);
-                  return GestureDetector(
-                    onTap: () => _markRead(id, i),
-                    child: AnimatedContainer(duration: 200.ms,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: unread ? C.forest.withOpacity(0.04) : C.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: unread ? C.forest.withOpacity(0.18) : C.border),
-                        boxShadow: s1()),
-                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Container(width: 42, height: 42,
-                          decoration: BoxDecoration(
-                            color: (unread ? C.forest : C.t4).withOpacity(0.09),
-                            borderRadius: BorderRadius.circular(12)),
-                          child: Stack(children: [
-                            Center(child: Icon(_icon(type), size: 20, color: unread ? C.forest : C.t4)),
-                            if (unread) Positioned(top: 6, right: 6,
-                              child: Container(width: 7, height: 7,
-                                decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle))),
-                          ])),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(asStr(n['title'], 'Notification'), style: p(13, w: FontWeight.w700, color: unread ? C.t1 : C.t2)),
-                          const SizedBox(height: 3),
-                          Text(asStr(n['body'] ?? n['message']), style: p(12, color: C.t3, h: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 6),
-                          Text(_timeAgo(asStr(n['created_at'])), style: p(10, color: C.t4)),
-                        ])),
-                      ])).animate().fadeIn(delay: Duration(milliseconds: i * 30)));
-                }),
+  Widget build(BuildContext ctx) {
+    final bottom = MediaQuery.of(ctx).padding.bottom + 32;
+    final unreadCount = _items.where((n) => n['read_at'] == null).length;
+    final today = <int>[], earlier = <int>[];
+    for (var i = 0; i < _items.length; i++) {
+      (_isToday(asStr(_items[i]['created_at'])) ? today : earlier).add(i);
+    }
+
+    Widget group(String title, List<int> idx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(padding: const EdgeInsets.fromLTRB(4, 0, 4, 10), child: Text(title, style: vx(19, w: FontWeight.w600, color: V.ink))),
+      GCard(
+        padding: EdgeInsets.zero,
+        radius: BorderRadius.circular(24),
+        child: Column(children: [
+          for (var k = 0; k < idx.length; k++) ...[
+            if (k > 0) Container(height: 1, margin: const EdgeInsets.only(left: 70), color: V.ink.withValues(alpha: 0.06)),
+            _row(idx[k]),
+          ],
+        ]),
       ),
-    ),
-  );
+      const SizedBox(height: 22),
+    ]);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: RefreshIndicator(
+        color: V.leaf, onRefresh: _load,
+        child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
+          SliverToBoxAdapter(child: VPageHeader(
+            title: 'Alerts',
+            subtitle: unreadCount > 0 ? '$unreadCount unread' : 'You\'re all caught up.',
+            trailing: unreadCount > 0
+              ? GestureDetector(
+                  onTap: _markAllRead,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.75), borderRadius: BorderRadius.circular(99), border: Border.all(color: Colors.white)),
+                    child: Text('Mark all read', style: p(12.5, w: FontWeight.w600, color: V.ink)),
+                  ))
+              : null,
+          )),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          if (_loading)
+            SliverPadding(padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+              sliver: SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 5)))
+          else if (_items.isEmpty)
+            const SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+              title: 'No alerts', sub: 'Booking updates, payments and plan reminders will show up here.', icon: Icons.notifications_none_outlined))
+          else
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+              sliver: SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (today.isNotEmpty) group('Today', today),
+                if (earlier.isNotEmpty) group(today.isEmpty ? 'Recent' : 'Earlier', earlier),
+              ]).animate().fadeIn(duration: 300.ms)),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _row(int i) {
+    final n = _items[i];
+    final id = asInt(n['id']);
+    final unread = n['read_at'] == null;
+    final type = asStr(n['type']);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _markRead(id, i),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          VOrb(icon: _icon(type), size: 40, dark: unread),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Text(asStr(n['title'], 'Notification'),
+                style: p(13.5, w: unread ? FontWeight.w700 : FontWeight.w500, color: V.ink, h: 1.3))),
+              const SizedBox(width: 8),
+              Text(_timeAgo(asStr(n['created_at'])), style: p(11, color: V.fog)),
+            ]),
+            if (asStr(n['body'] ?? n['message']).isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(asStr(n['body'] ?? n['message']), maxLines: 3, overflow: TextOverflow.ellipsis,
+                style: p(12.5, color: unread ? V.ink.withValues(alpha: 0.75) : V.fog, h: 1.4)),
+            ],
+          ])),
+        ]),
+      ),
+    );
+  }
 
   // Relative time computed in IST (see timeAgoIST in api.dart).
   String _timeAgo(String s) => timeAgoIST(s);

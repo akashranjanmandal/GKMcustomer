@@ -111,18 +111,8 @@ class _HomeState extends State<HomeScreen> {
                 ],
                 _buildWhy(),
                 const SizedBox(height: 34),
-                const VSection(title: 'Inspiration'),
-                const SizedBox(height: 16),
-                const _PromoStrip(images: [
-                  'assets/images/marketting-1.jpeg',
-                  'assets/images/marketting-2.jpeg',
-                  'assets/images/marketting-3.jpeg',
-                  'assets/images/marketting-4.jpeg',
-                  'assets/images/marketting-5.jpeg',
-                ]),
-                const SizedBox(height: 36),
                 _buildSignOff(),
-                SizedBox(height: cart.count > 0 ? 120 : 28),
+                SizedBox(height: MediaQuery.of(ctx).padding.bottom + (cart.count > 0 ? 100 : 24)),
               ])),
             ]),
           ),
@@ -416,49 +406,48 @@ class _HomeState extends State<HomeScreen> {
     ],
   );
 
-  // ── 06 Why GKM — dark pod with a 2×N grid of short trust points ─────────
+  // ── Why GKM — light two-column panel with hairline dividers ─────────
   static const _why = [
-    (icon: Icons.verified_outlined, title: 'Verified\nexperts'),
-    (icon: Icons.touch_app_outlined, title: 'Book in\na few taps'),
-    (icon: Icons.sell_outlined, title: 'Upfront\npricing'),
-    (icon: Icons.schedule_outlined, title: 'Flexible\nslots'),
-    (icon: Icons.local_florist_outlined, title: 'Quality\nplants'),
-    (icon: Icons.headset_mic_outlined, title: 'Real\nsupport'),
+    (icon: Icons.verified_outlined, title: 'Verified gardeners', desc: 'Trained and background-checked'),
+    (icon: Icons.sell_outlined, title: 'Upfront pricing', desc: 'No hidden charges, ever'),
+    (icon: Icons.schedule_outlined, title: 'Flexible slots', desc: 'Visits that fit your day'),
+    (icon: Icons.local_florist_outlined, title: 'Quality plants', desc: 'Healthy stock, good pots'),
+    (icon: Icons.headset_mic_outlined, title: 'Real support', desc: 'People who reply, fast'),
+    (icon: Icons.task_alt_outlined, title: 'End-to-end care', desc: 'From setup to upkeep'),
   ];
 
   Widget _buildWhy() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const VSection(title: 'Why GKM'),
-    const SizedBox(height: 16),
+    const VSection(title: 'Why Ghar Ka Mali'),
+    const SizedBox(height: 14),
     Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: VPod(
-        radius: 32,
-        contourCenter: const Offset(0, 1),
-        padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Trusted by\nthousands of gardens.', style: vx(22, w: FontWeight.w700, color: Colors.white, ls: -0.5, h: 1.08)),
-          const SizedBox(height: 18),
-          GridView.count(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.95,
-            children: [
-              for (final w in _why)
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(w.icon, color: Colors.white, size: 22),
-                  const SizedBox(height: 8),
-                                    Text(w.title, style: vx(12.5, w: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9), h: 1.2)),
-                ]),
-            ],
-          ),
+      child: VGlassTile(
+        radius: 26,
+        padding: EdgeInsets.zero,
+        child: Column(children: [
+          for (var r = 0; r < _why.length; r += 2) ...[
+            if (r > 0) Container(height: 1, margin: const EdgeInsets.symmetric(horizontal: 18), color: V.ink.withValues(alpha: 0.07)),
+            IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: _whyCell(_why[r])),
+              Container(width: 1, margin: const EdgeInsets.symmetric(vertical: 16), color: V.ink.withValues(alpha: 0.07)),
+              Expanded(child: r + 1 < _why.length ? _whyCell(_why[r + 1]) : const SizedBox()),
+            ])),
+          ],
         ]),
       ),
     ),
   ]);
+
+  Widget _whyCell(({IconData icon, String title, String desc}) w) => Padding(
+    padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(w.icon, size: 22, color: V.leaf),
+      const SizedBox(height: 10),
+      Text(w.title, style: vx(16, w: FontWeight.w600, color: V.ink, h: 1.2)),
+      const SizedBox(height: 3),
+      Text(w.desc, style: p(11.5, color: V.fog, h: 1.35)),
+    ]),
+  );
 
   // ── Sign-off ────────────────────────────────────────────────────────────
   Widget _buildSignOff() => Center(child: Column(children: [
@@ -619,62 +608,6 @@ class _PlanDeckState extends State<_PlanDeck> {
           ),
         );
       },
-    ),
-  );
-}
-
-// ─── Promotions — tilted-deck image strip ───────────────────────────────────
-class _PromoStrip extends StatefulWidget {
-  final List<String> images;
-  const _PromoStrip({required this.images});
-  @override State<_PromoStrip> createState() => _PromoStripState();
-}
-
-class _PromoStripState extends State<_PromoStrip> {
-  final _pc = PageController(viewportFraction: 0.84);
-  int _i = 0;
-  Timer? _t;
-
-  @override
-  void initState() {
-    super.initState();
-    _t = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted || widget.images.length < 2 || !_onScreen(context)) return;
-      _pc.animateToPage((_i + 1) % widget.images.length, duration: const Duration(milliseconds: 650), curve: Curves.easeInOutCubic);
-    });
-  }
-
-  @override
-  void dispose() { _t?.cancel(); _pc.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext ctx) => SizedBox(
-    height: 190,
-    child: PageView.builder(
-      controller: _pc,
-      clipBehavior: Clip.none,
-      itemCount: widget.images.length,
-      onPageChanged: (i) => setState(() => _i = i),
-      itemBuilder: (_, i) => AnimatedScale(
-        scale: i == _i ? 1 : 0.92,
-        duration: const Duration(milliseconds: 300),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [BoxShadow(color: V.deep.withValues(alpha: 0.14), blurRadius: 22, offset: const Offset(0, 10))],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(25),
-              child: Image.asset(widget.images[i], fit: BoxFit.cover,
-                cacheWidth: 900,
-                errorBuilder: (_, __, ___) => const ColoredBox(color: V.mint)),
-            ),
-          ),
-        ),
-      ),
     ),
   );
 }

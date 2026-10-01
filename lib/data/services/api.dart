@@ -437,7 +437,7 @@ class Api {
     String? city, String? pincode,
     required double lat,
     required double lng,
-    String paymentMethod = 'wallet',
+    String paymentMethod = 'razorpay',
     int? zoneId,
     bool applyGst = false,
     String? shippingState,
@@ -487,12 +487,9 @@ class Api {
   Future<dynamic> getMyShopOrders({int page = 1, int limit = 10}) =>
       req('GET', '/shop/orders/my', query: {'page': '$page', 'limit': '$limit'});
 
-  // ─── PAYMENTS / WALLET ────────────────────────────────────────────────────
+  // ─── PAYMENTS ────────────────────────────────────────────────────
   Future<dynamic> getMyPayments({int page = 1, int limit = 20}) =>
       req('GET', '/payments/my', query: {'page': '$page', 'limit': '$limit'});
-
-  Future<dynamic> walletTopup(double amount) =>
-      req('POST', '/payments/wallet-topup', body: {'amount': amount});
 
   Future<dynamic> getPaymentStatus(String txnId) =>
       req('GET', '/payments/status/$txnId');

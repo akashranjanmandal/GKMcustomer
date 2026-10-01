@@ -30,146 +30,150 @@ class _ComplaintsState extends State<ComplaintsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: C.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: const Color(0xFFF7FBF7),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => _NewComplaintSheet(api: _api, onDone: _load),
     );
   }
 
   @override
-  Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: Colors.transparent,
-    body: NestedScrollView(
-      headerSliverBuilder: (_, __) => [
-        SliverToBoxAdapter(child: GHeader(pb: 16,
-          child: Row(children: [
-            GestureDetector(onTap: () => Navigator.pop(ctx),
-              child: Container(width: 36, height: 36,
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Support & Complaints', style: p(18, w: FontWeight.w800, color: Colors.white)),
-              Text('We\'re here to help', style: p(11, color: Colors.white60)),
-            ])),
-            GestureDetector(
-              onTap: _showNewComplaint,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [V.lime, Color(0xFFB8F02A)]),
-                  borderRadius: BorderRadius.circular(99)),
-                child: Text('+ Raise Issue', style: p(12, w: FontWeight.w700, color: const Color(0xFF1A0F00))))),
-          ]))),
-      ],
+  Widget build(BuildContext ctx) {
+    final bottom = MediaQuery.of(ctx).padding.bottom + 32;
+    final open = _complaints.where((c) => !['resolved', 'closed'].contains(asStr(asMap(c)['status']))).length;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
       body: RefreshIndicator(
-        color: C.forest, onRefresh: _load,
-        child: _loading
-          ? ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: 4,
-              itemBuilder: (_, __) => const Padding(padding: EdgeInsets.only(bottom: 12), child: GSkelCard()))
-          : _complaints.isEmpty
-            ? ListView(children: [GEmpty(
-                title: 'No complaints',
-                sub: 'If you have an issue with a booking or service, raise it here and we\'ll resolve it quickly',
-                icon: Icons.support_agent_rounded,
-                action: GBtn(label: 'Raise an Issue', icon: Icons.add_rounded, onTap: _showNewComplaint, w: 180, h: 44))])
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: _complaints.length,
-                itemBuilder: (_, i) {
-                  final c = _complaints[i] as Map<String, dynamic>;
-                  final cid = c['id'] is int ? c['id'] as int : int.tryParse('${c['id']}') ?? 0;
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () async {
-                      await Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => ComplaintDetailScreen(complaintId: cid)));
-                      _load();
-                    },
-                    child: _ComplaintCard(c: c)
-                      .animate().fadeIn(delay: Duration(milliseconds: i * 40))
-                      .slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 40)),
-                  );
-                }),
+        color: V.leaf, onRefresh: _load,
+        child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
+          const SliverToBoxAdapter(child: VPageHeader(title: 'Support', subtitle: "Something not right? We'll sort it out.")),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 22),
+            child: VPod(
+              radius: 26,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('How can we help?', style: vx(22, w: FontWeight.w600, color: Colors.white)),
+                const SizedBox(height: 6),
+                Text('Tell us about a booking, a gardener visit, an order or a payment. Most issues are resolved within a day.',
+                  style: p(12.5, color: Colors.white.withValues(alpha: 0.7), h: 1.45)),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: _showNewComplaint,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 18, 12),
+                    decoration: BoxDecoration(color: V.lime, borderRadius: BorderRadius.circular(99)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.edit_outlined, size: 17, color: V.ink),
+                      const SizedBox(width: 8),
+                      Text('Raise an issue', style: p(13.5, w: FontWeight.w600, color: V.ink)),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          )),
+          if (!_loading && _complaints.isNotEmpty) SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Expanded(child: Text('Your tickets', style: vx(20, w: FontWeight.w600, color: V.ink))),
+              if (open > 0) Text('$open open', style: p(12.5, w: FontWeight.w600, color: C.amber)),
+            ]),
+          )),
+          if (_loading)
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+              sliver: SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 3)),
+            )
+          else if (_complaints.isEmpty)
+            const SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+              title: 'No tickets yet',
+              sub: "Issues you raise will show up here, along with our replies.",
+              icon: Icons.headset_mic_outlined))
+          else
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+              sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) {
+                final c = asMap(_complaints[i]);
+                final cid = asInt(c['id']);
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => ComplaintDetailScreen(complaintId: cid)));
+                    _load();
+                  },
+                  child: _ComplaintCard(c: c)
+                    .animate().fadeIn(delay: Duration(milliseconds: i * 40))
+                    .slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 40)),
+                );
+              }, childCount: _complaints.length)),
+            ),
+        ]),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ComplaintCard extends StatelessWidget {
   final Map<String, dynamic> c;
   const _ComplaintCard({required this.c});
 
-  static Color _priorityColor(String p) => switch (p) {
-    'high'   => C.red,
-    'medium' => C.amber,
-    _        => C.t4,
-  };
-
   @override
   Widget build(BuildContext ctx) {
     final status = asStr(c['status'], 'open');
-    final type = asStr(c['type']);
-    final priority = asStr(c['priority'], 'medium');
+    final type = asStr(c['type']).replaceAll('_', ' ');
     final resolved = status == 'resolved' || status == 'closed';
+    final accent = resolved ? C.green : (asStr(c['priority']) == 'high' ? C.red : C.amber);
+    final date = asStr(c['created_at'] ?? c['createdAt']);
 
-    return GCard(
-      padding: EdgeInsets.zero,
-      child: Column(children: [
-        Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: (resolved ? C.green : C.amber).withOpacity(0.10),
-                borderRadius: BorderRadius.circular(11)),
-              child: Icon(resolved ? Icons.check_circle_rounded : Icons.support_agent_rounded,
-                size: 20, color: resolved ? C.green : C.amber)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(type.replaceAll('_', ' ').toUpperCase(),
-                style: p(10, w: FontWeight.w700, color: C.t4, ls: 0.5)),
-              Text(asStr(c['subject'], asStr(c['ticket_number'], c['id'] != null ? '#${c['id']}' : 'Complaint')),
-                style: p(13, w: FontWeight.w700, color: C.t1), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ])),
-            GBadge(status),
-          ]),
-          const SizedBox(height: 12),
-          Text(asStr(c['description']), style: p(13, color: C.t2, h: 1.5), maxLines: 3, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 10),
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: _priorityColor(priority).withOpacity(0.10),
-                borderRadius: BorderRadius.circular(99)),
-              child: Text(priority.toUpperCase(),
-                style: p(9, w: FontWeight.w700, color: _priorityColor(priority), ls: 0.5))),
-            const Spacer(),
-            Text(asStr(c['created_at']).length >= 10 ? asStr(c['created_at']).substring(0, 10) : '—',
-              style: p(10, color: C.t4)),
-          ]),
-          if (c['booking_id'] != null) ...[
-            const SizedBox(height: 8),
-            Row(children: [
-              const Icon(Icons.link_rounded, size: 13, color: C.t4),
-              const SizedBox(width: 5),
-              Text('Booking #${c['booking_id']}', style: p(11, color: C.t3)),
-            ]),
-          ],
-          if (resolved && (c['resolution'] as String?)?.isNotEmpty == true) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: C.green.withOpacity(0.07), borderRadius: BorderRadius.circular(12), border: Border.all(color: C.green.withOpacity(0.20))),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Icon(Icons.check_circle_rounded, size: 14, color: C.green),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GCard(
+        padding: EdgeInsets.zero,
+        radius: BorderRadius.circular(22),
+        child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(width: 4, margin: const EdgeInsets.symmetric(vertical: 16), decoration: BoxDecoration(color: accent, borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)))),
+          Expanded(child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 16, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (type.isNotEmpty) Text(type[0].toUpperCase() + type.substring(1), style: p(11.5, color: V.fog)),
+                  Text(asStr(c['subject'], asStr(c['ticket_number'], 'Ticket #${c['id']}')), maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: vx(17, w: FontWeight.w600, color: V.ink, h: 1.2)),
+                ])),
                 const SizedBox(width: 8),
-                Expanded(child: Text(asStr(c['resolution']), style: p(12, color: C.green, h: 1.4))),
-              ])),
-          ],
+                GBadge(status, small: true),
+              ]),
+              if (asStr(c['description']).isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(asStr(c['description']), maxLines: 2, overflow: TextOverflow.ellipsis, style: p(12.5, color: V.ink.withValues(alpha: 0.75), h: 1.45)),
+              ],
+              if (resolved && asStr(c['resolution']).isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: C.green.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.check_circle_outline_rounded, size: 15, color: C.green),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(asStr(c['resolution']), style: p(12, color: const Color(0xFF166534), h: 1.4))),
+                  ]),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Row(children: [
+                Text(date.length >= 10 ? date.substring(0, 10) : '', style: p(11, color: V.fog)),
+                if (c['booking_id'] != null) ...[
+                  Text('  ·  ', style: p(11, color: V.fog)),
+                  Text('Booking #${c['booking_id']}', style: p(11, color: V.fog)),
+                ],
+                const Spacer(),
+                const Icon(Icons.arrow_forward_rounded, size: 16, color: V.fog),
+              ]),
+            ]),
+          )),
         ])),
-      ]),
+      ),
     );
   }
 }

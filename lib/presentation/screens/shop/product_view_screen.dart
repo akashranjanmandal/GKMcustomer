@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,7 +13,8 @@ import '../../widgets/product_card.dart';
 import '../../widgets/widgets.dart';
 import 'shop_screen.dart';
 
-const _kRailVisible = 5; // products visible in the left rail at once
+const _kRailVisible = 5;
+final _featStyle = p(12.5, color: V.ink, h: 1.45); // products visible in the left rail at once
 
 // Full-screen product viewer on the frosted white page: a green glass rail of
 // product thumbnails on the left with a notch cut where the selected product
@@ -439,12 +441,17 @@ class _ProductPage extends StatelessWidget {
     final stock = data['stock_quantity'] == null ? null : asInt(data['stock_quantity']);
     final outOfStock = stock != null && stock <= 0;
     final category = asStr(asMap(data['category'])['name']);
-    final longDesc = asStr(data['long_description']);
-    bool nonEmpty(String k) => asList(data[k]).any((e) => e.toString().trim().isNotEmpty && e is! Map || (e is Map && e.isNotEmpty));
-    final hasExtras = nonEmpty('features') || nonEmpty('faqs') || nonEmpty('tags');
-    final desc = longDesc.isNotEmpty
-        ? longDesc
-        : asStr(data['description'], 'A premium pick from the Ghar Ka Mali shop, chosen to keep your garden healthy and thriving.');
+    // Real copy only: the server keeps most text in long_description, some in
+    // description. Products with neither show no description (never filler).
+    String clean(dynamic v) { final t = asStr(v).trim(); return t == 'null' ? '' : t; }
+    final desc = clean(data['long_description']).isNotEmpty ? clean(data['long_description']) : clean(data['description']);
+    // features arrive either as a list or as a JSON-encoded string ("[...]").
+    List<String> listOf(dynamic v) {
+      dynamic x = v;
+      if (x is String && x.trim().startsWith('[')) { try { x = jsonDecode(x); } catch (_) { x = const []; } }
+      return asList(x).map((e) => e.toString().trim()).where((e) => e.isNotEmpty && e != 'null').toList();
+    }
+    final features = listOf(data['features']);
 
     return ClipRect(
       child: SizedBox(
@@ -512,32 +519,67 @@ class _ProductPage extends StatelessWidget {
                       ),
                   ]),
                   const SizedBox(height: 12),
-                  // Everything lives on this page when it fits. The full-details
-                  // sheet is only offered when the description overflows or the
-                  // product has extra content (features / FAQs / tags) that has
-                  // no room here.
+                  // Real description (and key features) on the page. When it's
+                  // too long to fit, the rest fades out and "View full details"
+                  // opens the complete text.
                   Expanded(
-                    child: LayoutBuilder(builder: (_, box) {
-                      final style = p(13, color: C.t3, h: 1.55);
-                      final tp = TextPainter(
-                        text: TextSpan(text: desc, style: style),
-                        textDirection: TextDirection.ltr,
-                        textScaler: MediaQuery.textScalerOf(ctx),
-                      )..layout(maxWidth: box.maxWidth);
-                      final needsMore = tp.height > box.maxHeight || hasExtras;
-                      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Expanded(child: Text(desc, overflow: TextOverflow.fade, style: style)),
-                        if (needsMore)
-                          GestureDetector(
-                            onTap: () => showProductDetailSheet(ctx, data),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text('View full details',
-                                  style: p(12.5, w: FontWeight.w700, color: C.forest, decoration: TextDecoration.underline)),
-                            ),
-                          ),
-                      ]);
-                    }),
+                    child: (desc.isEmpty && features.isEmpty)
+                        ? const SizedBox.shrink()
+                        : LayoutBuilder(builder: (_, box) {
+                            final scaler = MediaQuery.textScalerOf(ctx);
+                            double h(String t, TextStyle st) => (TextPainter(
+                                  text: TextSpan(text: t, style: st),
+                                  textDirection: TextDirection.ltr,
+                                  textScaler: scaler,
+                                )..layout(maxWidth: box.maxWidth - (identical(st, _featStyle) ? 23 : 0))).height;
+                            final descStyle = p(13, color: C.t3, h: 1.6);
+                            var needed = desc.isEmpty ? 0.0 : h(desc, descStyle);
+                            if (features.isNotEmpty) needed += 12 + features.fold<double>(0, (t, f) => t + h(f, _featStyle) + 6);
+                            final overflows = needed > box.maxHeight;
+                            final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              if (desc.isNotEmpty) Text(desc, style: descStyle),
+                              if (features.isNotEmpty) ...[
+                                if (desc.isNotEmpty) const SizedBox(height: 12),
+                                for (final f in features) Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.check_rounded, size: 15, color: V.leaf)),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(f, style: _featStyle)),
+                                  ]),
+                                ),
+                              ],
+                            ]);
+                            if (!overflows) return Align(alignment: Alignment.topLeft, child: content);
+                            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Expanded(
+                                child: ShaderMask(
+                                  blendMode: BlendMode.dstIn,
+                                  shaderCallback: (r) => const LinearGradient(
+                                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                                    colors: [Colors.white, Colors.white, Colors.transparent],
+                                    stops: [0, 0.7, 1],
+                                  ).createShader(r),
+                                  child: ClipRect(child: OverflowBox(
+                                    alignment: Alignment.topLeft,
+                                    maxHeight: double.infinity,
+                                    child: content,
+                                  )),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => showProductDetailSheet(ctx, data),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 6, bottom: 4),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Text('View full details', style: p(13, w: FontWeight.w600, color: V.leaf)),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.arrow_forward_rounded, size: 15, color: V.leaf),
+                                  ]),
+                                ),
+                              ),
+                            ]);
+                          }),
                   ),
                   const SizedBox(height: 6),
                   GCartStepper(

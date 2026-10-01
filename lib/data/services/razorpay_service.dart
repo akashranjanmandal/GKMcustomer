@@ -16,7 +16,7 @@ class RazorpayService {
   final Api _api = Api();
 
   Future<RazorpayResult> pay({
-    required String type, // wallet_topup | booking | subscription | order
+    required String type, // booking | subscription | order
     double? amount,
     int? bookingId,
     int? subscriptionId,

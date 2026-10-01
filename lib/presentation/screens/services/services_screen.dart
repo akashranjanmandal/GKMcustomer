@@ -36,72 +36,74 @@ class _ServicesState extends State<ServicesScreen> {
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: Colors.transparent,
-    body: Column(children: [
-      GHeader(pb: 20, child: Row(children: [
-        GestureDetector(onTap: () => Navigator.pop(ctx),
-          child: Container(width: 36, height: 36,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Our Services', style: p(18, w: FontWeight.w800, color: Colors.white)),
-          Text("What's included, how it works & FAQs", style: p(11, color: Colors.white60)),
-        ])),
-      ])),
-      Expanded(child: _body(ctx)),
+    body: CustomScrollView(slivers: [
+      const SliverToBoxAdapter(child: VPageHeader(
+        title: 'Services',
+        subtitle: "What's included, how it's done, and answers to common questions.",
+      )),
+      const SliverToBoxAdapter(child: SizedBox(height: 18)),
+      ..._body(ctx),
     ]),
   );
 
-  Widget _body(BuildContext ctx) {
+  List<Widget> _body(BuildContext ctx) {
     if (_loading) {
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-        itemCount: 5,
-        itemBuilder: (_, __) => const Padding(padding: EdgeInsets.only(bottom: 14), child: GSkelCard()));
+      return [SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+        sliver: SliverList(delegate: SliverChildBuilderDelegate((_, __) => const Padding(padding: EdgeInsets.only(bottom: 14), child: GSkelCard()), childCount: 4)),
+      )];
     }
     if (_error != null) {
-      return GEmpty(
+      return [SliverFillRemaining(hasScrollBody: false, child: GEmpty(
         title: 'Couldn\'t load services',
         sub: _error!,
         icon: Icons.wifi_off_rounded,
-        action: GBtn(label: 'Retry', onTap: _load, w: 160, h: 44));
+        action: GBtn(label: 'Try again', onTap: _load, w: 180, h: 48)))];
     }
     if (_services.isEmpty) {
-      return const GEmpty(
+      return [const SliverFillRemaining(hasScrollBody: false, child: GEmpty(
         title: 'No services yet',
         sub: 'Our service catalogue will appear here soon.',
-        icon: Icons.spa_outlined);
+        icon: Icons.spa_outlined))];
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-      itemCount: _services.length,
-      itemBuilder: (_, i) {
+    return [SliverPadding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(ctx).padding.bottom + 32),
+      sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) {
         final svc = _services[i];
+        final name = asStr(svc['name'], 'Service');
         return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: GCard(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: GestureDetector(
             onTap: () => showServiceDetailsSheet(ctx, svc),
-            padding: const EdgeInsets.all(16),
-            child: Row(children: [
-              Container(width: 44, height: 44,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [C.forest3, C.forest],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(14)),
-                child: Icon(serviceIconFor(asStr(svc['slug'])), size: 21, color: Colors.white)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(asStr(svc['name'], 'Service'), style: p(14, w: FontWeight.w700, color: C.t1)),
-                const SizedBox(height: 3),
-                Text(asStr(svc['overview']), maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: p(12, color: C.t3, h: 1.45)),
-              ])),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, size: 20, color: C.t4),
-            ]),
-          ).animate().fadeIn(delay: Duration(milliseconds: (i * 40).clamp(0, 400)))
-            .slideY(begin: 0.05, end: 0, delay: Duration(milliseconds: (i * 40).clamp(0, 400))),
-        );
-      });
+            child: Container(
+              height: 196,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.12), blurRadius: 20, offset: const Offset(0, 10))],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(fit: StackFit.expand, children: [
+                Image.asset(serviceImageFor('${asStr(svc['slug'])} $name', i), fit: BoxFit.cover, cacheWidth: 900),
+                const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Color(0xE60B1F14)], stops: [0.25, 1]))),
+                Positioned(left: 18, right: 18, bottom: 16, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name, style: vx(22, w: FontWeight.w600, color: Colors.white, h: 1.15)),
+                  const SizedBox(height: 4),
+                  Text(asStr(svc['overview']), maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: p(12.5, color: Colors.white.withValues(alpha: 0.8), h: 1.4)),
+                ])),
+                Positioned(top: 14, right: 14, child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9), shape: BoxShape.circle),
+                  child: const Icon(Icons.arrow_outward_rounded, size: 18, color: V.ink),
+                )),
+              ]),
+            ),
+          ),
+        ).animate().fadeIn(delay: Duration(milliseconds: (i * 50).clamp(0, 400)))
+          .slideY(begin: 0.05, end: 0, delay: Duration(milliseconds: (i * 50).clamp(0, 400)));
+      }, childCount: _services.length)),
+    )];
   }
 }

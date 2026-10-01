@@ -68,8 +68,8 @@ class _SubsState extends State<SubscriptionsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: C.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: const Color(0xFFF7FBF7),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => _ScheduleSheet(sub: sub, api: _api, onDone: _load),
     );
   }
@@ -78,54 +78,42 @@ class _SubsState extends State<SubscriptionsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: C.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: const Color(0xFFF7FBF7),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => _DetailsSheet(sub: sub),
     );
   }
 
   @override
-  Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: Colors.transparent,
-    body: NestedScrollView(
-      headerSliverBuilder: (_, __) => [
-        SliverToBoxAdapter(child: GHeader(pb: 16,
-          child: Row(children: [
-            GestureDetector(onTap: () => Navigator.pop(ctx),
-              child: Container(width: 36, height: 36,
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('My Subscriptions', style: p(18, w: FontWeight.w800, color: Colors.white)),
-              Text('Manage your garden plans', style: p(11, color: Colors.white60)),
-            ])),
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(ctx, '/plans'),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [V.lime, Color(0xFFB8F02A)]),
-                  borderRadius: BorderRadius.circular(99)),
-                child: Text('+ New Plan', style: p(12, w: FontWeight.w700, color: const Color(0xFF1A0F00))))),
-          ]))),
-      ],
+  Widget build(BuildContext ctx) {
+    final bottom = MediaQuery.of(ctx).padding.bottom + 32;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
       body: RefreshIndicator(
-        color: C.forest, onRefresh: _load,
-        child: _loading
-          ? ListView.builder(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: 3,
-              itemBuilder: (_, __) => const Padding(padding: EdgeInsets.only(bottom: 16), child: GSkelCard()))
-          : _subs.isEmpty
-            ? ListView(children: [GEmpty(
-                title: 'No subscriptions yet',
-                sub: 'Subscribe to a monthly garden care plan and never worry about your plants again',
-                icon: Icons.card_membership_outlined,
-                action: GBtn(label: 'Browse Plans', onTap: () => Navigator.pushNamed(ctx, '/plans'), w: 180, h: 44))])
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                itemCount: _subs.length,
-                itemBuilder: (_, i) => _SubCard(
-                  sub: _subs[i],
+        color: V.leaf, onRefresh: _load,
+        child: CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), slivers: [
+          SliverToBoxAdapter(child: VPageHeader(
+            title: 'My plans',
+            subtitle: 'Your garden care subscriptions and upcoming visits.',
+            trailing: VPillAction(label: 'New plan', onTap: () => Navigator.pushNamed(ctx, '/plans')),
+          )),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          if (_loading)
+            SliverPadding(padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+              sliver: SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 3)))
+          else if (_subs.isEmpty)
+            SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+              title: 'No plans yet',
+              sub: 'Pick a monthly care plan and a gardener will look after your plants on a regular schedule.',
+              icon: Icons.event_repeat_outlined,
+              action: GBtn(label: 'Browse plans', onTap: () => Navigator.pushNamed(ctx, '/plans'), w: 200, h: 48)))
+          else
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
+              sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _SubCard(
+                  sub: asMap(_subs[i]),
                   acting: _acting,
                   onPause: () => _pause(asInt(_subs[i]['id'])),
                   onResume: () => _resume(asInt(_subs[i]['id'])),
@@ -133,15 +121,17 @@ class _SubsState extends State<SubscriptionsScreen> {
                   onSchedule: () => _showSchedule(asMap(_subs[i])),
                   onDetails: () => _showDetails(asMap(_subs[i])),
                   onInvoice: () => downloadInvoice(context, InvoiceType.subscription, asInt(_subs[i]['id'])),
-                ).animate().fadeIn(delay: Duration(milliseconds: i * 60))
-                  .slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 60)),
-              ),
+                ),
+              ).animate().fadeIn(delay: Duration(milliseconds: i * 60)).slideY(begin: 0.05, end: 0, delay: Duration(milliseconds: i * 60)),
+              childCount: _subs.length)),
+            ),
+        ]),
       ),
-    ),
-  );
+    );
+  }
 }
 
-// ─── Subscription Card ────────────────────────────────────────────────────────
+// ─── Subscription card — membership-card style ───────────────────────────────
 class _SubCard extends StatelessWidget {
   final Map<String, dynamic> sub;
   final bool acting;
@@ -150,6 +140,13 @@ class _SubCard extends StatelessWidget {
     required this.onResume, required this.onCancel, required this.onSchedule, required this.onDetails,
     required this.onInvoice});
 
+  static String _fmt(String s) {
+    final d = DateTime.tryParse(s);
+    if (d == null) return s.isEmpty ? '—' : s;
+    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${d.day} ${m[d.month - 1]}';
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final status = asStr(sub['status'], 'pending');
@@ -157,135 +154,99 @@ class _SubCard extends StatelessWidget {
     final isPaused = status == 'paused';
     final plan = asMap(sub['plan']);
     final visitsPerMonth = asInt(plan['visits_per_month']);
-    final scheduledCount = asInt(sub['scheduled_visits_count']);
-    final canSchedule = isActive && scheduledCount < visitsPerMonth;
-
+    final scheduled = asInt(sub['scheduled_visits_count']);
+    final canSchedule = isActive && scheduled < visitsPerMonth;
     final nextVisit = asStr(sub['next_visit_date']);
+    final dark = isActive;
+    final fg = dark ? Colors.white : V.ink;
+    final muted = dark ? Colors.white.withValues(alpha: 0.65) : V.fog;
+    final progress = visitsPerMonth > 0 ? (scheduled / visitsPerMonth).clamp(0.0, 1.0) : 0.0;
 
-    return GCard(
-      padding: EdgeInsets.zero,
-      bordered: true,
-      shadows: isActive ? [BoxShadow(color: C.forest.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, 4))] : s1(),
-      child: Column(children: [
-        // Status bar for active
-        if (isActive) Container(
-          height: 34, width: double.infinity,
-          decoration: BoxDecoration(
-            color: C.green.withOpacity(0.08),
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: C.green)),
-            const SizedBox(width: 7),
-            Text('ACTIVE SUBSCRIPTION', style: p(9.5, w: FontWeight.w800, color: C.green, ls: 0.8)),
-          ])),
-        if (isPaused) Container(
-          height: 34, width: double.infinity,
-          decoration: BoxDecoration(
-            color: C.amber.withOpacity(0.08),
-            borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: C.amber)),
-            const SizedBox(width: 7),
-            Text('PAUSED', style: p(9.5, w: FontWeight.w800, color: C.amber, ls: 0.8)),
-          ])),
-
-        Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(width: 44, height: 44,
+    Widget action(IconData icon, String label, VoidCallback? onTap, {bool primary = false}) => Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Opacity(
+          opacity: onTap == null ? 0.4 : 1,
+          child: Column(children: [
+            Container(
+              width: 46, height: 46,
               decoration: BoxDecoration(
-                color: isActive ? C.forest.withOpacity(0.08) : C.subtle,
-                borderRadius: BorderRadius.circular(13)),
-              child: Icon(Icons.card_membership_rounded, size: 22, color: isActive ? C.forest : C.t4)),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(asStr(plan['name'], 'Garden Plan'), style: p(15, w: FontWeight.w800, color: C.t1)),
-              Text('${sub['plant_count'] ?? '—'} plants · $scheduledCount/$visitsPerMonth visits', style: p(11, color: C.t3)),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('₹${asDouble(plan['price']).toStringAsFixed(0)}',
-                style: p(18, w: FontWeight.w900, color: C.forest, ls: -0.5)),
-              Text('/month', style: p(10, color: C.t4)),
-            ]),
+                shape: BoxShape.circle,
+                color: primary ? V.lime : (dark ? Colors.white.withValues(alpha: 0.1) : V.mint),
+              ),
+              child: Icon(icon, size: 20, color: primary ? V.ink : (dark ? Colors.white : V.deep)),
+            ),
+            const SizedBox(height: 6),
+            Text(label, style: p(11, w: FontWeight.w500, color: fg)),
           ]),
-
-          const SizedBox(height: 14),
-
-          // Details row
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: C.subtle, borderRadius: BorderRadius.circular(14)),
-            child: Column(children: [
-              Row(children: [
-                Expanded(child: _InfoCol(label: 'Start Date', value: _fmt(asStr(sub['start_date'])))),
-                Expanded(child: _InfoCol(label: 'End Date', value: _fmt(asStr(sub['end_date'])))),
-                if (nextVisit.isNotEmpty) Expanded(child: _InfoCol(label: 'Next Visit', value: _fmt(nextVisit))),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Expanded(child: _InfoCol(label: 'Address', value: asStr(sub['service_address'], '—'))),
-              ]),
-            ]),
-          ),
-
-          // Action buttons
-          const SizedBox(height: 14),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            if (isActive && canSchedule)
-              _ActionBtn(label: 'Schedule Dates', icon: Icons.calendar_month_rounded, primary: true, onTap: acting ? null : onSchedule),
-            if (isActive)
-              _ActionBtn(label: 'Pause', icon: Icons.pause_rounded, onTap: acting ? null : onPause),
-            if (isPaused)
-              _ActionBtn(label: 'Resume', icon: Icons.play_arrow_rounded, primary: true, onTap: acting ? null : onResume),
-            _ActionBtn(label: 'View Visits', icon: Icons.list_alt_rounded, onTap: onDetails),
-            if (!['cancelled', 'failed'].contains(status))
-              _ActionBtn(label: 'Invoice', icon: Icons.receipt_long_rounded, onTap: onInvoice),
-            if (isActive || isPaused)
-              _ActionBtn(label: 'Cancel', icon: Icons.close_rounded, danger: true, onTap: acting ? null : onCancel),
-          ]),
-        ])),
-      ]),
-    );
-  }
-
-  String _fmt(String s) {
-    if (s.length >= 10) return s.substring(0, 10);
-    return s.isEmpty ? '—' : s;
-  }
-}
-
-class _InfoCol extends StatelessWidget {
-  final String label, value;
-  const _InfoCol({required this.label, required this.value});
-  @override
-  Widget build(BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: p(9, w: FontWeight.w700, color: C.t4, ls: 0.5)),
-    const SizedBox(height: 2),
-    Text(value, style: p(11, w: FontWeight.w600, color: C.t2), maxLines: 1, overflow: TextOverflow.ellipsis),
-  ]);
-}
-
-class _ActionBtn extends StatelessWidget {
-  final String label; final IconData icon;
-  final bool primary, danger; final VoidCallback? onTap;
-  const _ActionBtn({required this.label, required this.icon, required this.onTap, this.primary = false, this.danger = false});
-  @override
-  Widget build(BuildContext ctx) {
-    final col = danger ? C.red : primary ? C.forest : C.t3;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: primary ? C.forest : danger ? C.red.withOpacity(0.08) : C.subtle,
-          borderRadius: BorderRadius.circular(99),
-          border: Border.all(color: primary ? C.forest : danger ? C.red.withOpacity(0.3) : C.border)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 13, color: primary ? Colors.white : col),
-          const SizedBox(width: 6),
-          Text(label, style: p(11, w: FontWeight.w700, color: primary ? Colors.white : col)),
-        ]),
+        ),
       ),
     );
+
+    final body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(asStr(plan['name'], 'Garden plan'), style: vx(22, w: FontWeight.w600, color: fg, ls: -0.3)),
+          const SizedBox(height: 2),
+          Text('${sub['plant_count'] ?? '—'} plants  ·  ₹${asDouble(plan['price']).toStringAsFixed(0)} / month', style: p(12.5, color: muted)),
+        ])),
+        GBadge(status, small: true),
+      ]),
+      const SizedBox(height: 18),
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Next visit', style: p(11.5, color: muted)),
+          const SizedBox(height: 2),
+          Text(nextVisit.isNotEmpty ? _fmt(nextVisit) : (canSchedule ? 'Not scheduled' : '—'),
+            style: vx(24, w: FontWeight.w600, color: fg, h: 1.05)),
+        ])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('Valid till', style: p(11.5, color: muted)),
+          const SizedBox(height: 2),
+          Text(_fmt(asStr(sub['end_date'])), style: p(14, w: FontWeight.w600, color: fg)),
+        ]),
+      ]),
+      if (visitsPerMonth > 0) ...[
+        const SizedBox(height: 16),
+        Row(children: [
+          Text('Visits this month', style: p(11.5, color: muted)),
+          const Spacer(),
+          Text('$scheduled of $visitsPerMonth scheduled', style: p(11.5, w: FontWeight.w600, color: fg)),
+        ]),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: progress, minHeight: 6,
+            backgroundColor: dark ? Colors.white.withValues(alpha: 0.12) : V.ink.withValues(alpha: 0.08),
+            valueColor: AlwaysStoppedAnimation(dark ? V.lime : V.leaf),
+          ),
+        ),
+      ],
+      const SizedBox(height: 18),
+      Row(children: [
+        if (isActive) action(Icons.calendar_month_outlined, 'Schedule', acting || !canSchedule ? null : onSchedule, primary: canSchedule),
+        if (isActive) action(Icons.pause_rounded, 'Pause', acting ? null : onPause),
+        if (isPaused) action(Icons.play_arrow_rounded, 'Resume', acting ? null : onResume, primary: true),
+        action(Icons.list_alt_outlined, 'Visits', onDetails),
+        if (!['cancelled', 'failed'].contains(status)) action(Icons.receipt_long_outlined, 'Invoice', onInvoice),
+      ]),
+      if (isActive || isPaused) ...[
+        const SizedBox(height: 12),
+        Center(child: GestureDetector(
+          onTap: acting ? null : onCancel,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+            child: Text('Cancel plan', style: p(12, w: FontWeight.w500, color: dark ? Colors.white.withValues(alpha: 0.55) : C.red)),
+          ),
+        )),
+      ],
+    ]);
+
+    const pad = EdgeInsets.fromLTRB(20, 20, 20, 12);
+    return dark
+        ? VPod(radius: 28, padding: pad, child: body)
+        : GCard(padding: pad, radius: BorderRadius.circular(28), child: body);
   }
 }
 

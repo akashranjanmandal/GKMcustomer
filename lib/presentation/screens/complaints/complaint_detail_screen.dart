@@ -58,21 +58,25 @@ class _State extends State<ComplaintDetailScreen> {
     finally { if (mounted) setState(() => _sending = false); }
   }
 
-  Color _statusColor(String s) => switch (s) {
-    'open' => C.red,
-    'in_progress' => Colors.blue,
-    'awaiting_customer' => Colors.purple,
-    'in_review' => C.amber,
-    'resolved' => C.green,
-    'closed' => C.t4,
-    'reopened' => Colors.deepOrange,
-    _ => C.t4,
-  };
+
+  static String _when(String s) {
+    final d = DateTime.tryParse(s)?.toLocal();
+    if (d == null) return '';
+    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final hh = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    return '${d.day} ${m[d.month - 1]}, $hh:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'am' : 'pm'}';
+  }
 
   @override
   Widget build(BuildContext ctx) {
-    if (_loading) return Scaffold(appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: const Center(child: CircularProgressIndicator()));
-    if (_ticket == null) return Scaffold(appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: Center(child: Text('Ticket not found', style: p(14))));
+    if (_loading) return Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
+      VPageHeader(title: 'Ticket', onBack: () => Navigator.pop(ctx, true)),
+      const Expanded(child: Center(child: CircularProgressIndicator(color: V.leaf))),
+    ]));
+    if (_ticket == null) return Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
+      VPageHeader(title: 'Ticket', onBack: () => Navigator.pop(ctx, true)),
+      const Expanded(child: GEmpty(title: 'Ticket not found', sub: 'It may have been closed or removed.', icon: Icons.headset_mic_outlined)),
+    ]));
 
     final t = _ticket!;
     final status = asStr(t['status'], 'open');
@@ -81,57 +85,69 @@ class _State extends State<ComplaintDetailScreen> {
     final events = [
       ...comments.map((c) => {'kind': 'comment', 'at': c['created_at'], 'data': c}),
       ...history.map((h) => {'kind': 'status', 'at': h['created_at'], 'data': h}),
-    ]..sort((a, b) => (a['at'] as String).compareTo(b['at'] as String));
+    ]..sort((a, b) => asStr(a['at']).compareTo(asStr(b['at'])));
     final attachments = (t['attachments'] as List?) ?? [];
+    final type = asStr(t['type']).replaceAll('_', ' ');
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(children: [
-        GHeader(pb: 16, child: Row(children: [
-          GestureDetector(onTap: () => Navigator.pop(ctx, true),
-            child: Container(width: 36, height: 36,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(asStr(t['ticket_number'], '#${t['id']}'), style: p(13, w: FontWeight.w700, color: Colors.white70)),
-            Text(asStr(t['subject'], asStr(t['type']).replaceAll('_', ' ')),
-              style: p(16, w: FontWeight.w800, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
-          ])),
-        ])),
+        SafeArea(bottom: false, child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 16, 0),
+          child: Row(children: [
+            VRoundBtn(icon: Icons.arrow_back_rounded, onTap: () => Navigator.pop(ctx, true)),
+            const SizedBox(width: 12),
+            Expanded(child: Text(asStr(t['ticket_number'], '#${t['id']}'), style: p(13, color: V.fog))),
+            GBadge(status),
+          ]),
+        )),
         Expanded(child: RefreshIndicator(
-          onRefresh: _load, color: C.forest,
-          child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), children: [
-            // Status / meta
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              _Chip(label: status.replaceAll('_', ' '), color: _statusColor(status)),
-              _Chip(label: asStr(t['priority'], 'medium'), color: C.amber),
-              if (t['department'] != null) _Chip(label: asStr(t['department']?['name']), color: C.forest),
-              if (t['assignedTo'] != null) _Chip(label: 'Assigned: ${asStr(t['assignedTo']?['name'])}', color: C.t3),
-            ]),
-            const SizedBox(height: 16),
-            GCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Issue', style: p(11, w: FontWeight.w700, color: C.t4, ls: 0.5)),
-              const SizedBox(height: 6),
-              Text(asStr(t['description']), style: p(14, color: C.t1, h: 1.5)),
-              if (attachments.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (final a in attachments) _Attach(att: Map<String, dynamic>.from(a as Map)),
+          onRefresh: _load, color: V.leaf,
+          child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 20), children: [
+            VPod(
+              radius: 24,
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (type.isNotEmpty) Text(type[0].toUpperCase() + type.substring(1), style: p(12, color: Colors.white.withValues(alpha: 0.6))),
+                const SizedBox(height: 2),
+                Text(asStr(t['subject'], 'Your issue'), style: vx(21, w: FontWeight.w600, color: Colors.white, h: 1.2)),
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 6, children: [
+                  if (t['department'] != null) _Chip(label: asStr(t['department']?['name'])),
+                  if (t['assignedTo'] != null) _Chip(label: 'With ${asStr(t['assignedTo']?['name'])}'),
+                  if (t['booking_id'] != null) _Chip(label: 'Booking #${t['booking_id']}'),
                 ]),
-              ],
-            ])),
+              ]),
+            ),
             const SizedBox(height: 20),
-            Text('Activity', style: p(13, w: FontWeight.w800, color: C.t1)),
-            const SizedBox(height: 10),
-            if (events.isEmpty)
-              Text('No replies yet. Our team will respond shortly.',
-                style: p(12, color: C.t4, w: FontWeight.w500)),
+            // Your original message
+            _Bubble(
+              mine: true,
+              name: 'You',
+              when: _when(asStr(t['created_at'] ?? t['createdAt'])),
+              text: asStr(t['description']),
+              attachments: [for (final a in attachments) Map<String, dynamic>.from(a as Map)],
+            ),
             for (final ev in events) Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(top: 10),
               child: ev['kind'] == 'comment'
-                ? _CommentBubble(c: Map<String, dynamic>.from(ev['data'] as Map))
+                ? Builder(builder: (_) {
+                    final c = Map<String, dynamic>.from(ev['data'] as Map);
+                    final role = asStr(c['user_role']);
+                    final staff = role == 'admin' || role == 'supervisor';
+                    return _Bubble(
+                      mine: !staff,
+                      name: staff ? asStr(c['user']?['name'], 'Support') : 'You',
+                      when: _when(asStr(c['created_at'])),
+                      text: asStr(c['comment']),
+                      attachments: [for (final a in (c['attachments'] as List?) ?? []) Map<String, dynamic>.from(a as Map)],
+                    );
+                  })
                 : _StatusEntry(h: Map<String, dynamic>.from(ev['data'] as Map)),
+            ),
+            if (comments.isEmpty) Padding(
+              padding: const EdgeInsets.only(top: 18),
+              child: Center(child: Text('Our team will reply here shortly.', style: p(12.5, color: V.fog))),
             ),
           ]),
         )),
@@ -146,95 +162,88 @@ class _State extends State<ComplaintDetailScreen> {
 }
 
 class _Chip extends StatelessWidget {
-  final String label; final Color color;
-  const _Chip({required this.label, required this.color});
+  final String label;
+  const _Chip({required this.label});
   @override Widget build(BuildContext ctx) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(99)),
-    child: Text(label.toUpperCase(), style: p(10, w: FontWeight.w700, color: color, ls: 0.5)),
+    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(99)),
+    child: Text(label, style: p(11.5, color: Colors.white.withValues(alpha: 0.85))),
   );
 }
 
-class _CommentBubble extends StatelessWidget {
-  final Map<String, dynamic> c;
-  const _CommentBubble({required this.c});
-  @override Widget build(BuildContext ctx) {
-    final role = asStr(c['user_role']);
-    final isStaff = role == 'admin' || role == 'supervisor';
-    final atts = (c['attachments'] as List?) ?? [];
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isStaff ? C.subtle : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isStaff ? C.forest.withOpacity(0.20) : C.border),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text(asStr(c['user']?['name'], isStaff ? 'Support' : 'You'),
-            style: p(12, w: FontWeight.w800, color: C.t1)),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: (isStaff ? C.green : C.gold).withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-            child: Text(isStaff ? 'SUPPORT' : role.toUpperCase(),
-              style: p(9, w: FontWeight.w800, color: isStaff ? C.green : C.gold, ls: 0.4))),
-          const Spacer(),
-          Text(asStr(c['created_at']).length >= 16 ? asStr(c['created_at']).substring(0, 16).replaceFirst('T', ' ') : '',
-            style: p(10, color: C.t4)),
-        ]),
-        const SizedBox(height: 6),
-        Text(asStr(c['comment']), style: p(13, color: C.t1, h: 1.5)),
-        if (atts.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final a in atts) _Attach(att: Map<String, dynamic>.from(a as Map)),
+// Chat bubble: yours on the right (ink), support on the left (glass).
+class _Bubble extends StatelessWidget {
+  final bool mine;
+  final String name, when, text;
+  final List<Map<String, dynamic>> attachments;
+  const _Bubble({required this.mine, required this.name, required this.when, required this.text, this.attachments = const []});
+  @override Widget build(BuildContext ctx) => Align(
+    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(ctx).size.width * 0.8),
+      child: Column(crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text('$name  ·  $when', style: p(11, color: V.fog)),
+        ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: mine ? V.ink : Colors.white.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(20), topRight: const Radius.circular(20),
+              bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
+            border: mine ? null : Border.all(color: Colors.white),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (text.isNotEmpty) Text(text, style: p(13.5, color: mine ? Colors.white : V.ink, h: 1.5)),
+            if (attachments.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [for (final a in attachments) _Attach(att: a, onDark: mine)]),
+            ],
           ]),
-        ],
+        ),
       ]),
-    );
-  }
+    ),
+  );
 }
 
 class _StatusEntry extends StatelessWidget {
   final Map<String, dynamic> h;
   const _StatusEntry({required this.h});
-  @override Widget build(BuildContext ctx) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(children: [
-      const Icon(Icons.history_rounded, size: 13, color: C.t4),
-      const SizedBox(width: 6),
-      Expanded(child: Text(
-        'Status: ${asStr(h['from_status'], '—')} → ${asStr(h['to_status'])}',
-        style: p(11, color: C.t4))),
-    ]),
-  );
+  @override Widget build(BuildContext ctx) => Center(child: Container(
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(color: V.ink.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(99)),
+    child: Text('Status changed to ${asStr(h['to_status']).replaceAll('_', ' ')}', style: p(11.5, color: V.fog)),
+  ));
 }
 
 class _Attach extends StatelessWidget {
   final Map<String, dynamic> att;
-  const _Attach({required this.att});
+  final bool onDark;
+  const _Attach({required this.att, this.onDark = false});
   @override Widget build(BuildContext ctx) {
     final type = asStr(att['file_type']);
     final url = asStr(att['file_url']);
     final isImage = type.startsWith('image/');
     return GestureDetector(
       onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: C.subtle, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.border)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (isImage)
-            ClipRRect(borderRadius: BorderRadius.circular(6),
-              child: Image.network(url, width: 32, height: 32, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 24)))
-          else const Icon(Icons.attach_file_rounded, size: 16, color: C.t3),
-          const SizedBox(width: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 140),
-            child: Text(asStr(att['file_name']), maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: p(11, color: C.t2, w: FontWeight.w600))),
-        ]),
-      ),
+      child: isImage
+        ? ClipRRect(borderRadius: BorderRadius.circular(12),
+            child: Image.network(url, width: 84, height: 84, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(width: 84, height: 84, color: V.mint, child: const Icon(Icons.image_outlined, color: V.deep))))
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: onDark ? Colors.white.withValues(alpha: 0.12) : V.mint, borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.attach_file_rounded, size: 15, color: onDark ? Colors.white : V.deep),
+              const SizedBox(width: 6),
+              ConstrainedBox(constraints: const BoxConstraints(maxWidth: 140),
+                child: Text(asStr(att['file_name']), maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: p(11.5, w: FontWeight.w500, color: onDark ? Colors.white : V.deep))),
+            ]),
+          ),
     );
   }
 }
@@ -249,39 +258,55 @@ class _Composer extends StatelessWidget {
     required this.onPick, required this.onRemove, required this.onSend});
 
   @override
-  Widget build(BuildContext ctx) => Container(
-    padding: EdgeInsets.fromLTRB(12, 10, 12, MediaQuery.of(ctx).viewInsets.bottom + 10),
-    decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: C.border))),
+  Widget build(BuildContext ctx) => Padding(
+    padding: EdgeInsets.fromLTRB(12, 8, 12,
+      MediaQuery.of(ctx).viewInsets.bottom > 0 ? MediaQuery.of(ctx).viewInsets.bottom + 8 : MediaQuery.of(ctx).padding.bottom + 10),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
-      if (files.isNotEmpty)
-        SizedBox(height: 32, child: ListView.separated(
+      if (files.isNotEmpty) ...[
+        SizedBox(height: 34, child: ListView.separated(
           scrollDirection: Axis.horizontal, itemCount: files.length,
           separatorBuilder: (_, __) => const SizedBox(width: 6),
           itemBuilder: (_, i) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: C.subtle, borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: V.mint, borderRadius: BorderRadius.circular(99)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.image, size: 14, color: C.t3),
+              const Icon(Icons.image_outlined, size: 14, color: V.deep),
               const SizedBox(width: 4),
-              Text(files[i].path.split('/').last, style: p(11, color: C.t3)),
+              ConstrainedBox(constraints: const BoxConstraints(maxWidth: 120),
+                child: Text(files[i].path.split('/').last, maxLines: 1, overflow: TextOverflow.ellipsis, style: p(11, color: V.deep))),
               GestureDetector(onTap: () => onRemove(i),
-                child: const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.close, size: 13))),
+                child: const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.close_rounded, size: 14, color: V.deep))),
             ]),
           ),
         )),
-      if (files.isNotEmpty) const SizedBox(height: 8),
-      Row(children: [
-        IconButton(onPressed: onPick, icon: const Icon(Icons.attach_file_rounded, color: C.t3)),
-        Expanded(child: TextField(
-          controller: ctrl, minLines: 1, maxLines: 4,
-          style: p(13, color: C.t1),
-          decoration: const InputDecoration(hintText: 'Type your reply…', border: InputBorder.none),
-        )),
-        IconButton(
-          onPressed: sending ? null : onSend,
-          icon: sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.send_rounded, color: C.forest)),
-      ]),
+        const SizedBox(height: 8),
+      ],
+      Container(
+        padding: const EdgeInsets.fromLTRB(4, 4, 5, 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white),
+          boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.08), blurRadius: 18, offset: const Offset(0, 6))],
+        ),
+        child: Row(children: [
+          IconButton(onPressed: onPick, icon: const Icon(Icons.add_photo_alternate_outlined, color: V.fog)),
+          Expanded(child: TextField(
+            controller: ctrl, minLines: 1, maxLines: 4,
+            style: p(13.5, color: V.ink),
+            decoration: InputDecoration(hintText: 'Write a reply…', hintStyle: p(13.5, color: V.fog),
+              border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false, isDense: true),
+          )),
+          GestureDetector(
+            onTap: sending ? null : onSend,
+            child: Container(
+              width: 44, height: 44,
+              decoration: const BoxDecoration(color: V.ink, shape: BoxShape.circle),
+              child: sending
+                ? const Padding(padding: EdgeInsets.all(13), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.arrow_upward_rounded, color: V.lime, size: 20),
+            ),
+          ),
+        ]),
+      ),
     ]),
   );
 }

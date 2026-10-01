@@ -215,3 +215,112 @@ class VFrost extends StatelessWidget {
         ),
       );
 }
+
+// ─── Page header (light) ─────────────────────────────────────────────────────
+// Round glass back button, optional trailing action, then a large serif title
+// and subtitle sitting directly on the page — the standard top of a screen.
+class VPageHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onBack;
+  const VPageHeader({super.key, required this.title, this.subtitle, this.trailing, this.onBack});
+  @override
+  Widget build(BuildContext ctx) => SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 16, 0),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              VRoundBtn(icon: Icons.arrow_back_rounded, onTap: onBack ?? () => Navigator.maybePop(ctx)),
+              const Spacer(),
+              if (trailing != null) trailing!,
+            ]),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 18, 8, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: vx(32, w: FontWeight.w600, color: V.ink, ls: -0.8)),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(subtitle!, style: GoogleFonts.poppins(fontSize: 13, color: V.fog, height: 1.4)),
+                ],
+              ]),
+            ),
+          ]),
+        ),
+      );
+}
+
+class VRoundBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const VRoundBtn({super.key, required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.75), shape: BoxShape.circle, border: Border.all(color: Colors.white)),
+          child: Icon(icon, size: 21, color: V.ink),
+        ),
+      );
+}
+
+// Dark pill action for page headers ("+ Book a visit").
+class VPillAction extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  const VPillAction({super.key, required this.label, this.icon = Icons.add_rounded, required this.onTap});
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 10, 16, 10),
+          decoration: BoxDecoration(color: V.ink, borderRadius: BorderRadius.circular(99)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 18, color: V.lime),
+            const SizedBox(width: 6),
+            Text(label, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+          ]),
+        ),
+      );
+}
+
+// Light filter chip (ink when selected).
+class VFilterChip extends StatelessWidget {
+  final String label; final bool sel; final VoidCallback onTap;
+  const VFilterChip({super.key, required this.label, required this.sel, required this.onTap});
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: sel ? V.ink : Colors.white.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(color: sel ? V.ink : Colors.white),
+          ),
+          child: Text(label, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: sel ? Colors.white : V.ink)),
+        ),
+      );
+}
+
+// Picks a garden photo for a service by its slug/name keywords.
+String serviceImageFor(String key, int i) {
+  final k = key.toLowerCase();
+  // Most specific first — "Monthly Plant Care" must match monthly, not plant.
+  if (k.contains('lawn') || k.contains('grass')) return 'assets/images/Lawn.jpeg';
+  if (k.contains('balcon')) return 'assets/images/balcony.jpeg';
+  if (k.contains('terrace') || k.contains('roof')) return 'assets/images/terrace.jpeg';
+  if (k.contains('makeover') || k.contains('landscap') || k.contains('design')) return 'assets/images/img-3.jpeg';
+  if (k.contains('month') || k.contains('mainten') || k.contains('subscri')) return 'assets/images/backyard.jpeg';
+  if (k.contains('one-time') || k.contains('one time') || k.contains('demand') || k.contains('visit')) return 'assets/images/img-6.jpeg';
+  if (k.contains('indoor') || k.contains('office')) return 'assets/images/office_mobile.jpeg';
+  if (k.contains('pest') || k.contains('disease')) return 'assets/images/img-12.jpeg';
+  if (k.contains('soil') || k.contains('compost') || k.contains('fertil')) return 'assets/images/img-9.jpeg';
+  const pool = ['assets/images/indoor.jpeg', 'assets/images/img-10.jpeg', 'assets/images/img-15.jpeg', 'assets/images/img-6.jpeg', 'assets/images/office_mobile.jpeg'];
+  return pool[i % pool.length];
+}

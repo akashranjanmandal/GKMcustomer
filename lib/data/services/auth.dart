@@ -18,7 +18,6 @@ class AuthProvider extends ChangeNotifier {
   String  get phone         => asStr(_user?['phone'] ?? _user?['phone_number'] ?? _user?['mobile']);
   String? get email         => _user?['email'] as String?;
   String? get profileImage  => _user?['profile_image'] as String?;
-  double  get walletBalance => asDouble(_user?['wallet_balance']);
   String? get referralCode  => _user?['referral_code'] as String?;
 
   AuthProvider() { _hydrate(); }

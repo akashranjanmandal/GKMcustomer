@@ -385,7 +385,7 @@ class _WelcomeCard extends StatelessWidget {
             SizedBox(height: MediaQuery.of(ctx).size.height * 0.06),
             Text('Hello!', style: p(30, w: FontWeight.w500, color: Colors.white)),
             const SizedBox(height: 8),
-            Text('Expert gardeners at your doorstep — plant care, makeovers and a shop for everything green.',
+            Text('Expert gardeners at your doorstep plant care, makeovers and a shop for everything green.',
                 style: p(13, color: Colors.white.withValues(alpha: 0.85), h: 1.45)),
             const SizedBox(height: 28),
             _PillButton(label: 'Sign in', onTap: onSignIn),

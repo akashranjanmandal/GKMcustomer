@@ -85,79 +85,65 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(ctx),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: C.t1),
-        ),
-        title: Text('Edit Profile', style: p(17, w: FontWeight.w800, color: C.t1)),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(children: [
-          const Divider(height: 1, color: C.divider),
-          const SizedBox(height: 32),
-
-          // Avatar picker
-          Center(child: GestureDetector(
-            onTap: _pickImage,
-            child: Stack(children: [
-              Container(
-                width: 100, height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: C.forest.withOpacity(0.1),
-                  border: Border.all(color: C.forest.withOpacity(0.2), width: 2),
+      body: Stack(children: [
+        SingleChildScrollView(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).padding.bottom + 110),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const VPageHeader(title: 'Your profile', subtitle: 'How we address you and send receipts.'),
+            const SizedBox(height: 26),
+            Center(child: GestureDetector(
+              onTap: _pickImage,
+              child: Stack(children: [
+                Container(
+                  width: 120, height: 120,
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white,
+                    boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.12), blurRadius: 24, offset: const Offset(0, 10))]),
+                  child: ClipOval(child: Container(
+                    color: V.deep,
+                    child: _newImg != null
+                      ? Image.file(_newImg!, fit: BoxFit.cover)
+                      : imgUrl != null
+                        ? Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _initials(auth.name))
+                        : _initials(auth.name),
+                  )),
                 ),
-                child: ClipOval(child: _newImg != null
-                  ? Image.file(_newImg!, fit: BoxFit.cover)
-                  : imgUrl != null
-                    ? Image.network(imgUrl, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _initials(auth.name))
-                    : _initials(auth.name)),
-              ),
-              Positioned(right: 0, bottom: 0,
-                child: Container(
-                  width: 30, height: 30,
-                  decoration: const BoxDecoration(color: C.forest, shape: BoxShape.circle),
-                  child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
-                )),
-            ]),
-          )),
-          const SizedBox(height: 8),
-          Text('Tap to change photo', style: p(12, color: C.t4)),
-
-          const SizedBox(height: 36),
-
-          // Phone (read-only)
-          _ReadOnlyField(
-            label: 'Mobile Number',
-            value: auth.phone.isNotEmpty ? '+91 ${auth.phone}' : 'Not available',
-            icon: Icons.phone_android_rounded,
-          ),
-          const SizedBox(height: 16),
-
-          // Name
-          GField(ctrl: _nameCtrl, label: 'Full Name', hint: 'e.g. Rahul Sharma', icon: Icons.person_rounded),
-          const SizedBox(height: 16),
-
-          // Email
-          GField(ctrl: _emailCtrl, label: 'Email', hint: 'e.g. rahul@email.com', icon: Icons.email_rounded, keyboard: TextInputType.emailAddress),
-
-          const SizedBox(height: 40),
-
-          GBtn(label: 'Save Changes', loading: _saving, onTap: _save, bg: C.forest),
-        ]),
-      ),
+                Positioned(right: 2, bottom: 2,
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(color: V.lime, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+                    child: const Icon(Icons.photo_camera_outlined, size: 17, color: V.ink),
+                  )),
+              ]),
+            )),
+            const SizedBox(height: 10),
+            Center(child: Text('Tap to change photo', style: p(12, color: V.fog))),
+            const SizedBox(height: 28),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(children: [
+                _ReadOnlyField(
+                  label: 'Mobile number',
+                  value: auth.phone.isNotEmpty ? '+91 ${auth.phone}' : 'Not available',
+                  icon: Icons.phone_iphone_rounded,
+                ),
+                const SizedBox(height: 18),
+                GField(ctrl: _nameCtrl, label: 'Full name', hint: 'e.g. Rahul Sharma', icon: Icons.person_outline_rounded),
+                const SizedBox(height: 18),
+                GField(ctrl: _emailCtrl, label: 'Email', hint: 'e.g. rahul@email.com', icon: Icons.mail_outline_rounded, keyboard: TextInputType.emailAddress),
+              ]),
+            ),
+          ]),
+        ),
+        Positioned(left: 16, right: 16, bottom: MediaQuery.of(ctx).padding.bottom + 14,
+          child: GBtn(label: 'Save changes', loading: _saving, onTap: _save)),
+      ]),
     );
   }
 
   Widget _initials(String name) => Center(
     child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'U',
-      style: p(32, w: FontWeight.w800, color: C.forest)));
+      style: vx(42, w: FontWeight.w600, color: Colors.white)));
 }
 
 class _ReadOnlyField extends StatelessWidget {
@@ -167,27 +153,17 @@ class _ReadOnlyField extends StatelessWidget {
 
   @override
   Widget build(BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(label, style: p(13, w: FontWeight.w700, color: Colors.black54))),
+    Padding(padding: const EdgeInsets.only(left: 6, bottom: 8),
+      child: Text(label.toUpperCase(), style: vx(10.5, w: FontWeight.w700, color: V.fog, ls: 1.4))),
     Container(
-      height: 58,
-      decoration: BoxDecoration(
-        color: C.subtle,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: C.border),
-      ),
+      height: 56,
+      decoration: BoxDecoration(color: V.ink.withValues(alpha: 0.04), borderRadius: BorderRadius.circular(20)),
       child: Row(children: [
         const SizedBox(width: 16),
-        Icon(icon, size: 20, color: C.t4),
+        Icon(icon, size: 20, color: V.fog),
         const SizedBox(width: 12),
-        Text(value, style: p(15, w: FontWeight.w600, color: C.t3)),
-        const Spacer(),
-        Padding(padding: const EdgeInsets.only(right: 16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: C.border, borderRadius: BorderRadius.circular(6)),
-            child: Text('LOCKED', style: p(9, w: FontWeight.w800, color: C.t4, ls: 0.5)),
-          )),
+        Expanded(child: Text(value, style: p(15, w: FontWeight.w600, color: V.ink.withValues(alpha: 0.6)))),
+        const Padding(padding: EdgeInsets.only(right: 16), child: Icon(Icons.lock_outline_rounded, size: 17, color: V.fog)),
       ]),
     ),
   ]);

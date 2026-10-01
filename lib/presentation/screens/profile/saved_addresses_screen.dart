@@ -35,65 +35,36 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: Text('Saved Addresses', style: p(17, w: FontWeight.w800, color: C.t1)),
-        backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: C.t1),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Column(
-        children: [
-          const Divider(height: 1, color: C.divider),
-          Expanded(
-            child: addresses.isEmpty
-                ? _buildEmptyState()
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-                    itemCount: addresses.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => _AddressTile(
-                      loc: addresses[i],
-                      onDelete: () => _confirmDelete(i),
-                      onSelect: () {
-                        lp.selectIndex(i);
-                        showMsg(context, 'Primary address updated', ok: true);
-                      },
-                      isDefault: lp.location == addresses[i],
-                    ),
-                  ),
+      body: CustomScrollView(slivers: [
+        SliverToBoxAdapter(child: VPageHeader(
+          title: 'Addresses',
+          subtitle: 'Tap an address to make it your primary one.',
+          trailing: VPillAction(label: 'Add address', onTap: _addNew),
+        )),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        if (addresses.isEmpty)
+          SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+            title: 'No saved addresses',
+            sub: 'Add your home or office so booking and checkout are quicker.',
+            icon: Icons.location_on_outlined,
+            action: GBtn(label: 'Add address', onTap: _addNew, w: 200, h: 48)))
+        else
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).padding.bottom + 32),
+            sliver: SliverList(delegate: SliverChildBuilderDelegate((_, i) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _AddressTile(
+                loc: addresses[i],
+                onDelete: () => _confirmDelete(i),
+                onSelect: () {
+                  lp.selectIndex(i);
+                  showMsg(context, 'Primary address updated', ok: true);
+                },
+                isDefault: lp.location == addresses[i],
+              ),
+            ), childCount: addresses.length)),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addNew,
-        backgroundColor: Color(0xFF052B11),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text('Add New Address', style: p(14, w: FontWeight.w700, color: Colors.white)),
-      ).animate().scale(delay: 300.ms, curve: Curves.easeOutBack),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 100, height: 100,
-            decoration: BoxDecoration(color: C.forest.withOpacity(0.06), shape: BoxShape.circle),
-            child: Icon(Icons.location_on_outlined, size: 48, color: C.forest.withOpacity(0.4)),
-          ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
-          const SizedBox(height: 20),
-          Text('No Saved Addresses', style: p(18, w: FontWeight.w800, color: C.t1)),
-          const SizedBox(height: 8),
-          Text('Add your home or office address to\nspeed up your checkout process.',
-            style: p(14, color: C.t3, h: 1.5), textAlign: TextAlign.center),
-        ],
-      ),
+      ]),
     );
   }
 
@@ -129,71 +100,47 @@ class _AddressTile extends StatelessWidget {
     required this.isDefault,
   });
 
+  IconData get _icon {
+    final l = loc.displayLabel.toLowerCase();
+    if (l.contains('home')) return Icons.home_outlined;
+    if (l.contains('office') || l.contains('work')) return Icons.work_outline_rounded;
+    return Icons.location_on_outlined;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GCard(
-      onTap: onSelect,
-      padding: const EdgeInsets.all(16),
-      bg: isDefault ? C.forest.withOpacity(0.04) : Colors.white,
-      bordered: !isDefault,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isDefault ? C.forest : C.bg,
-              borderRadius: BorderRadius.circular(12),
+    final body = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      VOrb(icon: _icon, size: 44, dark: !isDefault),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Flexible(child: Text(loc.displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: vx(17, w: FontWeight.w600, color: isDefault ? Colors.white : V.ink))),
+          if (isDefault) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+              decoration: BoxDecoration(color: V.lime, borderRadius: BorderRadius.circular(99)),
+              child: Text('Primary', style: p(10.5, w: FontWeight.w600, color: V.ink)),
             ),
-            child: Icon(
-              isDefault ? Icons.check_circle_rounded : Icons.location_on_rounded,
-              size: 20,
-              color: isDefault ? Colors.white : C.forest,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        loc.displayLabel,
-                        style: p(15, w: FontWeight.w800, color: C.t1),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isDefault) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: C.forest, borderRadius: BorderRadius.circular(6)),
-                        child: Text('DEFAULT', style: p(9, w: FontWeight.w800, color: Colors.white, ls: 0.5)),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  loc.fullAddress,
-                  style: p(13, color: C.t3, h: 1.4),
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, size: 22, color: C.t4),
-            onPressed: onDelete,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
-          ),
-        ],
+          ],
+        ]),
+        const SizedBox(height: 4),
+        Text(loc.fullAddress, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: p(12.5, color: isDefault ? Colors.white.withValues(alpha: 0.7) : V.fog, h: 1.4)),
+      ])),
+      const SizedBox(width: 6),
+      GestureDetector(
+        onTap: onDelete,
+        child: Padding(padding: const EdgeInsets.all(4),
+          child: Icon(Icons.delete_outline_rounded, size: 21, color: isDefault ? Colors.white54 : V.fog)),
       ),
-    ).animate().fadeIn().slideX(begin: 0.1, end: 0);
+    ]);
+    return GestureDetector(
+      onTap: onSelect,
+      child: isDefault
+        ? VPod(radius: 22, padding: const EdgeInsets.all(16), child: body)
+        : GCard(padding: const EdgeInsets.all(16), radius: BorderRadius.circular(22), child: body),
+    ).animate().fadeIn().slideY(begin: 0.05, end: 0);
   }
 }
