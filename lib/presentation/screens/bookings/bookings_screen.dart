@@ -73,7 +73,7 @@ class _BkListState extends State<BookingsScreen> with SingleTickerProviderStateM
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [C.gold, C.goldDk]),
+                    gradient: const LinearGradient(colors: [V.lime, Color(0xFFB8F02A)]),
                     borderRadius: BorderRadius.circular(99)),
                   child: Text('+ Book', style: p(13, w: FontWeight.w700, color: const Color(0xFF1A0F00))))),
             ]),

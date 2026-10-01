@@ -105,7 +105,7 @@ class _SubsState extends State<SubscriptionsScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [C.gold, C.goldDk]),
+                  gradient: const LinearGradient(colors: [V.lime, Color(0xFFB8F02A)]),
                   borderRadius: BorderRadius.circular(99)),
                 child: Text('+ New Plan', style: p(12, w: FontWeight.w700, color: const Color(0xFF1A0F00))))),
           ]))),

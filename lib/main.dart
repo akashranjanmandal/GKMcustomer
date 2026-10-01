@@ -243,7 +243,11 @@ class _ShellState extends State<_Shell> {
       canPop: _idx == 0,
       onPopInvokedWithResult: (didPop, _) { if (!didPop) toHome(); },
       child: Scaffold(
-      body: IndexedStack(index: _idx, children: pages),
+      // Hidden tabs stay alive in the IndexedStack, so mute their tickers —
+      // otherwise their animations keep rendering off-screen (battery/heat).
+      body: IndexedStack(index: _idx, children: [
+        for (var i = 0; i < pages.length; i++) TickerMode(enabled: i == _idx, child: pages[i]),
+      ]),
       bottomNavigationBar: Consumer<CartProvider>(
         builder: (_, cart, __) => GNavBar(
             idx: _idx,

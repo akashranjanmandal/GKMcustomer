@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -97,15 +96,15 @@ class _GProductCardState extends State<GProductCard> {
           ),
           child: ClipRRect(
             borderRadius: radius,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-              child: Container(
+            // No live BackdropFilter here — one per card in a scrolling list
+            // overheats phones; the translucent gradient reads as glass.
+            child: Container(
                 decoration: BoxDecoration(
                   borderRadius: radius,
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [kCardTop.withValues(alpha: 0.86), kCardBottom.withValues(alpha: 0.92)],
+                    colors: [kCardTop.withValues(alpha: 0.92), kCardBottom.withValues(alpha: 0.96)],
                   ),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 1.2),
                 ),
@@ -200,7 +199,6 @@ class _GProductCardState extends State<GProductCard> {
                   ]),
                 ]),
               ),
-            ),
           ),
         ),
       ),

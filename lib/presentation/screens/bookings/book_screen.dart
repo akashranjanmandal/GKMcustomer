@@ -432,8 +432,9 @@ class _BookState extends State<BookScreen> {
   }
 
   Widget _buildHeader(BuildContext ctx, List<String> labels) => Container(
-    padding: EdgeInsets.fromLTRB(24, MediaQuery.of(ctx).padding.top + 10, 24, 20),
-    decoration: const BoxDecoration(color: C.forest),
+    margin: EdgeInsets.fromLTRB(12, MediaQuery.of(ctx).padding.top + 8, 12, 0),
+    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+    decoration: vPodDecoration(radius: 30),
     child: Column(children: [
       Row(children: [
         GestureDetector(onTap: () => _stepIdx == 0 ? Navigator.pop(ctx) : setState(() => _stepIdx--), child: Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.arrow_back_ios_rounded, size: 16, color: Colors.white))),
@@ -442,12 +443,12 @@ class _BookState extends State<BookScreen> {
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: Text('${_stepIdx + 1}/${labels.length}', style: p(12, w: FontWeight.w800, color: Colors.white))),
       ]),
       const SizedBox(height: 24),
-      Row(children: List.generate(labels.length, (i) => Expanded(child: AnimatedContainer(duration: 300.ms, height: 4, margin: EdgeInsets.only(right: i == labels.length - 1 ? 0 : 6), decoration: BoxDecoration(color: i <= _stepIdx ? C.gold : Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(2)))))),
+      Row(children: List.generate(labels.length, (i) => Expanded(child: AnimatedContainer(duration: 300.ms, height: 4, margin: EdgeInsets.only(right: i == labels.length - 1 ? 0 : 6), decoration: BoxDecoration(color: i <= _stepIdx ? V.lime : Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(2)))))),
       const SizedBox(height: 12),
       Row(children: [
-         const Icon(Icons.check_circle_outline_rounded, size: 14, color: C.gold),
+         const Icon(Icons.check_circle_outline_rounded, size: 14, color: V.lime),
          const SizedBox(width: 6),
-         Text(labels[_stepIdx], style: p(12, w: FontWeight.w700, color: C.gold, ls: 0.5)),
+         Text(labels[_stepIdx], style: p(12, w: FontWeight.w700, color: V.lime, ls: 0.5)),
       ]),
     ]),
   );
@@ -460,8 +461,12 @@ class _BookState extends State<BookScreen> {
   bool get _isAnnualPlan => _isSub && asInt(_selectedPlan?['duration_days']) >= 300;
 
   Widget _buildBottomNav(BuildContext ctx) => Container(
-    padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(ctx).padding.bottom + 16),
-    decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, -10))]),
+    padding: EdgeInsets.fromLTRB(20, 14, 20, MediaQuery.of(ctx).padding.bottom + 14),
+    // Frosted strip — the page's glass backdrop shows through
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.55),
+      border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.9), width: 1.2)),
+    ),
     child: _stepIdx < _lastStep
       ? GBtn(label: 'Continue', icon: Icons.arrow_forward_rounded, onTap: _canNext() ? _goNext : null, bg: C.forest)
       : GBtn(label: _isSub ? 'Subscribe — ₹${_total.toStringAsFixed(0)}${_isAnnualPlan ? '/yr' : '/mo'}' : 'Confirm Booking — ₹${_total.toStringAsFixed(0)}', bg: C.forest, loading: _submitting, onTap: _submit),

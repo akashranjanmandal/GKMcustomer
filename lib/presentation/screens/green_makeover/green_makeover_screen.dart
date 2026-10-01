@@ -58,8 +58,9 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
                 ],
               ),
             )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scaleXY(begin: 1, end: 1.2, duration: 6.seconds)
+                // Static: a looping scale of a 100px-blur shadow repaints
+                // the whole screen every frame and heats the phone.
+                .animate()
                 .fadeIn(),
           ),
           Positioned(
@@ -74,9 +75,7 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
                   BoxShadow(color: C.gold.withOpacity(0.03), blurRadius: 100)
                 ],
               ),
-            )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scaleXY(begin: 1, end: 1.3, duration: 8.seconds),
+            ),
           ),
 
           CustomScrollView(
@@ -505,7 +504,7 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
               child: Text('MOST POPULAR',
                   style: p(10, w: FontWeight.w900, color: C.forest, ls: 1)),
             )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .animate()
                 .shimmer(duration: 2.seconds, color: Colors.white54),
           Text(title,
               style: p(20,

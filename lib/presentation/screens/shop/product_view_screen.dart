@@ -440,6 +440,8 @@ class _ProductPage extends StatelessWidget {
     final outOfStock = stock != null && stock <= 0;
     final category = asStr(asMap(data['category'])['name']);
     final longDesc = asStr(data['long_description']);
+    bool nonEmpty(String k) => asList(data[k]).any((e) => e.toString().trim().isNotEmpty && e is! Map || (e is Map && e.isNotEmpty));
+    final hasExtras = nonEmpty('features') || nonEmpty('faqs') || nonEmpty('tags');
     final desc = longDesc.isNotEmpty
         ? longDesc
         : asStr(data['description'], 'A premium pick from the Ghar Ka Mali shop, chosen to keep your garden healthy and thriving.');
@@ -510,18 +512,32 @@ class _ProductPage extends StatelessWidget {
                       ),
                   ]),
                   const SizedBox(height: 12),
+                  // Everything lives on this page when it fits. The full-details
+                  // sheet is only offered when the description overflows or the
+                  // product has extra content (features / FAQs / tags) that has
+                  // no room here.
                   Expanded(
-                    child: Text(desc,
-                        overflow: TextOverflow.fade,
-                        style: p(13, color: C.t3, h: 1.55)),
-                  ),
-                  GestureDetector(
-                    onTap: () => showProductDetailSheet(ctx, data),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text('View full details',
-                          style: p(12.5, w: FontWeight.w700, color: C.forest, decoration: TextDecoration.underline)),
-                    ),
+                    child: LayoutBuilder(builder: (_, box) {
+                      final style = p(13, color: C.t3, h: 1.55);
+                      final tp = TextPainter(
+                        text: TextSpan(text: desc, style: style),
+                        textDirection: TextDirection.ltr,
+                        textScaler: MediaQuery.textScalerOf(ctx),
+                      )..layout(maxWidth: box.maxWidth);
+                      final needsMore = tp.height > box.maxHeight || hasExtras;
+                      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Expanded(child: Text(desc, overflow: TextOverflow.fade, style: style)),
+                        if (needsMore)
+                          GestureDetector(
+                            onTap: () => showProductDetailSheet(ctx, data),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text('View full details',
+                                  style: p(12.5, w: FontWeight.w700, color: C.forest, decoration: TextDecoration.underline)),
+                            ),
+                          ),
+                      ]);
+                    }),
                   ),
                   const SizedBox(height: 6),
                   GCartStepper(

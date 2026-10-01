@@ -67,10 +67,11 @@ class _ProfileState extends State<ProfileScreen> {
       primary: false,
       backgroundColor: Colors.transparent,
       body: CustomScrollView(slivers: [
-        // ── Dark green header ─────────────────────────────────────────────
+        // ── Verdant pod header ────────────────────────────────────────────
         SliverToBoxAdapter(child: Container(
-          decoration: const BoxDecoration(color: Color(0xFF052B11)),
-          child: SafeArea(bottom: false, child: Padding(
+          margin: EdgeInsets.fromLTRB(12, MediaQuery.of(ctx).padding.top + 8, 12, 0),
+          decoration: vPodDecoration(radius: 32),
+          child: SafeArea(top: false, bottom: false, child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
             child: Column(children: [
               Align(
@@ -202,9 +203,9 @@ class _QuickTile extends StatelessWidget {
     onTap: onTap,
     padding: const EdgeInsets.all(18),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(icon, size: 28, color: C.forest),
+      VOrb(icon: icon, size: 48),
       const SizedBox(height: 10),
-      Text(label, style: p(13, w: FontWeight.w700, color: C.t1, h: 1.3),
+      Text(label, style: vx(14, w: FontWeight.w700, color: V.ink, h: 1.15),
         textAlign: TextAlign.center),
     ]),
   );
@@ -226,19 +227,20 @@ class _MenuItem extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(bottom: last ? BorderSide.none : BorderSide(color: C.divider))),
       child: Row(children: [
-        Container(width: 36, height: 36,
-          decoration: BoxDecoration(
-            color: (danger ? C.red : C.forest).withOpacity(0.07),
-            borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, size: 18, color: danger ? C.red : C.forest)),
+        danger
+          ? Container(width: 38, height: 38,
+              decoration: BoxDecoration(color: C.red.withValues(alpha: 0.08), shape: BoxShape.circle,
+                border: Border.all(color: C.red.withValues(alpha: 0.3))),
+              child: Icon(icon, size: 18, color: C.red))
+          : VOrb(icon: icon, size: 38, dark: false, accent: V.leaf),
         const SizedBox(width: 14),
         Expanded(child: Text(label,
-          style: p(14, w: FontWeight.w600, color: danger ? C.red : C.t1))),
+          style: vx(15, w: FontWeight.w600, color: danger ? C.red : V.ink))),
         if (badge != null) ...[
           Text(badge!, style: p(13, w: FontWeight.w700, color: C.forest)),
           const SizedBox(width: 4),
         ],
-        Icon(Icons.chevron_right_rounded, size: 18, color: danger ? C.red.withOpacity(0.5) : C.t4),
+        Icon(Icons.north_east_rounded, size: 15, color: danger ? C.red.withValues(alpha: 0.5) : V.fog),
       ]),
     ),
   );

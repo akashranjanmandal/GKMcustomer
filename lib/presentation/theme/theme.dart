@@ -161,8 +161,11 @@ class GGlassBg extends StatelessWidget {
   }
 }
 
-// Frosted glass panel. [tint] overrides the default white glass (e.g. green
-// glass cards); [blur] can be disabled for long lists on low-end devices.
+// Frosted glass panel. [tint] overrides the default white glass.
+// [blur] defaults to 0: a live BackdropFilter re-blurs everything behind it on
+// every frame, and dozens of them in scrolling lists overheat phones. Over the
+// static GGlassBg backdrop a translucent fill looks the same, so only opt in
+// to real blur for a single element over moving content.
 class GGlass extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -179,10 +182,13 @@ class GGlass extends StatelessWidget {
     this.radius = const BorderRadius.all(Radius.circular(22)),
     this.tint,
     this.gradient,
-    this.blur = 14,
+    this.blur = 0,
     this.borderColor,
     this.shadows,
   });
+
+  Widget _maybeBlur(Widget w) =>
+      blur <= 0 ? w : BackdropFilter(filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: w);
 
   @override
   Widget build(BuildContext ctx) => DecoratedBox(
@@ -192,19 +198,16 @@ class GGlass extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-            child: Container(
-              padding: padding,
-              decoration: BoxDecoration(
-                color: gradient == null ? (tint ?? Colors.white.withValues(alpha: 0.55)) : null,
-                gradient: gradient,
-                borderRadius: radius,
-                border: Border.all(color: borderColor ?? Colors.white.withValues(alpha: 0.75), width: 1.2),
-              ),
-              child: child,
+          child: _maybeBlur(Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: gradient == null ? (tint ?? Colors.white.withValues(alpha: 0.62)) : null,
+              gradient: gradient,
+              borderRadius: radius,
+              border: Border.all(color: borderColor ?? Colors.white.withValues(alpha: 0.75), width: 1.2),
             ),
-          ),
+            child: child,
+          )),
         ),
       );
 }
