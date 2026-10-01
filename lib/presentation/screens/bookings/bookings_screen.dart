@@ -10,8 +10,11 @@ import '../../widgets/widgets.dart';
 
 // ─── Bookings List ────────────────────────────────────────────────────────────
 class BookingsScreen extends StatefulWidget {
+  // Back arrow action. In the bottom-nav shell this returns to the Home tab;
+  // when pushed as a route it falls back to popping.
+  final VoidCallback? onBack;
   static bool needsReload = false;
-  const BookingsScreen({super.key});
+  const BookingsScreen({super.key, this.onBack});
   @override State<BookingsScreen> createState() => _BkListState();
 }
 class _BkListState extends State<BookingsScreen> with SingleTickerProviderStateMixin {
@@ -59,6 +62,11 @@ class _BkListState extends State<BookingsScreen> with SingleTickerProviderStateM
         SliverToBoxAdapter(child: GHeader(pb: 16,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
+              GestureDetector(onTap: () => widget.onBack != null ? widget.onBack!() : Navigator.maybePop(ctx),
+                child: Container(width: 36, height: 36,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
+              const SizedBox(width: 14),
               Expanded(child: Text('My Bookings', style: p(22, w: FontWeight.w800, color: Colors.white))),
               GestureDetector(
                 onTap: () => Navigator.pushNamed(ctx, '/book'),
@@ -343,7 +351,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
       appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()),
       body: const Center(child: CircularProgressIndicator(color: C.forest)));
     if (_bk == null) return Scaffold(backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.forest), body: const GEmpty(title: 'Booking not found', sub: 'It may have been removed or cancelled'));
+      appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: const GEmpty(title: 'Booking not found', sub: 'It may have been removed or cancelled'));
 
     final gardener  = asMap(_bk!['gardener']);
     final canCancel = ['pending', 'assigned'].contains(_status);

@@ -8,7 +8,7 @@ import '../../../data/services/cart_provider.dart';
 import '../../../data/services/wishlist_provider.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
-import 'shop_screen.dart';
+import 'product_view_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -87,7 +87,7 @@ class _WishlistState extends State<WishlistScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: GCard(
                       padding: const EdgeInsets.all(12),
-                      onTap: () => showProductDetailSheet(ctx, product),
+                      onTap: () => ProductViewScreen.open(ctx, items.map((r) => asMap(asMap(r)['product'])).toList(), i),
                       child: Row(children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),

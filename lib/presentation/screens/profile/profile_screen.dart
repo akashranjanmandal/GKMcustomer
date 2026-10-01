@@ -71,8 +71,16 @@ class _ProfileState extends State<ProfileScreen> {
         SliverToBoxAdapter(child: Container(
           decoration: const BoxDecoration(color: Color(0xFF052B11)),
           child: SafeArea(bottom: false, child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
             child: Column(children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(onTap: () => Navigator.maybePop(ctx),
+                  child: Container(width: 36, height: 36,
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
+              ),
+              const SizedBox(height: 14),
               Row(children: [
                 // Avatar
                 GestureDetector(

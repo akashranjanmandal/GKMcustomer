@@ -582,7 +582,9 @@ class _GFloatingCartBarState extends State<GFloatingCartBar> {
 class GWishHeart extends StatelessWidget {
   final Map<String, dynamic> product;
   final double size;
-  const GWishHeart({super.key, required this.product, this.size = 32});
+  // Optional colours for use on dark surfaces (e.g. the green product cards).
+  final Color? bg, fg;
+  const GWishHeart({super.key, required this.product, this.size = 32, this.bg, this.fg});
 
   @override
   Widget build(BuildContext ctx) {
@@ -600,14 +602,14 @@ class GWishHeart extends StatelessWidget {
       child: Container(
         width: size, height: size,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: bg ?? Colors.white,
           shape: BoxShape.circle,
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Icon(
           wished ? Icons.favorite_rounded : Icons.favorite_border_rounded,
           size: size * 0.55,
-          color: wished ? C.red : C.t4,
+          color: wished ? C.red : (fg ?? C.t4),
         ),
       ),
     );

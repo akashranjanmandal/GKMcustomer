@@ -240,12 +240,17 @@ class _ShellState extends State<_Shell> {
 
   @override
   Widget build(BuildContext ctx) {
+    void toHome() => setState(() => _idx = 0);
     final pages = [
       HomeScreen(navTo: _navTo),
-      const BookingsScreen(),
-      const ShopScreen(),
+      BookingsScreen(onBack: toHome),
+      ShopScreen(onBack: toHome),
     ];
-    return Scaffold(
+    // Android back on the Bookings/Shop tabs returns to Home before exiting.
+    return PopScope(
+      canPop: _idx == 0,
+      onPopInvokedWithResult: (didPop, _) { if (!didPop) toHome(); },
+      child: Scaffold(
       body: IndexedStack(index: _idx, children: pages),
       bottomNavigationBar: Consumer<CartProvider>(
         builder: (_, cart, __) => GNavBar(
@@ -253,7 +258,7 @@ class _ShellState extends State<_Shell> {
             onTap: (i) => setState(() => _idx = i),
             cartCount: cart.count),
       ),
-    );
+    ));
   }
 }
 

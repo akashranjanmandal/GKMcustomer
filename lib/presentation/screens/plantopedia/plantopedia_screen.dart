@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
@@ -15,6 +16,16 @@ class PlantopediaScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F9),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF9F9F9),
+        surfaceTintColor: const Color(0xFFF9F9F9),
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        leading: IconButton(
+          onPressed: onClose ?? () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back_rounded, color: C.t1),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: Padding(

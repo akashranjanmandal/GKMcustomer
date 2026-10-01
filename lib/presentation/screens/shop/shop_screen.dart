@@ -14,9 +14,14 @@ import '../../../data/services/razorpay_service.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/location_picker_sheet.dart';
+import '../../widgets/product_card.dart';
+import 'product_view_screen.dart';
 
 class ShopScreen extends StatefulWidget {
-  const ShopScreen({super.key});
+  // Back arrow action. In the bottom-nav shell this returns to the Home tab;
+  // when pushed as a route it falls back to popping.
+  final VoidCallback? onBack;
+  const ShopScreen({super.key, this.onBack});
   @override State<ShopScreen> createState() => _ShopState();
 }
 
@@ -29,6 +34,7 @@ class _ShopState extends State<ShopScreen> {
   bool _hasMore = true;
   String _selectedCat = 'All';
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
   final _scrollCtrl = ScrollController();
   Timer? _debounce;
   int _page = 1, _pages = 1, _total = 0;
@@ -44,7 +50,7 @@ class _ShopState extends State<ShopScreen> {
       }
     });
   }
-  @override void dispose() { _searchCtrl.dispose(); _scrollCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
+  @override void dispose() { _searchCtrl.dispose(); _searchFocus.dispose(); _scrollCtrl.dispose(); _debounce?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -109,22 +115,14 @@ class _ShopState extends State<ShopScreen> {
     _debounce = Timer(const Duration(milliseconds: 500), _filter);
   }
 
-  void _addToCart(Map<String, dynamic> data) {
-    HapticFeedback.lightImpact();
-    context.read<CartProvider>().add(data);
-  }
-
-  void _removeFromCart(int id) {
-    HapticFeedback.lightImpact();
-    context.read<CartProvider>().remove(id);
-  }
-
   @override
   Widget build(BuildContext ctx) {
     final cart = ctx.watch<CartProvider>();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+      child: Scaffold(
+      backgroundColor: Colors.white,
       body: Stack(children: [
         Column(children: [
           _buildHeader(ctx),
@@ -132,7 +130,7 @@ class _ShopState extends State<ShopScreen> {
           Expanded(child: RefreshIndicator(
             onRefresh: _load, color: C.forest,
             child: _loading
-              ? GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.75), itemCount: 6, itemBuilder: (_,__) => const GSkelCard())
+              ? GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 12, childAspectRatio: 0.62), itemCount: 9, itemBuilder: (_,__) => Container(decoration: BoxDecoration(color: kCardTop.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(18))))
               : _products.isEmpty
                 ? const GEmpty(title: 'No items found', sub: 'Try a different category or search term', icon: Icons.shopping_bag_outlined)
                 : CustomScrollView(
@@ -146,21 +144,18 @@ class _ShopState extends State<ShopScreen> {
                         ),
                       ),
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                         sliver: SliverGrid(
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
+                            crossAxisCount: 3,
                             crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 0.65,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.62,
                           ),
                           delegate: SliverChildBuilderDelegate(
-                            (_, i) => _ProductTile(
+                            (_, i) => GProductCard(
                               pData: asMap(_products[i]),
-                              qty: cart.qty(asInt(_products[i]['id'])),
-                              onAdd: () => _addToCart(asMap(_products[i])),
-                              onRemove: () => _removeFromCart(asInt(_products[i]['id'])),
-                              onTap: () => _showDetail(asMap(_products[i])),
+                              onTap: () => _showDetail(i),
                             ).animate().fadeIn(delay: Duration(milliseconds: (i % 24) * 30)).slideY(begin: 0.05, end: 0),
                             childCount: _products.length,
                           ),
@@ -182,28 +177,44 @@ class _ShopState extends State<ShopScreen> {
         ]),
         if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total, cart.items.length),
       ]),
-    );
+    ));
   }
 
-  void _showDetail(Map<String, dynamic> pData) => showProductDetailSheet(context, pData);
+  Future<void> _showDetail(int index) async {
+    final res = await ProductViewScreen.open(context, _products, index);
+    if (res == 'search' && mounted) _searchFocus.requestFocus();
+  }
+
+  void _back(BuildContext ctx) => widget.onBack != null ? widget.onBack!() : Navigator.maybePop(ctx);
 
   Widget _buildHeader(BuildContext ctx) => Container(
     width: double.infinity,
-    decoration: const BoxDecoration(color: C.forest),
-    padding: EdgeInsets.fromLTRB(20, MediaQuery.of(ctx).padding.top + 8, 20, 24),
+    color: Colors.white,
+    padding: EdgeInsets.fromLTRB(12, MediaQuery.of(ctx).padding.top + 8, 16, 6),
     child: Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Plant Shop', style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
-        Text('Premium seeds, tools & care', style: p(12, color: Colors.white.withOpacity(0.7))),
+      IconButton(
+        onPressed: () => _back(ctx),
+        icon: const Icon(Icons.arrow_back_rounded, color: C.t1, size: 24),
+      ),
+      Expanded(child: Column(children: [
+        Text('Plant Shop', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: C.forest, letterSpacing: -0.3)),
+        Text('Premium seeds, tools & care', style: p(11, color: C.t3)),
       ])),
       GestureDetector(
         onTap: () => Navigator.pushNamed(ctx, '/wishlist'),
-        child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), shape: BoxShape.circle), child: const Icon(Icons.favorite_border_rounded, color: Colors.white, size: 22)),
+        child: const Padding(
+          padding: EdgeInsets.all(8),
+          child: Icon(Icons.favorite_border_rounded, color: C.t1, size: 23),
+        ),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: 4),
       GestureDetector(
         onTap: () => Navigator.pushNamed(ctx, '/shop/orders'),
-        child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), shape: BoxShape.circle), child: const Icon(Icons.history_rounded, color: Colors.white, size: 22)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(99)),
+          child: Text('Orders', style: p(13, w: FontWeight.w700, color: C.forest)),
+        ),
       ),
     ]),
   );
@@ -226,6 +237,7 @@ class _ShopState extends State<ShopScreen> {
           const SizedBox(width: 10),
           Expanded(child: TextField(
             controller: _searchCtrl,
+            focusNode: _searchFocus,
             onChanged: _onSearch,
             style: p(14, w: FontWeight.w600, color: C.t1),
             decoration: InputDecoration(
@@ -296,142 +308,6 @@ void showProductDetailSheet(BuildContext context, Map<String, dynamic> pData) {
       HapticFeedback.lightImpact();
       context.read<CartProvider>().add(pData);
     }),
-  );
-}
-
-class _ProductTile extends StatefulWidget {
-  final Map<String, dynamic> pData; final int qty; final VoidCallback onAdd, onRemove, onTap;
-  const _ProductTile({required this.pData, required this.qty, required this.onAdd, required this.onRemove, required this.onTap});
-  @override State<_ProductTile> createState() => _ProductTileState();
-}
-
-class _ProductTileState extends State<_ProductTile> {
-  bool _pressed = false;
-
-  String _getImageUrl(Map<String, dynamic> pData) {
-    if (pData['images'] is List && (pData['images'] as List).isNotEmpty) {
-      final url = (pData['images'] as List).first.toString();
-      if (url.isNotEmpty && url != 'null') return url;
-    }
-    if (pData['image'] != null) {
-      final url = pData['image'].toString();
-      if (url.isNotEmpty && url != 'null') return url;
-    }
-    return 'https://gkm.gobt.in/uploads/shop/placeholder.jpg';
-  }
-
-  @override
-  Widget build(BuildContext ctx) {
-    final pData = widget.pData;
-    final price = asDouble(pData['price']);
-    final mrp   = asDouble(pData['mrp']);
-    final discount = mrp > price ? ((mrp - price) / mrp * 100).round() : 0;
-    final catName = asStr(asMap(pData['category'])['name'], '');
-
-    return GestureDetector(
-      onTap: widget.onTap,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.black.withOpacity(0.04)),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 14, offset: const Offset(0, 4))],
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // ── Image area ──────────────────────────────────────────────
-            Stack(children: [
-              Container(
-                height: 148, width: double.infinity,
-                decoration: const BoxDecoration(color: Color(0xFFF1F5F1), borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                  child: CachedNetworkImage(
-                    imageUrl: _getImageUrl(pData),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: 148,
-                    placeholder: (_, __) => const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50))),
-                    errorWidget: (_, __, ___) => Center(child: Icon(Icons.eco_rounded, color: C.green.withOpacity(0.4), size: 48)),
-                  ),
-                ),
-              ),
-              // Wishlist heart
-              Positioned(top: 10, left: 10, child: GWishHeart(product: pData, size: 30)),
-              // Discount badge
-              if (discount > 0)
-                Positioned(top: 10, right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.red.shade600, borderRadius: BorderRadius.circular(8)),
-                    child: Text('$discount% OFF', style: p(9, w: FontWeight.w900, color: Colors.white)),
-                  )),
-              // Cart qty counter / add button
-              Positioned(bottom: 10, right: 10,
-                child: widget.qty > 0
-                  ? Container(
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))]),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        _QtyBtn(icon: Icons.remove_rounded, onTap: widget.onRemove, small: true),
-                        Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('${widget.qty}', style: p(13, w: FontWeight.w900, color: C.forest))),
-                        _QtyBtn(icon: Icons.add_rounded, onTap: widget.onAdd, small: true),
-                      ]),
-                    )
-                  : GestureDetector(
-                      onTap: widget.onAdd,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [C.green, C.forest], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                          shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: C.green.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))],
-                        ),
-                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                      ),
-                    ),
-              ),
-            ]),
-
-            // ── Info area ────────────────────────────────────────────────
-            Expanded(
-              child: Padding(padding: const EdgeInsets.fromLTRB(10, 8, 10, 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (catName.isNotEmpty)
-                  Text(catName, style: p(9, w: FontWeight.w600, color: C.forest.withOpacity(0.65))),
-                const SizedBox(height: 2),
-                Text(asStr(pData['name']), style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black, height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis),
-                const Spacer(),
-                Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  Text('₹${price.toStringAsFixed(0)}', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w900, color: C.green)),
-                  if (mrp > price) ...[
-                    const SizedBox(width: 4),
-                    Flexible(child: Text('₹${mrp.toStringAsFixed(0)}', style: const TextStyle(decoration: TextDecoration.lineThrough, decorationColor: Color(0xFF9AAA94), color: Color(0xFF9AAA94), fontSize: 10, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                  ],
-                ]),
-              ])),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _QtyBtn extends StatelessWidget {
-  final IconData icon; final VoidCallback onTap; final bool small;
-  const _QtyBtn({required this.icon, required this.onTap, this.small = false});
-  @override
-  Widget build(BuildContext ctx) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: small ? 26 : 32, height: small ? 26 : 32,
-      decoration: BoxDecoration(color: C.forest.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-      child: Icon(icon, size: small ? 14 : 16, color: C.forest),
-    ),
   );
 }
 

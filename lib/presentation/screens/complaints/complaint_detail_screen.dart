@@ -71,8 +71,8 @@ class _State extends State<ComplaintDetailScreen> {
 
   @override
   Widget build(BuildContext ctx) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_ticket == null) return Scaffold(body: Center(child: Text('Ticket not found', style: p(14))));
+    if (_loading) return Scaffold(appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: const Center(child: CircularProgressIndicator()));
+    if (_ticket == null) return Scaffold(appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: Center(child: Text('Ticket not found', style: p(14))));
 
     final t = _ticket!;
     final status = asStr(t['status'], 'open');

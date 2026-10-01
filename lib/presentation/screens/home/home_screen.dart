@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -9,6 +8,8 @@ import 'package:provider/provider.dart';
 import '../../../data/services/auth.dart';
 import '../../../data/services/cart_provider.dart';
 import '../shop/shop_screen.dart';
+import '../shop/product_view_screen.dart';
+import '../../widgets/product_card.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/location_provider.dart';
 import '../../../data/services/ops_status_provider.dart';
@@ -416,14 +417,23 @@ class _HomeState extends State<HomeScreen> {
       _products.isEmpty
         ? const SizedBox(height: 200, child: Center(child: Text('No products available')))
         : SizedBox(
-            height: 256,
+            height: 246,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
               itemCount: _products.length,
-              itemBuilder: (_, i) => _ProductThumb(
-                product: asMap(_products[i]),
-                onTap: () => widget.navTo(2),
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: SizedBox(
+                  width: 148,
+                  child: GProductCard(
+                    pData: asMap(_products[i]),
+                    onTap: () async {
+                      final res = await ProductViewScreen.open(ctx, _products, i);
+                      if (res == 'search') widget.navTo(2);
+                    },
+                  ),
+                ),
               ),
             ),
           ),
@@ -1198,60 +1208,5 @@ class _AnimatedExploreBackgroundState extends State<_AnimatedExploreBackground> 
       ),
       widget.child,
     ]),
-  );
-}
-
-class _ProductThumb extends StatelessWidget {
-  final Map<String, dynamic> product; final VoidCallback onTap;
-  const _ProductThumb({required this.product, required this.onTap});
-
-  String _getImageUrl() {
-    if (product['images'] is List && (product['images'] as List).isNotEmpty) {
-      final url = (product['images'] as List).first.toString();
-      if (url.isNotEmpty && url != 'null') return url;
-    }
-    if (product['image'] != null) {
-      final url = product['image'].toString();
-      if (url.isNotEmpty && url != 'null') return url;
-    }
-    return 'https://gkm.gobt.in/uploads/shop/placeholder.jpg';
-  }
-
-  @override
-  Widget build(BuildContext ctx) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: 156, margin: const EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            child: CachedNetworkImage(
-              imageUrl: _getImageUrl(),
-              fit: BoxFit.cover,
-              width: double.infinity,
-              placeholder: (_, __) => Container(
-                color: const Color(0xFFF1F5F1),
-                child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50))),
-              ),
-              errorWidget: (_, __, ___) => Container(
-                color: const Color(0xFFF1F5F1),
-                child: Center(child: Icon(Icons.eco_rounded, color: C.green.withOpacity(0.4), size: 36)),
-              ),
-            ),
-          ),
-        ),
-        Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(asStr(product['name']), style: p(13, w: FontWeight.w700, color: Colors.black), maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 8),
-          Text('₹${asDouble(product['price']).toStringAsFixed(0)}', style: p(15, w: FontWeight.w900, color: C.green)),
-        ])),
-      ]),
-    ),
   );
 }

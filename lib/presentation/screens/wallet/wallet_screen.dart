@@ -65,6 +65,13 @@ class _WalletState extends State<WalletScreen> {
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(child: GHeader(pb: 54,
             child: Column(children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(onTap: () => Navigator.maybePop(ctx),
+                  child: Container(width: 36, height: 36,
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.arrow_back_ios_rounded, size: 15, color: Colors.white))),
+              ),
               Text('MY WALLET', style: p(10, w: FontWeight.w700, color: Colors.white54, ls: 1.5)),
               const SizedBox(height: 10),
               Text('₹${balance.toStringAsFixed(2)}',
