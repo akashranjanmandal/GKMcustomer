@@ -123,6 +123,8 @@ class _HomeState extends State<HomeScreen> {
   }
 
   // ── Top bar — its own frosted strip, never drawn over the banner ─────────
+  // Floating liquid-glass controls (location · alerts · profile) — no bar
+  // behind them; a soft fade keeps the status bar readable over content.
   Widget _buildTopBar(BuildContext ctx) => SliverAppBar(
     pinned: true,
     automaticallyImplyLeading: false,
@@ -133,7 +135,10 @@ class _HomeState extends State<HomeScreen> {
     systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
     toolbarHeight: 66,
     titleSpacing: 16,
-    flexibleSpace: const VFrost(opacity: 0.55, child: SizedBox.expand()),
+    flexibleSpace: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+      begin: Alignment.topCenter, end: Alignment.bottomCenter,
+      colors: [const Color(0xFFF5F9F4).withValues(alpha: 0.95), const Color(0xFFF5F9F4).withValues(alpha: 0)],
+    )), child: const SizedBox.expand())),
     title: Consumer<LocationProvider>(builder: (ctx, lp, _) => GestureDetector(
       onTap: () {
         if (lp.locations.isNotEmpty) {
@@ -142,66 +147,68 @@ class _HomeState extends State<HomeScreen> {
           showLocationPicker(ctx).then((loc) { if (loc != null) lp.save(loc); });
         }
       },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(5, 5, 12, 5),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(99),
-          border: Border.all(color: Colors.white),
-          boxShadow: [BoxShadow(color: V.deep.withValues(alpha: 0.06), blurRadius: 14, offset: const Offset(0, 6))],
+      child: VLiquid(
+        radius: 26,
+        tint: const Color(0x80FFFFFF),
+        thickness: 24,
+        interactive: true,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(5, 5, 12, 5),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const VOrb(icon: Icons.location_on_outlined, size: 34),
+            const SizedBox(width: 10),
+            Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('Your location', style: p(10.5, color: V.fog)),
+              const SizedBox(height: 2),
+              Text(lp.label, style: vx(14, w: FontWeight.w700, color: V.ink), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ])),
+            const SizedBox(width: 4),
+            const Icon(Icons.expand_more_rounded, color: V.fog, size: 18),
+          ]),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const VOrb(icon: Icons.location_on_outlined, size: 34),
-          const SizedBox(width: 10),
-          Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text('Your location', style: p(10.5, color: V.fog)),
-            const SizedBox(height: 2),
-            Text(lp.label, style: vx(14, w: FontWeight.w700, color: V.ink), maxLines: 1, overflow: TextOverflow.ellipsis),
-          ])),
-          const SizedBox(width: 4),
-          const Icon(Icons.expand_more_rounded, color: V.fog, size: 18),
-        ]),
       ),
     )),
     actions: [
       GestureDetector(
         onTap: () => Navigator.pushNamed(ctx, '/notifications'),
-        child: Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.7),
-            border: Border.all(color: Colors.white),
+        child: Stack(clipBehavior: Clip.none, children: [
+          const VLiquid(
+            oval: true,
+            tint: Color(0x80FFFFFF),
+            thickness: 20,
+            interactive: true,
+            child: SizedBox(width: 46, height: 46, child: Icon(Icons.notifications_none_rounded, color: V.ink, size: 21)),
           ),
-          child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
-            const Icon(Icons.notifications_none_rounded, color: V.ink, size: 21),
-            if (_notifCount > 0) Positioned(top: 4, right: 2, child: Container(
-              constraints: const BoxConstraints(minWidth: 17),
-              height: 17,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: Colors.white, width: 1.5)),
-              child: Text(_notifCount > 9 ? '9+' : '$_notifCount', style: p(9, w: FontWeight.w700, color: Colors.white)),
-            )),
-          ]),
-        ),
+          if (_notifCount > 0) Positioned(top: 2, right: 0, child: Container(
+            constraints: const BoxConstraints(minWidth: 18),
+            height: 18,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: Colors.white, width: 1.5)),
+            child: Text(_notifCount > 9 ? '9+' : '$_notifCount', style: p(9, w: FontWeight.w700, color: Colors.white)),
+          )),
+        ]),
       ),
       Consumer<AuthProvider>(builder: (ctx, auth, _) => GestureDetector(
         onTap: () => widget.navTo(4),
-        child: Container(
-          margin: const EdgeInsets.only(right: 16, left: 10),
-          width: 44, height: 44,
-          padding: const EdgeInsets.all(2.5),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.8),
-          ),
-          child: Container(
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: V.deep),
-            child: ClipOval(child: auth.profileImage != null
-              ? Image.network(auth.profileImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20))
-              : const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20)),
+        child: Padding(
+          padding: const EdgeInsets.only(right: 16, left: 10),
+          child: VLiquid(
+            oval: true,
+            tint: const Color(0x80FFFFFF),
+            thickness: 20,
+            interactive: true,
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Container(
+                width: 40, height: 40,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: V.deep),
+                child: ClipOval(child: auth.profileImage != null
+                  ? Image.network(auth.profileImage!, cacheWidth: 200, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20))
+                  : const Icon(Icons.person_outline_rounded, color: Colors.white, size: 20)),
+              ),
+            ),
           ),
         ),
       )),
@@ -216,7 +223,7 @@ class _HomeState extends State<HomeScreen> {
       const SizedBox(height: 2),
       Text(firstName.isEmpty || firstName == 'User' ? 'Welcome back' : firstName,
         style: vx(30, w: FontWeight.w600, color: V.ink, ls: -0.6)),
-    ]).animate().fadeIn(duration: 400.ms),
+    ]).animate().fadeIn(duration: 350.ms).slideY(begin: -0.35, end: 0, duration: 550.ms, curve: Curves.easeOutQuart),
   );
 
   // ── Bento action deck: one tall dark pod + two stacked glass tiles ───────
@@ -242,7 +249,7 @@ class _HomeState extends State<HomeScreen> {
                 const Spacer(),
                 Text('Schedule\na visit', style: vx(24, w: FontWeight.w600, color: Colors.white, ls: -0.5, h: 1.05)),
                 const SizedBox(height: 6),
-                Text('A gardener at your door', style: p(12, color: Colors.white.withValues(alpha: 0.65))),
+                Text('A gardener at your door', style: p(12, color: Colors.white.withValues(alpha: 0.85))),
                 const SizedBox(height: 14),
                 const VChip('Book'),
               ]),
@@ -269,7 +276,7 @@ class _HomeState extends State<HomeScreen> {
           ]),
         ),
       ]),
-    ).animate().fadeIn(delay: 120.ms, duration: 450.ms).slideY(begin: 0.06, end: 0),
+    ).animate().fadeIn(delay: 120.ms, duration: 350.ms).slideY(begin: -0.12, end: 0, delay: 120.ms, duration: 550.ms, curve: Curves.easeOutQuart),
   );
 
   // ── Services — photo cards ──────────────────────────────────────────
@@ -346,13 +353,13 @@ class _HomeState extends State<HomeScreen> {
             mainAxisSpacing: 8,
             childAspectRatio: 0.82,
             children: [
-              for (final it in items)
+              for (final (k, it) in items.indexed)
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: it.onTap,
                   child: Column(children: [
                     Stack(clipBehavior: Clip.none, children: [
-                      VOrb(icon: it.icon, size: 50, dark: false),
+                      VOrb(icon: it.icon, size: 50, dark: false, shine: true, shineDelay: Duration(milliseconds: 250 + k * 70)),
                       if (it.soon) Positioned(top: -6, right: -10, child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                         decoration: BoxDecoration(color: V.ink, borderRadius: BorderRadius.circular(99)),
@@ -516,7 +523,8 @@ class _BannerCapsuleState extends State<_BannerCapsule> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(27),
-            child: PageView.builder(
+            child: Stack(children: [
+              PageView.builder(
               controller: _pc,
               itemCount: widget.images.length,
               onPageChanged: (i) => setState(() => _i = i),
@@ -526,26 +534,38 @@ class _BannerCapsuleState extends State<_BannerCapsule> {
                   errorBuilder: (_, __, ___) => const ColoredBox(color: V.mint)),
               ),
             ),
+              // Glass page indicator floating on the banner image
+              if (widget.images.length > 1) Positioned(
+                left: 0, right: 0, bottom: 12,
+                child: Center(child: VLiquid(
+                  radius: 99,
+                  tint: const Color(0x40FFFFFF),
+                  thickness: 14,
+                  blur: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      for (var i = 0; i < widget.images.length; i++)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: i == _i ? 22 : 7, height: 7,
+                          decoration: BoxDecoration(
+                            color: i == _i ? Colors.white : Colors.white.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                    ]),
+                  ),
+                )),
+              ),
+            ]),
           ),
         ),
       ),
-      const SizedBox(height: 12),
-      // Segmented indicator below the banner (not on it)
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        for (var i = 0; i < widget.images.length; i++)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            width: i == _i ? 28 : 10, height: 4,
-            decoration: BoxDecoration(
-              color: i == _i ? V.leaf : V.leaf.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(99),
-            ),
-          ),
-      ]),
     ]),
-  ).animate().fadeIn(delay: 60.ms, duration: 450.ms).scale(begin: const Offset(0.97, 0.97), curve: Curves.easeOutCubic);
+  ).animate().fadeIn(delay: 60.ms, duration: 350.ms).slideY(begin: -0.12, end: 0, delay: 60.ms, duration: 550.ms, curve: Curves.easeOutQuart);
 }
 
 // ─── Bento glass tile ───────────────────────────────────────────────────────

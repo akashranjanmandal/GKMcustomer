@@ -33,6 +33,9 @@ class _ShopState extends State<ShopScreen> {
   bool _loadingMore = false;
   bool _hasMore = true;
   String _selectedCat = 'All';
+  // Client-side sort of the loaded products: relevance | price_asc | price_desc | discount
+  String _sort = 'relevance';
+  static const _sortLabels = {'relevance': 'Recommended', 'price_asc': 'Price: low to high', 'price_desc': 'Price: high to low', 'discount': 'Biggest discount'};
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
   final _scrollCtrl = ScrollController();
@@ -115,6 +118,18 @@ class _ShopState extends State<ShopScreen> {
     _debounce = Timer(const Duration(milliseconds: 500), _filter);
   }
 
+  List<dynamic> get _shown {
+    if (_sort == 'relevance') return _products;
+    double disc(dynamic p) { final m = asMap(p); final mrp = asDouble(m['mrp']); final pr = asDouble(m['price']); return mrp > pr ? (mrp - pr) / mrp : 0; }
+    final l = [..._products];
+    switch (_sort) {
+      case 'price_asc': l.sort((a, b) => asDouble(asMap(a)['price']).compareTo(asDouble(asMap(b)['price'])));
+      case 'price_desc': l.sort((a, b) => asDouble(asMap(b)['price']).compareTo(asDouble(asMap(a)['price'])));
+      case 'discount': l.sort((a, b) => disc(b).compareTo(disc(a)));
+    }
+    return l;
+  }
+
   @override
   Widget build(BuildContext ctx) {
     final cart = ctx.watch<CartProvider>();
@@ -126,23 +141,35 @@ class _ShopState extends State<ShopScreen> {
       body: Stack(children: [
         Column(children: [
           _buildHeader(ctx),
-          _buildSearchSection(),
-          Expanded(child: RefreshIndicator(
+          // Products scroll underneath a floating liquid-glass search bar.
+          Expanded(child: Stack(children: [
+            Positioned.fill(child: RefreshIndicator(
             onRefresh: _load, color: C.forest,
             child: _loading
-              ? GridView.builder(padding: const EdgeInsets.all(16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 14, childAspectRatio: 0.58), itemCount: 6, itemBuilder: (_,__) => Container(decoration: BoxDecoration(color: kCardTop.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: 0.7)))))
+              ? GridView.builder(padding: const EdgeInsets.fromLTRB(16, 84, 16, 16), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 14, childAspectRatio: 0.58), itemCount: 6, itemBuilder: (_,__) => Container(decoration: BoxDecoration(color: kCardTop.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: 0.7)))))
               : _products.isEmpty
-                ? const GEmpty(title: 'No items found', sub: 'Try a different category or search term', icon: Icons.shopping_bag_outlined)
+                ? ListView(padding: const EdgeInsets.only(top: 76), children: [GEmpty(title: 'No items found', sub: 'Try a different category or search term.', icon: Icons.shopping_bag_outlined,
+                    action: (_selectedCat != 'All' || _searchCtrl.text.isNotEmpty)
+                      ? GBtn(label: 'Clear filters', onTap: () { _searchCtrl.clear(); setState(() => _selectedCat = 'All'); _filter(); }, w: 200, h: 48)
+                      : null)])
                 : CustomScrollView(
                     controller: _scrollCtrl,
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                          child: Text('$_total product${_total == 1 ? '' : 's'}', style: GoogleFonts.poppins(fontSize: 12, color: Colors.black45, fontWeight: FontWeight.w600)),
+                          padding: const EdgeInsets.fromLTRB(16, 80, 16, 0),
+                          child: Text('$_total product${_total == 1 ? '' : 's'}', style: GoogleFonts.poppins(fontSize: 12, color: V.fog, fontWeight: FontWeight.w600)),
                         ),
                       ),
+                      if (_selectedCat != 'All' || _sort != 'relevance') SliverToBoxAdapter(child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        // Applied filters as removable chips — no sideways scrolling.
+                        child: Wrap(spacing: 8, runSpacing: 8, children: [
+                          if (_selectedCat != 'All') VActiveFilter(label: _selectedCat, onClear: () { setState(() => _selectedCat = 'All'); _filter(); }),
+                          if (_sort != 'relevance') VActiveFilter(label: _sortLabels[_sort]!, onClear: () => setState(() => _sort = 'relevance')),
+                        ]),
+                      )),
                       // Two cards per row; each row is as tall as its tallest
                       // card so full product names are always visible.
                       SliverPadding(
@@ -150,14 +177,18 @@ class _ShopState extends State<ShopScreen> {
                         sliver: SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (_, r) {
+                              final shown = _shown;
                               final cards = [
-                                for (var i = r * 2; i < r * 2 + 2 && i < _products.length; i++)
-                                  GProductCard(pData: asMap(_products[i]), onTap: () => _showDetail(i)),
+                                for (var i = r * 2; i < r * 2 + 2 && i < shown.length; i++)
+                                  GProductCard(pData: asMap(shown[i]), onTap: () => _showDetail(i)),
                               ];
-                              return Padding(
+                              final row = Padding(
                                 padding: const EdgeInsets.only(bottom: 14),
                                 child: GProductGridRow(cards: cards),
-                              ).animate().fadeIn(delay: Duration(milliseconds: (r % 12) * 40)).slideY(begin: 0.05, end: 0);
+                              );
+                              // Entrance animation only for the first screenful —
+                              // animating every row while scrolling costs frames.
+                              return r < 4 ? row.animate().fadeIn(delay: Duration(milliseconds: r * 50)).slideY(begin: 0.05, end: 0) : row;
                             },
                             childCount: (_products.length + 1) ~/ 2,
                           ),
@@ -176,6 +207,8 @@ class _ShopState extends State<ShopScreen> {
                     ],
                   ),
           )),
+            Positioned(top: 0, left: 0, right: 0, child: _buildSearchSection()),
+          ])),
         ]),
         if (cart.count > 0) _buildCartBar(ctx, cart.count, cart.total, cart.items.length),
       ]),
@@ -183,8 +216,41 @@ class _ShopState extends State<ShopScreen> {
   }
 
   Future<void> _showDetail(int index) async {
-    final res = await ProductViewScreen.open(context, _products, index);
+    final res = await ProductViewScreen.open(context, _shown, index);
     if (res == 'search' && mounted) _searchFocus.requestFocus();
+  }
+
+  static IconData _catIcon(String c) {
+    final k = c.toLowerCase();
+    if (k == 'all') return Icons.apps_rounded;
+    if (k.contains('plant')) return Icons.local_florist_outlined;
+    if (k.contains('pot') || k.contains('planter')) return Icons.yard_outlined;
+    if (k.contains('seed')) return Icons.grain_rounded;
+    if (k.contains('fertil') || k.contains('soil') || k.contains('compost') || k.contains('manure')) return Icons.compost_outlined;
+    if (k.contains('pest') || k.contains('spray')) return Icons.pest_control_outlined;
+    if (k.contains('tool')) return Icons.handyman_outlined;
+    if (k.contains('decor') || k.contains('stand')) return Icons.chair_outlined;
+    return Icons.eco_outlined;
+  }
+
+  // Shared glass filter sheet: category tiles + sort list.
+  Future<void> _openFilters() async {
+    final res = await showFilterSheet(context,
+      title: 'Filter & sort',
+      sections: [
+        VFilterSection(title: 'Category', defaultValue: 'All', options: [
+          for (final c in _categories.map((e) => e.toString())) VFilterOption(c, c, icon: _catIcon(c)),
+        ]),
+        VFilterSection(title: 'Sort by', defaultValue: 'relevance', tiles: false, options: [
+          for (final e in _sortLabels.entries) VFilterOption(e.key, e.value),
+        ]),
+      ],
+      current: [_selectedCat, _sort],
+    );
+    if (res == null || !mounted) return;
+    final catChanged = res[0] != _selectedCat;
+    setState(() { _selectedCat = res[0]; _sort = res[1]; });
+    if (catChanged) _filter();
   }
 
   void _back(BuildContext ctx) => widget.onBack != null ? widget.onBack!() : Navigator.maybePop(ctx);
@@ -197,12 +263,15 @@ class _ShopState extends State<ShopScreen> {
   );
 
   Widget _buildSearchSection() => Container(
-    padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // ── Search: single container, stripped TextField ──────────────────
-      GGlass(
-        radius: BorderRadius.circular(99),
-        child: SizedBox(height: 52, child: Row(children: [
+      VLiquid(
+        radius: 99,
+        tint: const Color(0xA6FFFFFF),
+        thickness: 26,
+        blur: 3,
+        child: SizedBox(height: 54, child: Row(children: [
           const SizedBox(width: 18),
           const Icon(Icons.search_rounded, color: V.fog, size: 21),
           const SizedBox(width: 10),
@@ -225,20 +294,13 @@ class _ShopState extends State<ShopScreen> {
               contentPadding:     EdgeInsets.zero,
             ),
           )),
+          // Filter & sort — opens the glass sheet
+          Padding(
+            padding: const EdgeInsets.only(right: 5),
+            child: VFilterButton(compact: true, glass: false, active: _selectedCat != 'All' || _sort != 'relevance', onTap: _openFilters),
+          ),
         ])),
       ),
-      const SizedBox(height: 12),
-      // ── Category pills ────────────────────────────────────────────────
-      SizedBox(height: 38, child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) => VFilterChip(
-          label: _categories[i],
-          sel: _categories[i] == _selectedCat,
-          onTap: () { setState(() => _selectedCat = _categories[i]); _filter(); },
-        ),
-      )),
     ]),
   );
 
@@ -255,11 +317,7 @@ class _ShopState extends State<ShopScreen> {
 
 // Opens the product detail sheet from anywhere (e.g. the product viewer).
 void showProductDetailSheet(BuildContext context, Map<String, dynamic> pData) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    useSafeArea: true,
+  showGlassSheet(context,
     builder: (_) => _ProductDetails(pData: pData, onAdd: () {
       HapticFeedback.lightImpact();
       context.read<CartProvider>().add(pData);
@@ -331,8 +389,7 @@ class _ProductDetailsState extends State<_ProductDetails> {
     final outOfStock = stock != null && stock <= 0;
 
     return Container(
-      height: screenH - topInset,
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.97), borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+      height: (screenH - topInset) * 0.9,
       child: Column(children: [
         // ── Drag handle ──────────────────────────────────────────────────
         const SizedBox(height: 12),
@@ -353,7 +410,7 @@ class _ProductDetailsState extends State<_ProductDetails> {
                     itemCount: images.length,
                     itemBuilder: (_, i) => ClipRRect(
                       borderRadius: BorderRadius.circular(20),
-                      child: CachedNetworkImage(
+                      child: CachedNetworkImage(fadeInDuration: const Duration(milliseconds: 120), fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero, memCacheWidth: 900, 
                         imageUrl: images[i],
                         fit: BoxFit.contain,
                         width: double.infinity,
@@ -520,11 +577,7 @@ class _ProductDetailsState extends State<_ProductDetails> {
         // ── Sticky Add to Cart ─────────────────────────────────────────────
         Container(
           padding: EdgeInsets.fromLTRB(20, 14, 20, MediaQuery.of(ctx).padding.bottom + 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: const Border(top: BorderSide(color: Color(0xFFEEF4EA))),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, -6))],
-          ),
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: V.ink.withValues(alpha: 0.06)))),
           child: GCartStepper(
             qty: ctx.select<CartProvider, int>((c) => c.qty(asInt(_data['id']))),
             onAdd: widget.onAdd,
@@ -765,7 +818,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         child: Row(children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(14),
-                            child: CachedNetworkImage(
+                            child: CachedNetworkImage(fadeInDuration: const Duration(milliseconds: 120), fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero, memCacheWidth: 900, 
                               imageUrl: _getImageUrl(prod), width: 58, height: 58, fit: BoxFit.cover,
                               placeholder: (_, __) => Container(color: V.mint),
                               errorWidget: (_, __, ___) => Container(color: V.mint, child: const Icon(Icons.local_florist_outlined, color: V.deep)),
@@ -891,7 +944,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!loc.hasLocation) Padding(padding: const EdgeInsets.only(bottom: 8),
               child: Text('Choose a delivery address first', style: p(12, color: C.red, w: FontWeight.w600))),
-            GBtn(label: 'Pay ₹${grand.toStringAsFixed(0)}', loading: _busy, onTap: (loc.hasLocation && !_busy && visibleCart.isNotEmpty) ? _place : null),
+            GBtn(label: 'Pay ₹${grand.toStringAsFixed(0)}', loading: _busy, glass: true, onTap: (loc.hasLocation && !_busy && visibleCart.isNotEmpty) ? _place : null),
           ]),
         ),
       ]),
@@ -1081,7 +1134,7 @@ class _Thumb extends StatelessWidget {
     clipBehavior: Clip.antiAlias,
     child: url == null
       ? Icon(Icons.local_florist_outlined, size: size * 0.45, color: V.deep)
-      : CachedNetworkImage(imageUrl: url!, fit: BoxFit.cover,
+      : CachedNetworkImage(fadeInDuration: const Duration(milliseconds: 120), fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero, memCacheWidth: 900, imageUrl: url!, fit: BoxFit.cover,
           errorWidget: (_, __, ___) => Icon(Icons.local_florist_outlined, size: size * 0.45, color: V.deep)),
   );
 }
@@ -1158,7 +1211,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                       ]),
                     ]),
                   ),
-                ).animate().fadeIn(delay: Duration(milliseconds: i * 40)).slideY(begin: 0.05, end: 0, delay: Duration(milliseconds: i * 40));
+                );
               }, childCount: _orders.length)),
             ),
         ]),
@@ -1219,9 +1272,9 @@ class OrderDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Text(asStr(order['order_number'], '#${order['id']}'), style: p(12.5, color: Colors.white.withValues(alpha: 0.65))),
+                Text(asStr(order['order_number'], '#${order['id']}'), style: p(12.5, color: Colors.white.withValues(alpha: 0.85))),
                 const Spacer(),
-                Text(_orderDate(order), style: p(12.5, color: Colors.white.withValues(alpha: 0.65))),
+                Text(_orderDate(order), style: p(12.5, color: Colors.white.withValues(alpha: 0.85))),
               ]),
               const SizedBox(height: 8),
               Text(cancelled ? 'Order ${status.replaceAll('_', ' ')}' : (stage == 3 ? 'Delivered' : 'On its way to you'),
@@ -1251,7 +1304,7 @@ class OrderDetailScreen extends StatelessWidget {
                 ]),
               ],
             ]),
-          ).animate().fadeIn(duration: 350.ms),
+          ),
         )),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(16, 4, 16, MediaQuery.of(ctx).padding.bottom + 32),

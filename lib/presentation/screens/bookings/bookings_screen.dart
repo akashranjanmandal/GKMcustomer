@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/invoice_service.dart';
 import '../../theme/theme.dart';
@@ -24,6 +23,35 @@ class _BkListState extends State<BookingsScreen> {
   static const _labels  = ['All', 'Pending', 'Active', 'Done', 'Cancelled'];
   static const _filters = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
   int _f = 0;
+  // Client-side ordering of the loaded bookings.
+  String _sort = 'upcoming';
+  static const _sortLabels = {'upcoming': 'Upcoming first', 'newest': 'Newest first', 'oldest': 'Oldest first'};
+  static const _statusIcons = [Icons.apps_rounded, Icons.hourglass_empty_rounded, Icons.directions_walk_rounded, Icons.task_alt_rounded, Icons.event_busy_outlined];
+
+  Future<void> _openFilters() async {
+    final res = await showFilterSheet(context,
+      title: 'Filter bookings',
+      sections: [
+        VFilterSection(title: 'Status', defaultValue: '0', options: [
+          for (var i = 0; i < _labels.length; i++) VFilterOption('$i', _labels[i], icon: _statusIcons[i]),
+        ]),
+        VFilterSection(title: 'Sort by', defaultValue: 'upcoming', tiles: false, options: [
+          for (final e in _sortLabels.entries) VFilterOption(e.key, e.value),
+        ]),
+      ],
+      current: ['$_f', _sort],
+    );
+    if (res == null || !mounted) return;
+    setState(() => _sort = res[1]);
+    _setFilter(int.parse(res[0]));
+  }
+
+  List<dynamic> _sorted(List<dynamic> l) {
+    if (_sort == 'upcoming') return l;
+    DateTime at(dynamic b) => DateTime.tryParse(asStr(asMap(b)['scheduled_date'])) ?? DateTime(2000);
+    final out = [...l]..sort((a, b) => at(a).compareTo(at(b)));
+    return _sort == 'newest' ? out.reversed.toList() : out;
+  }
   List<dynamic> _items = [];
   bool _loading = true;
 
@@ -58,7 +86,7 @@ class _BkListState extends State<BookingsScreen> {
     // Soonest upcoming booking gets the hero tracker panel.
     Map<String, dynamic>? next;
     final rest = <Map<String, dynamic>>[];
-    for (final e in _items) {
+    for (final e in _sorted(_items)) {
       final b = asMap(e);
       if (next == null && _upcoming.contains(asStr(b['status']))) { next = b; } else { rest.add(b); }
     }
@@ -88,18 +116,18 @@ class _BkListState extends State<BookingsScreen> {
             ]),
           ))),
           SliverToBoxAdapter(child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
-            child: Text('Bookings', style: vx(34, w: FontWeight.w600, color: V.ink, ls: -0.8)),
+            padding: const EdgeInsets.fromLTRB(20, 18, 16, 10),
+            child: Row(children: [
+              Expanded(child: Text('Bookings', style: vx(34, w: FontWeight.w600, color: V.ink, ls: -0.8))),
+              VFilterButton(active: _f != 0 || _sort != 'upcoming', onTap: _openFilters),
+            ]),
           )),
-          SliverToBoxAdapter(child: SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _labels.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) => _Chip(label: _labels[i], sel: i == _f, onTap: () => _setFilter(i)),
-            ),
+          if (_f != 0 || _sort != 'upcoming') SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              if (_f != 0) VActiveFilter(label: _labels[_f], onClear: () => _setFilter(0)),
+              if (_sort != 'upcoming') VActiveFilter(label: _sortLabels[_sort]!, onClear: () => setState(() => _sort = 'upcoming')),
+            ]),
           )),
           const SliverToBoxAdapter(child: SizedBox(height: 18)),
           if (_loading)
@@ -115,7 +143,7 @@ class _BkListState extends State<BookingsScreen> {
             if (next != null)
               SliverToBoxAdapter(child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-                child: _NextVisit(b: next).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04, end: 0),
+                child: _NextVisit(b: next),
               )),
             if (rest.isNotEmpty) SliverToBoxAdapter(child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -126,7 +154,7 @@ class _BkListState extends State<BookingsScreen> {
               padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
               sliver: SliverList(delegate: SliverChildBuilderDelegate(
                 (_, i) => _BkCard(b: rest[i])
-                  .animate().fadeIn(delay: Duration(milliseconds: i * 40)).slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 40)),
+                  ,
                 childCount: rest.length,
               )),
             ),
@@ -152,27 +180,6 @@ class _CircleBtn extends StatelessWidget {
   );
 }
 
-class _Chip extends StatelessWidget {
-  final String label; final bool sel; final VoidCallback onTap;
-  const _Chip({required this.label, required this.sel, required this.onTap});
-  @override
-  Widget build(BuildContext ctx) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: sel ? V.ink : Colors.white.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: sel ? V.ink : Colors.white),
-      ),
-      child: Text(label, style: p(13, w: FontWeight.w600, color: sel ? Colors.white : V.ink)),
-    ),
-  );
-}
-
-// Parsed visit date (falls back gracefully when the API omits it).
 DateTime? _visitDate(Map<String, dynamic> b) => DateTime.tryParse(asStr(b['scheduled_date']));
 const _months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const _days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -206,9 +213,9 @@ class _NextVisit extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Text('Next visit', style: p(12.5, color: Colors.white.withValues(alpha: 0.65))),
+            Text('Next visit', style: p(12.5, color: Colors.white.withValues(alpha: 0.85))),
             const Spacer(),
-            Text(asStr(b['booking_number'], '#${b['id']}'), style: p(11.5, color: Colors.white.withValues(alpha: 0.5))),
+            Text(asStr(b['booking_number'], '#${b['id']}'), style: p(11.5, color: Colors.white.withValues(alpha: 0.85))),
           ]),
           const SizedBox(height: 10),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -229,7 +236,7 @@ class _NextVisit extends StatelessWidget {
             const Icon(Icons.location_on_outlined, size: 15, color: Colors.white54),
             const SizedBox(width: 6),
             Expanded(child: Text(cleanAddr(asStr(b['service_address'], '—')), maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: p(12, color: Colors.white.withValues(alpha: 0.7)))),
+              style: p(12, color: Colors.white.withValues(alpha: 0.85)))),
             const SizedBox(width: 8),
             Text(_bkAmount(b), style: vx(17, w: FontWeight.w600, color: Colors.white)),
           ]),
@@ -318,27 +325,33 @@ class _VisitSummary extends StatelessWidget {
     final time = asStr(b['scheduled_time']);
     final status = asStr(b['status']);
     final upcoming = _BkListState._upcoming.contains(status);
-    return VPod(
-      radius: 28,
+    return GCard(
+      radius: BorderRadius.circular(28),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(_bkTitle(b), style: p(13, color: Colors.white.withValues(alpha: 0.7))),
+        Text(_bkTitle(b), style: p(13, w: FontWeight.w500, color: V.leaf)),
         const SizedBox(height: 6),
         Text(d != null ? '${_days[d.weekday - 1]}, ${d.day} ${_months[d.month - 1]} ${d.year}' : 'Date to be set',
-          style: vx(26, w: FontWeight.w600, color: Colors.white, ls: -0.5)),
+          style: vx(26, w: FontWeight.w600, color: V.ink, ls: -0.5)),
         if (time.isNotEmpty) ...[
-          const SizedBox(height: 2),
-          Text(time.length >= 5 ? time.substring(0, 5) : time, style: p(15, w: FontWeight.w600, color: V.lime)),
+          const SizedBox(height: 4),
+          Row(children: [
+            const Icon(Icons.schedule_rounded, size: 16, color: V.deep),
+            const SizedBox(width: 6),
+            Text(time.length >= 5 ? time.substring(0, 5) : time, style: p(15, w: FontWeight.w600, color: V.deep)),
+          ]),
         ],
         if (upcoming) ...[
           const SizedBox(height: 18),
-          _Tracker(status: status),
+          _Tracker(status: status, light: true),
         ],
         const SizedBox(height: 16),
+        Container(height: 1, color: V.ink.withValues(alpha: 0.08)),
+        const SizedBox(height: 14),
         Row(children: [
-          Text('Total', style: p(12.5, color: Colors.white.withValues(alpha: 0.6))),
+          Text('Total', style: p(13, color: V.fog)),
           const Spacer(),
-          Text(_bkAmount(b), style: vx(22, w: FontWeight.w600, color: Colors.white)),
+          Text(_bkAmount(b), style: vx(22, w: FontWeight.w600, color: V.ink)),
         ]),
       ]),
     );
@@ -348,21 +361,26 @@ class _VisitSummary extends StatelessWidget {
 // Booked → Assigned → On the way → In progress
 class _Tracker extends StatelessWidget {
   final String status;
-  const _Tracker({required this.status});
+  final bool light; // on a light card (dark text) vs a dark panel
+  const _Tracker({required this.status, this.light = false});
   static const _steps = ['Booked', 'Assigned', 'On the way', 'In progress'];
   int get _stage => switch (status) { 'assigned' => 1, 'en_route' => 2, 'arrived' || 'in_progress' => 3, _ => 0 };
   @override
   Widget build(BuildContext ctx) {
     final stage = _stage;
+    final done = light ? V.leaf : V.lime;
+    final idle = light ? V.ink.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.3);
+    final on = light ? V.ink : Colors.white;
+    final off = light ? V.fog : Colors.white.withValues(alpha: 0.7);
     return Column(children: [
       Row(children: [
         for (var i = 0; i < _steps.length; i++) ...[
           Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle,
-            color: i <= stage ? V.lime : Colors.transparent,
-            border: Border.all(color: i <= stage ? V.lime : Colors.white.withValues(alpha: 0.3), width: 1.5))),
+            color: i <= stage ? done : Colors.transparent,
+            border: Border.all(color: i <= stage ? done : idle, width: 1.5))),
           if (i < _steps.length - 1)
             Expanded(child: Container(height: 2, margin: const EdgeInsets.symmetric(horizontal: 4),
-              color: i < stage ? V.lime : Colors.white.withValues(alpha: 0.18))),
+              color: i < stage ? done : idle)),
         ],
       ]),
       const SizedBox(height: 8),
@@ -370,8 +388,8 @@ class _Tracker extends StatelessWidget {
         for (var i = 0; i < _steps.length; i++)
           Expanded(child: Text(_steps[i],
             textAlign: i == 0 ? TextAlign.left : i == _steps.length - 1 ? TextAlign.right : TextAlign.center,
-            style: p(10.5, w: i == stage ? FontWeight.w600 : FontWeight.w400,
-              color: i <= stage ? Colors.white : Colors.white.withValues(alpha: 0.45)))),
+            style: p(11, w: i == stage ? FontWeight.w700 : FontWeight.w500,
+              color: i <= stage ? on : off))),
       ]),
     ]);
   }
@@ -470,14 +488,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
     final cfg = asMap(_timeAddonInfo?['config']);
     final mins = asInt(cfg['block_minutes']);
     final price = asDouble(cfg['block_price']);
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text('Add ${mins} minutes?', style: p(17, w: FontWeight.w700, color: C.t1)),
-      content: Text('₹${price.toStringAsFixed(0)} will be added to this visit. The gardener will be notified.', style: p(14, color: C.t3)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: p(14, color: C.t3))),
-        TextButton(onPressed: () => Navigator.pop(context, true),  child: Text('Confirm', style: p(14, w: FontWeight.w700, color: C.forest))),
-      ]));
+    final ok = await showGlassConfirm(context, title: 'Add $mins minutes?', message: '₹${price.toStringAsFixed(0)} will be added to this visit. Your gardener will be notified.', confirmLabel: 'Add time', cancelLabel: 'Cancel', destructive: false);
     if (ok != true) return;
     setState(() => _addingTime = true);
     try {
@@ -491,14 +502,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
   String get _status => asStr(_bk?['status'], 'pending');
 
   Future<void> _cancel() async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text('Cancel Booking?', style: p(17, w: FontWeight.w700, color: C.t1)),
-      content: Text('This cannot be undone.', style: p(14, color: C.t3)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Keep', style: p(14, color: C.t3))),
-        TextButton(onPressed: () => Navigator.pop(context, true),  child: Text('Cancel Booking', style: p(14, w: FontWeight.w700, color: C.red))),
-      ]));
+    final ok = await showGlassConfirm(context, title: 'Cancel this booking?', message: 'This cannot be undone.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep it', destructive: true);
     if (ok != true) return;
     setState(() => _cancelling = true);
     try {
@@ -520,8 +524,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
   }
 
   void _showRating() {
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: C.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    showGlassSheet(context,
       builder: (_) => StatefulBuilder(builder: (ctx2, ss) => Padding(
         padding: EdgeInsets.fromLTRB(22, 22, 22, MediaQuery.of(ctx2).viewInsets.bottom + 22),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -545,11 +548,15 @@ class _BkDetailState extends State<BookingDetailScreen> {
 
   @override
   Widget build(BuildContext ctx) {
-    if (_loading) return Scaffold(backgroundColor: Colors.transparent,
-      appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()),
-      body: const Center(child: CircularProgressIndicator(color: C.forest)));
-    if (_bk == null) return Scaffold(backgroundColor: Colors.transparent,
-      appBar: AppBar(backgroundColor: C.forest, leading: const BackButton()), body: const GEmpty(title: 'Booking not found', sub: 'It may have been removed or cancelled'));
+    if (_loading) return Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
+      const VPageHeader(title: 'Booking'),
+      const Expanded(child: Center(child: CircularProgressIndicator(color: V.leaf))),
+    ]));
+    if (_bk == null) return Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
+      const VPageHeader(title: 'Booking'),
+      Expanded(child: GEmpty(title: 'Booking not found', sub: 'It may have been removed or cancelled.', icon: Icons.event_busy_outlined,
+        action: GBtn(label: 'Back to bookings', onTap: () => Navigator.pop(ctx), w: 220, h: 48))),
+    ]));
 
     final gardener  = asMap(_bk!['gardener']);
     final canCancel = ['pending', 'assigned'].contains(_status);
@@ -570,7 +577,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
         ))),
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-          child: _VisitSummary(b: _bk!).animate().fadeIn(duration: 350.ms),
+          child: _VisitSummary(b: _bk!),
         )),
 
         SliverPadding(
@@ -610,35 +617,34 @@ class _BkDetailState extends State<BookingDetailScreen> {
 
               if ((_bk!['customer_notes'] as String?)?.isNotEmpty == true)
                 GDetailRow(icon: Icons.sticky_note_2_outlined, label: 'NOTES', value: asStr(_bk!['customer_notes'])),
-            ])).animate().fadeIn(),
+            ])),
 
             // Visit OTP
             if (_status == 'assigned') ...[
               const SizedBox(height: 12),
-              VPod(
-                radius: 24,
+              GCard(
+                radius: BorderRadius.circular(24),
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    const Icon(Icons.lock_outline_rounded, color: Colors.white70, size: 18),
+                    const Icon(Icons.lock_outline_rounded, color: V.deep, size: 18),
                     const SizedBox(width: 8),
-                    Text('Visit OTP', style: vx(18, w: FontWeight.w600, color: Colors.white)),
+                    Text('Visit OTP', style: vx(18, w: FontWeight.w600, color: V.ink)),
                   ]),
                   const SizedBox(height: 4),
-                  Text('Share this with your gardener when they arrive', style: p(12, color: Colors.white.withValues(alpha: 0.65))),
+                  Text('Share this with your gardener when they arrive', style: p(12.5, color: V.fog)),
                   const SizedBox(height: 14),
                   Row(children: [
                     for (final ch in asStr(_bk!['otp'], '—').split('')) Container(
-                      width: 44, height: 52,
+                      width: 46, height: 54,
                       margin: const EdgeInsets.only(right: 8),
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
-                      child: Text(ch, style: vx(24, w: FontWeight.w600, color: V.lime)),
+                      decoration: BoxDecoration(color: V.mint, borderRadius: BorderRadius.circular(14)),
+                      child: Text(ch, style: vx(26, w: FontWeight.w600, color: V.ink)),
                     ),
                   ]),
                 ]),
-              ).animate().fadeIn(delay: 60.ms),
+              ),
             ],
 
             // Gardener card
@@ -660,7 +666,7 @@ class _BkDetailState extends State<BookingDetailScreen> {
                   const SizedBox(width: 4),
                   Text(asDouble(gardener['avg_rating']).toStringAsFixed(1), style: p(14, w: FontWeight.w700, color: C.t1)),
                 ]),
-              ])).animate().fadeIn(delay: 80.ms),
+              ])),
             ],
 
             // Time-extension addon — only after customer has shared OTP & visit started
@@ -670,13 +676,13 @@ class _BkDetailState extends State<BookingDetailScreen> {
                 info: _timeAddonInfo!,
                 loading: _addingTime,
                 onAdd: _addTime,
-              ).animate().fadeIn(delay: 90.ms),
+              ),
             ],
 
             // Visit report (before/after photos + checklist)
             if (_status == 'completed') ...[
               const SizedBox(height: 12),
-              _VisitReportCard(bk: _bk!).animate().fadeIn(delay: 100.ms),
+              _VisitReportCard(bk: _bk!),
             ],
 
             // Rating display
@@ -696,19 +702,19 @@ class _BkDetailState extends State<BookingDetailScreen> {
                   Expanded(child: Text(
                     (_bk!['review'] as String?)?.isNotEmpty == true ? asStr(_bk!['review']) : 'Review submitted',
                     style: p(13, color: C.t2, h: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                ])).animate().fadeIn(delay: 100.ms),
+                ])),
             ],
 
             const SizedBox(height: 20),
-            if (canRate)   GBtn(label: 'Rate Your Visit', icon: Icons.star_rounded, gold: true, onTap: _showRating).animate().fadeIn(),
+            if (canRate)   GBtn(label: 'Rate Your Visit', icon: Icons.star_rounded, gold: true, onTap: _showRating),
             if (!['cancelled', 'failed'].contains(_status)) ...[
               if (canRate) const SizedBox(height: 10),
               GBtn(label: 'Download Invoice', icon: Icons.receipt_long_rounded, outline: true,
-                onTap: () => downloadInvoice(ctx, InvoiceType.booking, widget.id)).animate().fadeIn(),
+                onTap: () => downloadInvoice(ctx, InvoiceType.booking, widget.id)),
             ],
             if (canCancel) ...[
               const SizedBox(height: 10),
-              GBtn(label: 'Cancel Booking', danger: true, outline: true, loading: _cancelling, onTap: _cancel).animate().fadeIn(),
+              GBtn(label: 'Cancel Booking', danger: true, outline: true, loading: _cancelling, onTap: _cancel),
             ],
           ])),
         ),
@@ -871,7 +877,7 @@ class _ReportPhoto extends StatelessWidget {
       ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.network(
-          url,
+          url, cacheWidth: 900,
           height: 120, width: double.infinity, fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => Container(
             height: 120,
@@ -903,12 +909,5 @@ List<dynamic> _cardAddons(Map<String, dynamic> b) {
   return [];
 }
 
-Route<dynamic> _slide(Widget page) => PageRouteBuilder(
-  transitionDuration: 340.ms, reverseTransitionDuration: 280.ms,
-  pageBuilder: (_, __, ___) => page,
-  transitionsBuilder: (_, a, __, child) {
-    final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
-    return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(c),
-      child: FadeTransition(opacity: Tween<double>(begin: 0.35, end: 1).animate(c), child: child));
-  });
+// Standard route: glass backdrop + iOS slide/swipe-back from the theme.
+Route<dynamic> _slide(Widget page) => MaterialPageRoute(builder: (_) => page);

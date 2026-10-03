@@ -190,23 +190,25 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 6, 16, 10),
       child: Row(children: [
         GestureDetector(
-          behavior: HitTestBehavior.opaque,
           onTap: onBack,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-            child: Row(children: [
-              const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: C.t1),
-              const SizedBox(width: 8),
-              Text('Back', style: p(15, w: FontWeight.w600, color: C.t1)),
-            ]),
+          child: VLiquid(
+            radius: 99,
+            tint: const Color(0x80FFFFFF),
+            thickness: 20,
+            interactive: true,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: C.t1),
+                const SizedBox(width: 6),
+                Text('Back', style: p(14.5, w: FontWeight.w600, color: C.t1)),
+              ]),
+            ),
           ),
         ),
         const Spacer(),
-        IconButton(
-          onPressed: onSearch,
-          icon: const Icon(Icons.search_rounded, color: C.t1, size: 24),
-        ),
-        const SizedBox(width: 4),
+        VRoundBtn(icon: Icons.search_rounded, onTap: onSearch),
+        const SizedBox(width: 10),
         GestureDetector(
           onTap: () {
             if (cart.count == 0) return showMsg(ctx, 'Your cart is empty');
@@ -215,9 +217,12 @@ class _TopBar extends StatelessWidget {
             ));
           },
           child: Stack(clipBehavior: Clip.none, children: [
-            GGlass(
-              radius: BorderRadius.circular(99),
-              child: const SizedBox(
+            const VLiquid(
+              oval: true,
+              tint: Color(0x80FFFFFF),
+              thickness: 20,
+              interactive: true,
+              child: SizedBox(
                 width: 48, height: 48,
                 child: Icon(Icons.shopping_bag_outlined, color: C.forest, size: 22),
               ),
@@ -270,23 +275,27 @@ class _Rail extends StatelessWidget {
     final atEnd = page.round() >= n - 1;
 
     return Stack(children: [
-      // Green glass panel with the notch cut out, so the frosted page shows
-      // through behind the selected product.
+      // Green liquid-glass panel with the notch cut out, so the page shows
+      // through behind the selected product. The glass shape is static (only
+      // the clip moves while swiping), so its refraction stays cached.
       Positioned.fill(
         child: ClipPath(
           clipper: _RailClipper(notchTop: notchTop, notchH: cellH),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [kCardTop.withValues(alpha: 0.88), kCardBottom.withValues(alpha: 0.94)],
-                ),
+          child: Stack(clipBehavior: Clip.none, children: [
+            // Extends past the screen's left edge so only the right-hand
+            // rounded corners of the glass are visible.
+            Positioned(
+              left: -40, top: 0, right: 0, bottom: 0,
+              child: VLiquid(
+                radius: _RailClipper.r,
+                tint: const Color(0xD91A5534),
+                thickness: 28,
+                blur: 3,
+                saturation: 1.0,
+                child: const SizedBox.expand(),
               ),
             ),
-          ),
+          ]),
         ),
       ),
       Column(children: [
@@ -357,7 +366,7 @@ class _RailThumb extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(size * 0.26),
-                child: CachedNetworkImage(
+                child: CachedNetworkImage(fadeInDuration: const Duration(milliseconds: 120), fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero, memCacheWidth: 900, 
                   imageUrl: url,
                   fit: BoxFit.cover,
                   placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F1)),
@@ -475,7 +484,7 @@ class _ProductPage extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(25),
-                    child: CachedNetworkImage(
+                    child: CachedNetworkImage(fadeInDuration: const Duration(milliseconds: 120), fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero, memCacheWidth: 900, 
                       imageUrl: productImageUrl(data),
                       fit: BoxFit.cover,
                       placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F1)),

@@ -71,7 +71,7 @@ class GHeader extends StatelessWidget {
         child: child,
       ),
     ),
-  ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.06, end: 0, curve: Curves.easeOutCubic);
+  );
 }
 
 // ─── Info/Detail Row ──────────────────────────────────────────────────────────
@@ -157,7 +157,10 @@ class GBtn extends StatefulWidget {
     super.key, required this.label, this.onTap, this.loading = false,
     this.outline = false, this.danger = false, this.gold = false,
     this.icon, this.h = 54, this.w, this.fontSize, this.bg, this.labelColor,
+    this.glass = false,
   });
+  // Liquid-glass surface — for buttons that float over scrolling content.
+  final bool glass;
   @override State<GBtn> createState() => _GBtnState();
 }
 class _GBtnState extends State<GBtn> {
@@ -173,7 +176,9 @@ class _GBtnState extends State<GBtn> {
   @override
   Widget build(BuildContext ctx) {
     final fg = widget.outline ? (_brand ? V.deep : _base) : _fg;
-    final node = _brand && !widget.outline && widget.h >= 44;
+    // Arrow node only on full-width (or wide) brand buttons — narrow ones
+    // need the room for their label.
+    final node = _brand && !widget.outline && widget.h >= 44 && (widget.w == null || widget.w! >= 240);
     // The lime node already is the arrow — don't show a second one.
     final icon = node && _arrows.contains(widget.icon) ? null : widget.icon;
     return GestureDetector(
@@ -186,9 +191,9 @@ class _GBtnState extends State<GBtn> {
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 150),
           opacity: _dis && !widget.loading ? 0.5 : 1,
-          child: Container(
+          child: _surface(Container(
             width: widget.w ?? double.infinity, height: widget.h,
-            decoration: BoxDecoration(
+            decoration: _liquid ? null : BoxDecoration(
               color: widget.outline ? Colors.white.withValues(alpha: 0.5) : (_brand ? null : _base),
               gradient: widget.outline || !_brand ? null : const LinearGradient(
                 begin: Alignment.centerLeft, end: Alignment.centerRight,
@@ -204,27 +209,50 @@ class _GBtnState extends State<GBtn> {
             child: widget.loading
               ? Center(child: SizedBox(width: 22, height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: widget.outline ? V.deep : (_brand ? V.lime : _fg))))
-              : Stack(alignment: Alignment.center, children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    if (icon != null) ...[
-                      Icon(icon, size: 19, color: fg),
-                      const SizedBox(width: 10),
-                    ],
-                    Flexible(child: Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: vx(widget.fontSize ?? 15.5, w: FontWeight.w700, color: fg, ls: 0.2))),
-                  ]),
-                  if (node)
-                    Positioned(right: 6, child: Container(
+              // Label and arrow node get their own space (no overlap). The
+              // label scales down rather than truncating on narrow buttons.
+              : Padding(
+                  padding: EdgeInsets.symmetric(horizontal: node ? 6 : 16),
+                  child: Row(children: [
+                    if (node) SizedBox(width: widget.h - 12),
+                    Expanded(child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (icon != null) ...[
+                            Icon(icon, size: 19, color: fg),
+                            const SizedBox(width: 10),
+                          ],
+                          Text(widget.label, maxLines: 1,
+                            style: vx(widget.fontSize ?? 15.5, w: FontWeight.w700, color: fg, ls: 0.2)),
+                        ]),
+                      ),
+                    )),
+                    if (node) Container(
                       width: widget.h - 12, height: widget.h - 12,
                       decoration: const BoxDecoration(color: V.lime, shape: BoxShape.circle),
                       child: const Icon(Icons.arrow_forward_rounded, size: 18, color: V.ink),
-                    )),
-                ]),
-          ),
+                    ),
+                  ]),
+                ),
+          )),
         ),
       ),
     );
   }
+
+  bool get _liquid => widget.glass && _brand && !widget.outline;
+
+  Widget _surface(Widget child) => !_liquid ? child : VLiquid(
+    radius: widget.h / 2,
+    tint: const Color(0xCC123824),
+    thickness: 24,
+    blur: 3,
+    saturation: 1.0,
+    interactive: true,
+    child: child,
+  );
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -326,21 +354,22 @@ class _MsgBannerState extends State<_MsgBanner> with SingleTickerProviderStateMi
       top: MediaQuery.of(ctx).padding.top + 10, left: 14, right: 14,
       child: SlideTransition(position: _slide, child: FadeTransition(opacity: _fade,
         child: Material(color: Colors.transparent,
-          child: Container(
+          // Glass toast
+          child: VLiquid(
+            radius: 99,
+            tint: const Color(0xE00B1F14),
+            thickness: 22,
+            blur: 4,
+            saturation: 1.0,
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            decoration: BoxDecoration(
-              color: V.ink.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: col == C.forest ? Colors.white.withValues(alpha: 0.12) : col.withValues(alpha: 0.6)),
-              boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.2), blurRadius: 18, offset: const Offset(0, 8))],
-            ),
             child: Row(children: [
               Icon(icon, color: col == C.forest ? V.lime : col, size: 20),
               const SizedBox(width: 12),
               Expanded(child: Text(widget.msg,
                 style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white))),
             ]),
-          )))));
+          ))))));
   }
 }
 
@@ -467,17 +496,15 @@ class _GFloatingCartBarState extends State<GFloatingCartBar> {
     final cart = ctx.watch<CartProvider>();
     return Positioned(
       left: 16, right: 16, bottom: 16 + MediaQuery.of(ctx).padding.bottom,
-      child: Container(
+      // Floating cart bar — tinted liquid glass over the scrolling page.
+      child: VLiquid(
+        radius: 26,
+        tint: const Color(0xD9123824),
+        thickness: 26,
+        blur: 3,
+        saturation: 1.0,
+        child: Padding(
         padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFF0E5C2A), C.forest, Color(0xFF03411A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
-          boxShadow: [
-            BoxShadow(color: C.forest.withOpacity(0.45), blurRadius: 24, offset: const Offset(0, 12)),
-            BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
-          ],
-        ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (_expanded) ...[
             Padding(
@@ -518,7 +545,7 @@ class _GFloatingCartBarState extends State<GFloatingCartBar> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: img.isNotEmpty
-                              ? Image.network(img, width: 36, height: 36, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 36, height: 36, color: Colors.white12, child: const Icon(Icons.eco_rounded, color: Colors.white54, size: 16)))
+                              ? Image.network(img, cacheWidth: 150, width: 36, height: 36, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 36, height: 36, color: Colors.white12, child: const Icon(Icons.eco_rounded, color: Colors.white54, size: 16)))
                               : Container(width: 36, height: 36, color: Colors.white12, child: const Icon(Icons.eco_rounded, color: Colors.white54, size: 16)),
                           ),
                           const SizedBox(width: 10),
@@ -589,11 +616,7 @@ class _GFloatingCartBarState extends State<GFloatingCartBar> {
               onTap: widget.onTap,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [C.gold, Color(0xFFE0BE6E)]),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [BoxShadow(color: C.gold.withOpacity(0.5), blurRadius: 12, offset: const Offset(0, 4))],
-                ),
+                decoration: BoxDecoration(color: V.lime, borderRadius: BorderRadius.circular(99)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text('View Cart', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w900, color: const Color(0xFF1A0F00))),
                   const SizedBox(width: 6),
@@ -603,7 +626,7 @@ class _GFloatingCartBarState extends State<GFloatingCartBar> {
             ),
           ]),
         ]),
-      ),
+      )),
     ).animate().slideY(begin: 1, end: 0, duration: 350.ms, curve: Curves.easeOutQuart).fadeIn(duration: 250.ms);
   }
 }
@@ -622,21 +645,25 @@ class GNavBar extends StatelessWidget {
     (icon: Icons.storefront_outlined,      active: Icons.storefront_rounded,      label: 'Shop'),
   ];
 
+  // One-time light sweep across the newly selected tab's pill.
+  static Widget _maybeShine(bool sel, int i, Widget w) => !sel ? w : w
+      .animate(key: ValueKey('nav-shine-$i'))
+      .shimmer(delay: 120.ms, duration: 700.ms, color: Colors.white.withValues(alpha: 0.7));
+
   @override
   Widget build(BuildContext ctx) => Padding(
     padding: EdgeInsets.fromLTRB(16, 6, 16, MediaQuery.of(ctx).padding.bottom > 0 ? MediaQuery.of(ctx).padding.bottom : 14),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(32),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: Container(
+    // Liquid glass dock — content scrolls underneath it (Shell uses extendBody).
+    child: VLiquid(
+      radius: 32,
+      tint: const Color(0x52FFFFFF),
+      thickness: 30,
+      blur: 3,
+      interactive: true,
+      hero: true,
+      child: Container(
           height: 66,
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(32),
-            gradient: const LinearGradient(colors: [Color(0xF2102A1C), Color(0xED153A26)]),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          ),
           child: Row(children: List.generate(_items.length, (i) {
             final sel = i == idx;
             final badge = i == 2 && cartCount > 0;
@@ -646,7 +673,7 @@ class GNavBar extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: () { HapticFeedback.selectionClick(); onTap(i); },
                 child: Center(
-                  child: AnimatedContainer(
+                  child: _maybeShine(sel, i, AnimatedContainer(
                     duration: const Duration(milliseconds: 320),
                     curve: Curves.easeOutCubic,
                     height: 48,
@@ -657,13 +684,17 @@ class GNavBar extends StatelessWidget {
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Stack(clipBehavior: Clip.none, children: [
-                        Icon(sel ? _items[i].active : _items[i].icon, size: 22, color: sel ? V.ink : Colors.white70),
+                        (sel
+                          ? Icon(_items[i].active, size: 22, color: V.ink)
+                              .animate(key: ValueKey('nav-sel-$i'))
+                              .scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1), duration: 450.ms, curve: Curves.elasticOut)
+                          : Icon(_items[i].icon, size: 22, color: V.ink.withValues(alpha: 0.7))),
                         if (badge) Positioned(top: -6, right: -9, child: Container(
                           constraints: const BoxConstraints(minWidth: 16),
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(color: sel ? V.ink : V.lime, borderRadius: BorderRadius.circular(99)),
+                          decoration: BoxDecoration(color: sel ? V.ink : C.red, borderRadius: BorderRadius.circular(99)),
                           child: Text('$cartCount', textAlign: TextAlign.center,
-                            style: vx(9, w: FontWeight.w800, color: sel ? V.lime : V.ink)),
+                            style: vx(9, w: FontWeight.w800, color: sel ? V.lime : Colors.white)),
                         )),
                       ]),
                       if (sel) ...[
@@ -672,12 +703,11 @@ class GNavBar extends StatelessWidget {
                           style: vx(13.5, w: FontWeight.w700, color: V.ink))),
                       ],
                     ]),
-                  ),
+                  )),
                 ),
               ),
             );
           })),
-        ),
       ),
     ),
   );

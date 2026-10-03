@@ -38,6 +38,8 @@ void main() {
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
   Animate.restartOnHotReload = true;
+  // Compile glass shaders up front so the first glass surface doesn't hitch.
+  VLiquid.precache();
   // Push notifications — no-op when Firebase isn't configured yet. After init,
   // re-sync the FCM token to the backend if a session already exists.
   PushService.instance.init().then((_) => PushService.instance.syncTokenIfLoggedIn());
@@ -76,6 +78,8 @@ class GkmApp extends StatelessWidget {
         theme: AT.light,
         home: const GGlassBg(child: _Root()),
         onGenerateRoute: _onRoute,
+        // iOS-style elastic scrolling on every platform.
+        scrollBehavior: const _BouncyScroll(),
       );
 
   static Route<dynamic>? _onRoute(RouteSettings s) {
@@ -123,36 +127,19 @@ class GkmApp extends StatelessWidget {
     return null;
   }
 
-  static PageRoute _fade(Widget pg, RouteSettings s) => PageRouteBuilder(
-      settings: s,
-      transitionDuration: 200.ms,
-      reverseTransitionDuration: 180.ms,
-      pageBuilder: (_, __, ___) => GGlassBg(child: pg),
-      transitionsBuilder: (_, a, __, child) {
-        final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
-        return FadeTransition(
-            opacity: c,
-            child: SlideTransition(
-                position: Tween<Offset>(
-                        begin: const Offset(0, 0.04), end: Offset.zero)
-                    .animate(c),
-                child: child));
-      });
+  // Every page uses the standard route: the theme's GlassPageTransitionsBuilder
+  // gives it the glass backdrop and the iOS slide with edge swipe-back.
+  static PageRoute _fade(Widget pg, RouteSettings s) => MaterialPageRoute(settings: s, builder: (_) => pg);
+  static PageRoute _slide(Widget pg, RouteSettings s) => MaterialPageRoute(settings: s, builder: (_) => pg);
+}
 
-  static PageRoute _slide(Widget pg, RouteSettings s) => PageRouteBuilder(
-      settings: s,
-      transitionDuration: 260.ms,
-      reverseTransitionDuration: 200.ms,
-      pageBuilder: (_, __, ___) => GGlassBg(child: pg),
-      transitionsBuilder: (_, a, __, child) {
-        final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
-        return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                .animate(c),
-            child: FadeTransition(
-                opacity: Tween<double>(begin: 0.3, end: 1.0).animate(c),
-                child: child));
-      });
+class _BouncyScroll extends MaterialScrollBehavior {
+  const _BouncyScroll();
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
 }
 
 class _Root extends StatefulWidget {
@@ -183,15 +170,20 @@ class _RootState extends State<_Root> {
   }
 
   void _goShell(BuildContext ctx) {
-    // Pick up the token Api.verifyOtp just stored so isAuthed is accurate.
-    ctx.read<AuthProvider>().reload();
+    // Pick up the token Api.verifyOtp just stored — but only after the
+    // drop-in animation, so the old root doesn't rebuild into a second Home
+    // underneath it (double work + a flash mid-transition).
+    final auth = ctx.read<AuthProvider>();
+    Future.delayed(const Duration(milliseconds: 900), auth.reload);
     Navigator.pushAndRemoveUntil(
       ctx,
+      // Plain fade for the shell (the glass dock stays put, so it isn't
+      // re-rendered every frame); Home's own content drops in from the top.
       PageRouteBuilder(
           transitionDuration: 380.ms,
           pageBuilder: (_, __, ___) => const GGlassBg(child: _Shell()),
           transitionsBuilder: (_, a, __, child) =>
-              FadeTransition(opacity: a, child: child)),
+              FadeTransition(opacity: CurvedAnimation(parent: a, curve: Curves.easeOut), child: child)),
       (_) => false);
   }
 }
@@ -202,15 +194,34 @@ class _Shell extends StatefulWidget {
   State<_Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<_Shell> {
+class _ShellState extends State<_Shell> with SingleTickerProviderStateMixin {
   int _idx = 0;
+  int _dir = 1; // slide direction of the incoming tab
+  // Tab-switch animation: the IndexedStack is animated in place (not
+  // re-keyed), so every tab keeps its scroll position and state.
+  late final AnimationController _tabAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 320), value: 1);
+  late final CurvedAnimation _tabCurve = CurvedAnimation(parent: _tabAnim, curve: Curves.easeOutCubic);
+  late final Animation<double> _tabFade = Tween(begin: 0.5, end: 1.0).animate(_tabCurve);
+  late final Animation<Offset> _tabSlideFromRight = Tween(begin: const Offset(0.06, 0), end: Offset.zero).animate(_tabCurve);
+  late final Animation<Offset> _tabSlideFromLeft = Tween(begin: const Offset(-0.06, 0), end: Offset.zero).animate(_tabCurve);
+
+  void _setTab(int i) {
+    if (i == _idx) return;
+    setState(() { _dir = i > _idx ? 1 : -1; _idx = i; });
+    _tabAnim.forward(from: 0);
+  }
+
+  @override
+  void dispose() { _tabAnim.dispose(); super.dispose(); }
 
   @override
   void initState() {
     super.initState();
     // Refresh profile and auto-detect location
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('>>> [Shell] Initializing...');
+    // Heavier start-up work (GPS, status polling) waits until the entry
+    // animation has finished so it doesn't compete for frames.
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
       context.read<AuthProvider>().refreshProfile();
 
       // Operations kill-switch — fetch now, then re-check every 5 minutes.
@@ -247,13 +258,13 @@ class _ShellState extends State<_Shell> {
         Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(onLogout: _onLogout)));
         break;
       default:
-        setState(() => _idx = i);
+        _setTab(i);
     }
   }
 
   @override
   Widget build(BuildContext ctx) {
-    void toHome() => setState(() => _idx = 0);
+    void toHome() => _setTab(0);
     final pages = [
       HomeScreen(navTo: _navTo),
       BookingsScreen(onBack: toHome),
@@ -270,13 +281,20 @@ class _ShellState extends State<_Shell> {
       extendBody: true,
       // Hidden tabs stay alive in the IndexedStack, so mute their tickers —
       // otherwise their animations keep rendering off-screen (battery/heat).
-      body: IndexedStack(index: _idx, children: [
-        for (var i = 0; i < pages.length; i++) TickerMode(enabled: i == _idx, child: pages[i]),
-      ]),
+      // Transition widgets animate without rebuilding the tab's subtree.
+      body: FadeTransition(
+        opacity: _tabFade,
+        child: SlideTransition(
+          position: _dir > 0 ? _tabSlideFromRight : _tabSlideFromLeft,
+          child: IndexedStack(index: _idx, children: [
+          for (var i = 0; i < pages.length; i++) TickerMode(enabled: i == _idx, child: pages[i]),
+        ]),
+        ),
+      ),
       bottomNavigationBar: Consumer<CartProvider>(
         builder: (_, cart, __) => GNavBar(
             idx: _idx,
-            onTap: (i) => setState(() => _idx = i),
+            onTap: _setTab,
             cartCount: cart.count),
       ),
     ));

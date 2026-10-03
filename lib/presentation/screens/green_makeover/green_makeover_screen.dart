@@ -105,8 +105,8 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
           // Floating CTA — no bar behind it
           Positioned(
             left: 20, right: 20, bottom: mq.padding.bottom + 16,
-            child: GBtn(label: 'Book consultation', icon: Icons.chat_bubble_outline_rounded, onTap: _openWhatsApp),
-          ).animate().slideY(begin: 1.5, end: 0, duration: 500.ms, curve: Curves.easeOutCubic),
+            child: GBtn(label: 'Book consultation', icon: Icons.chat_bubble_outline_rounded, glass: true, onTap: _openWhatsApp),
+          ),
         ]),
       ),
     );
@@ -127,7 +127,7 @@ class _GreenMakeoverScreenState extends State<GreenMakeoverScreen> {
           const SizedBox(height: 8),
           Text('Turn any corner of your home or office into a garden — designed, planted and installed by our team.',
             style: p(13.5, color: Colors.white.withValues(alpha: 0.85), h: 1.45)),
-        ]).animate().fadeIn(duration: 500.ms).slideY(begin: 0.1, end: 0)),
+        ])),
       ]),
     ),
   );

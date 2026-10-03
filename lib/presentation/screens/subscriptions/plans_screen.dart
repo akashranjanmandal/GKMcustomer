@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
 import '../../theme/theme.dart';
 import '../../widgets/plan_card.dart';
@@ -17,6 +16,43 @@ class _PlansState extends State<PlansScreen> {
   List<dynamic> _plans = [];
   bool _loading = true;
   _Cycle _filter = _Cycle.all;
+  String _sort = 'recommended';
+  static const _sortLabels = {'recommended': 'Recommended', 'price_asc': 'Price: low to high', 'price_desc': 'Price: high to low'};
+
+  static String _cycleLabel(_Cycle c) => switch (c) { _Cycle.all => 'All', _Cycle.oneTime => 'One-time', _Cycle.monthly => 'Monthly', _Cycle.annually => 'Annual' };
+
+  Future<void> _openFilters() async {
+    final res = await showFilterSheet(context,
+      title: 'Filter plans',
+      sections: [
+        VFilterSection(title: 'Plan type', defaultValue: 'all', options: [
+          VFilterOption('all', 'All', icon: Icons.apps_rounded),
+          VFilterOption('oneTime', 'One-time', icon: Icons.bolt_outlined),
+          VFilterOption('monthly', 'Monthly', icon: Icons.event_repeat_outlined),
+          VFilterOption('annually', 'Annual', icon: Icons.calendar_month_outlined),
+        ]),
+        VFilterSection(title: 'Sort by', defaultValue: 'recommended', tiles: false, options: [
+          for (final e in _sortLabels.entries) VFilterOption(e.key, e.value),
+        ]),
+      ],
+      current: [_filter.name, _sort],
+    );
+    if (res == null || !mounted) return;
+    setState(() { _filter = _Cycle.values.byName(res[0]); _sort = res[1]; });
+  }
+
+  Widget _darkChip(String label, VoidCallback onClear) => GestureDetector(
+    onTap: onClear,
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(99)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: p(12, w: FontWeight.w600, color: Colors.white)),
+        const SizedBox(width: 4),
+        const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+      ]),
+    ),
+  );
 
   @override
   void initState() {
@@ -40,8 +76,10 @@ class _PlansState extends State<PlansScreen> {
   }
 
   List<dynamic> get _filtered {
-    if (_filter == _Cycle.all) return _plans;
-    return _plans.where((p) => _cycleOf(asMap(p)) == _filter).toList();
+    final l = _filter == _Cycle.all ? [..._plans] : _plans.where((p) => _cycleOf(asMap(p)) == _filter).toList();
+    if (_sort == 'price_asc') l.sort((a, b) => asDouble(asMap(a)['price']).compareTo(asDouble(asMap(b)['price'])));
+    if (_sort == 'price_desc') l.sort((a, b) => asDouble(asMap(b)['price']).compareTo(asDouble(asMap(a)['price'])));
+    return l;
   }
 
   @override
@@ -66,26 +104,23 @@ class _PlansState extends State<PlansScreen> {
           ]),
           const SizedBox(height: 10),
           Text('Pick a one-time visit or a regular schedule. You can change or pause anytime.',
-            style: p(12.5, color: Colors.white.withValues(alpha: 0.7), h: 1.45)),
+            style: p(12.5, color: Colors.white.withValues(alpha: 0.85), h: 1.45)),
           const SizedBox(height: 18),
-          SizedBox(
-            height: 36,
-            child: ListView(scrollDirection: Axis.horizontal, clipBehavior: Clip.none, children: [
-              for (final c in _Cycle.values) ...[
-                _FilterChip(
-                  label: switch (c) { _Cycle.all => 'All', _Cycle.oneTime => 'One-time', _Cycle.monthly => 'Monthly', _Cycle.annually => 'Annual' },
-                  sel: _filter == c,
-                  onTap: () => setState(() => _filter = c),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ]),
-          ),
+          Row(children: [
+            if (_filter != _Cycle.all) _darkChip(_cycleLabel(_filter), () => setState(() => _filter = _Cycle.all)),
+            if (_sort != 'recommended') ...[
+              const SizedBox(width: 8),
+              _darkChip(_sortLabels[_sort]!, () => setState(() => _sort = 'recommended')),
+            ],
+            const Spacer(),
+            VFilterButton(active: _filter != _Cycle.all || _sort != 'recommended', onTap: _openFilters),
+          ]),
         ]))),
         if (_loading)
           const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: V.leaf)))
         else if (list.isEmpty)
-          const SliverFillRemaining(child: GEmpty(title: 'No plans found', sub: 'Try a different filter or check back later', icon: Icons.spa_outlined))
+          SliverFillRemaining(hasScrollBody: false, child: GEmpty(title: 'No plans here', sub: 'Nothing matches this filter right now.', icon: Icons.spa_outlined,
+            action: _filter == _Cycle.all ? null : GBtn(label: 'Show all plans', onTap: () => setState(() => _filter = _Cycle.all), w: 220, h: 48)))
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
@@ -97,31 +132,11 @@ class _PlansState extends State<PlansScreen> {
                   plan: asMap(list[i]),
                   onSelect: () => Navigator.pushNamed(ctx, '/book', arguments: asInt(asMap(list[i])['id'])),
                 ),
-              ).animate().fadeIn(delay: (i * 60).ms, duration: 350.ms).slideY(begin: 0.05, end: 0, curve: Curves.easeOutCubic),
+              ),
               childCount: list.length,
             )),
           ),
       ]),
     );
   }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label; final bool sel; final VoidCallback onTap;
-  const _FilterChip({required this.label, required this.sel, required this.onTap});
-  @override
-  Widget build(BuildContext ctx) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: 200.ms,
-      curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: sel ? Colors.white : Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: sel ? Colors.white : Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Text(label, style: p(12.5, w: FontWeight.w600, color: sel ? V.ink : Colors.white70)),
-    ),
-  );
 }

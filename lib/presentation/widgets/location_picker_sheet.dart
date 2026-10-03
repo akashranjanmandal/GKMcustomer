@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../data/services/api.dart';
 import '../../data/services/location_provider.dart';
 import '../theme/theme.dart';
+import 'verdant.dart';
 import 'widgets.dart';
 
 class PickedLocation {
@@ -147,21 +148,11 @@ Future<PickedLocation?> detectCurrentLocation() async {
 }
 
 Future<PickedLocation?> showLocationPicker(BuildContext context) {
-  return showModalBottomSheet<PickedLocation>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    isDismissible: false,
-    enableDrag: false,
-    builder: (_) => const _LocationPickerSheet(),
-  );
+  return showGlassSheet<PickedLocation>(context, dismissible: false, builder: (_) => const _LocationPickerSheet());
 }
 
 Future<PickedLocation?> showSavedLocations(BuildContext context) {
-  return showModalBottomSheet<PickedLocation>(
-    context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-    builder: (_) => const _SavedLocationsSheet(),
-  );
+  return showGlassSheet<PickedLocation>(context, builder: (_) => const _SavedLocationsSheet());
 }
 
 class _SavedLocationsSheet extends StatelessWidget {
@@ -173,7 +164,6 @@ class _SavedLocationsSheet extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
       padding: EdgeInsets.fromLTRB(24, 20, 24, 24 + bottom),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 24),
@@ -466,7 +456,6 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   Widget build(BuildContext ctx) {
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * (_step == 1 ? 0.95 : 0.9)),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
       child: Padding(
         padding: EdgeInsets.only(bottom: _step == 1 ? 0 : MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(mainAxisSize: MainAxisSize.min, children: [

@@ -27,12 +27,7 @@ class _ComplaintsState extends State<ComplaintsScreen> {
   }
 
   void _showNewComplaint() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF7FBF7),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (_) => _NewComplaintSheet(api: _api, onDone: _load),
+    showGlassSheet(context, builder: (_) => _NewComplaintSheet(api: _api, onDone: _load),
     );
   }
 
@@ -55,7 +50,7 @@ class _ComplaintsState extends State<ComplaintsScreen> {
                 Text('How can we help?', style: vx(22, w: FontWeight.w600, color: Colors.white)),
                 const SizedBox(height: 6),
                 Text('Tell us about a booking, a gardener visit, an order or a payment. Most issues are resolved within a day.',
-                  style: p(12.5, color: Colors.white.withValues(alpha: 0.7), h: 1.45)),
+                  style: p(12.5, color: Colors.white.withValues(alpha: 0.85), h: 1.45)),
                 const SizedBox(height: 16),
                 GestureDetector(
                   onTap: _showNewComplaint,
@@ -85,10 +80,11 @@ class _ComplaintsState extends State<ComplaintsScreen> {
               sliver: SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 3)),
             )
           else if (_complaints.isEmpty)
-            const SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+            SliverFillRemaining(hasScrollBody: false, child: GEmpty(
               title: 'No tickets yet',
               sub: "Issues you raise will show up here, along with our replies.",
-              icon: Icons.headset_mic_outlined))
+              icon: Icons.headset_mic_outlined,
+              action: GBtn(label: 'Raise an issue', onTap: _showNewComplaint, w: 200, h: 48)))
           else
             SliverPadding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
@@ -102,8 +98,7 @@ class _ComplaintsState extends State<ComplaintsScreen> {
                     _load();
                   },
                   child: _ComplaintCard(c: c)
-                    .animate().fadeIn(delay: Duration(milliseconds: i * 40))
-                    .slideY(begin: 0.06, end: 0, delay: Duration(milliseconds: i * 40)),
+                    ,
                 );
               }, childCount: _complaints.length)),
             ),

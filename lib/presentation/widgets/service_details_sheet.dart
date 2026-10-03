@@ -61,15 +61,7 @@ IconData serviceIconFor(String slug) {
 // overview, includes/excludes, steps and FAQs. `service` is a raw map from
 // GET /service-details.
 void showServiceDetailsSheet(BuildContext context, Map service) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: const Color(0xFFF7FBF7),
-    clipBehavior: Clip.antiAlias,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-    builder: (_) => _ServiceDetailsSheet(service: asMap(service)),
-  );
+  showGlassSheet(context, builder: (_) => _ServiceDetailsSheet(service: asMap(service)));
 }
 
 class _ServiceDetailsSheet extends StatelessWidget {

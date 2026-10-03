@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/location_provider.dart';
 import '../../theme/theme.dart';
@@ -69,18 +68,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
   }
 
   Future<void> _confirmDelete(int index) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete Address?', style: p(17, w: FontWeight.w700, color: C.t1)),
-        content: Text('Are you sure you want to remove this address?', style: p(14, color: C.t3)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel', style: p(14, color: C.t3))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Delete', style: p(14, w: FontWeight.w700, color: C.red))),
-        ],
-      ),
-    );
+    final ok = await showGlassConfirm(context, title: 'Delete address?', message: 'This address will be removed from your saved addresses.', confirmLabel: 'Delete', cancelLabel: 'Cancel', destructive: true);
     if (ok == true && mounted) {
       context.read<LocationProvider>().remove(index);
       showMsg(context, 'Address removed');
@@ -141,6 +129,6 @@ class _AddressTile extends StatelessWidget {
       child: isDefault
         ? VPod(radius: 22, padding: const EdgeInsets.all(16), child: body)
         : GCard(padding: const EdgeInsets.all(16), radius: BorderRadius.circular(22), child: body),
-    ).animate().fadeIn().slideY(begin: 0.05, end: 0);
+    );
   }
 }

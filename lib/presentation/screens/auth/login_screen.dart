@@ -86,6 +86,9 @@ class _LoginState extends State<LoginScreen> {
           _busy = false;
         });
       } else {
+        // Close the keyboard before the transition so the screen isn't
+        // re-laid-out every frame while Home fades in.
+        FocusManager.instance.primaryFocus?.unfocus();
         widget.onLoggedIn();
       }
     } on ApiError catch (e) {
@@ -106,7 +109,7 @@ class _LoginState extends State<LoginScreen> {
       final code = _otpCtrls.map((c) => c.text).join();
       await _api.verifyOtp(p, code, name: n,
           fcmToken: await PushService.instance.getToken());
-      if (mounted) widget.onLoggedIn();
+      if (mounted) { FocusManager.instance.primaryFocus?.unfocus(); widget.onLoggedIn(); }
     } on ApiError catch (e) {
       if (mounted) {
         setState(() => _busy = false);
@@ -220,18 +223,44 @@ class _LoginState extends State<LoginScreen> {
                   child: Center(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(32, 0, 32, 52),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 420),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, a) => FadeTransition(
-                          opacity: a,
-                          child: ScaleTransition(
-                            scale: Tween(begin: 0.96, end: 1.0).animate(a),
-                            child: child,
+                      // One persistent frosted card — it never rebuilds between
+                      // steps; only its contents cross-fade and its height
+                      // animates. (Swapping whole glass cards per step was
+                      // what made the login → OTP change stutter.)
+                      child: RepaintBoundary(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(26),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(26),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                                  colors: [Colors.white.withValues(alpha: 0.16), Colors.white.withValues(alpha: 0.06)],
+                                ),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.32)),
+                              ),
+                              padding: const EdgeInsets.fromLTRB(22, 26, 22, 24),
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 320),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment.topCenter,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  switchInCurve: Curves.easeOut,
+                                  switchOutCurve: Curves.easeIn,
+                                  layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [
+                                    ...previous.map((w) => Positioned(left: 0, right: 0, top: 0, child: w)),
+                                    if (current != null) current,
+                                  ]),
+                                  transitionBuilder: (child, a) => FadeTransition(opacity: a, child: child),
+                                  child: card,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        child: card,
                       ),
                     ),
                   ),
@@ -248,27 +277,15 @@ class _LoginState extends State<LoginScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Frosted glass card + shared controls
 // ─────────────────────────────────────────────────────────────────────────────
+// Step content holder — the frosted card itself is persistent (see build).
 class _Glass extends StatelessWidget {
   final Widget child;
   final double minHeight;
   const _Glass({required this.child, this.minHeight = 0});
   @override
-  Widget build(BuildContext ctx) => ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            width: double.infinity,
-            constraints: BoxConstraints(minHeight: minHeight),
-            padding: const EdgeInsets.fromLTRB(22, 26, 22, 24),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.32), width: 1),
-            ),
-            child: child,
-          ),
-        ),
+  Widget build(BuildContext ctx) => ConstrainedBox(
+        constraints: BoxConstraints(minWidth: double.infinity, minHeight: minHeight > 0 ? minHeight - 50 : 0),
+        child: child,
       );
 }
 

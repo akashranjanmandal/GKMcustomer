@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
 import '../../../data/services/invoice_service.dart';
 import '../../theme/theme.dart';
@@ -46,14 +45,7 @@ class _SubsState extends State<SubscriptionsScreen> {
   }
 
   Future<void> _cancel(int id) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text('Cancel Subscription?', style: p(17, w: FontWeight.w700, color: C.t1)),
-      content: Text('All future visits will be permanently cancelled. This cannot be undone.', style: p(14, color: C.t3)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Keep Plan', style: p(14, color: C.t3))),
-        TextButton(onPressed: () => Navigator.pop(context, true),  child: Text('Yes, Cancel', style: p(14, w: FontWeight.w700, color: C.red))),
-      ]));
+    final ok = await showGlassConfirm(context, title: 'Cancel subscription?', message: 'All future visits will be cancelled. This cannot be undone.', confirmLabel: 'Yes, cancel', cancelLabel: 'Keep plan', destructive: true);
     if (ok != true) return;
     setState(() => _acting = true);
     try {
@@ -65,22 +57,12 @@ class _SubsState extends State<SubscriptionsScreen> {
   }
 
   void _showSchedule(Map<String, dynamic> sub) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF7FBF7),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (_) => _ScheduleSheet(sub: sub, api: _api, onDone: _load),
+    showGlassSheet(context, builder: (_) => _ScheduleSheet(sub: sub, api: _api, onDone: _load),
     );
   }
 
   void _showDetails(Map<String, dynamic> sub) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF7FBF7),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-      builder: (_) => _DetailsSheet(sub: sub),
+    showGlassSheet(context, builder: (_) => _DetailsSheet(sub: sub),
     );
   }
 
@@ -122,7 +104,7 @@ class _SubsState extends State<SubscriptionsScreen> {
                   onDetails: () => _showDetails(asMap(_subs[i])),
                   onInvoice: () => downloadInvoice(context, InvoiceType.subscription, asInt(_subs[i]['id'])),
                 ),
-              ).animate().fadeIn(delay: Duration(milliseconds: i * 60)).slideY(begin: 0.05, end: 0, delay: Duration(milliseconds: i * 60)),
+              ),
               childCount: _subs.length)),
             ),
         ]),
@@ -159,7 +141,7 @@ class _SubCard extends StatelessWidget {
     final nextVisit = asStr(sub['next_visit_date']);
     final dark = isActive;
     final fg = dark ? Colors.white : V.ink;
-    final muted = dark ? Colors.white.withValues(alpha: 0.65) : V.fog;
+    final muted = dark ? Colors.white.withValues(alpha: 0.85) : V.fog;
     final progress = visitsPerMonth > 0 ? (scheduled / visitsPerMonth).clamp(0.0, 1.0) : 0.0;
 
     Widget action(IconData icon, String label, VoidCallback? onTap, {bool primary = false}) => Expanded(

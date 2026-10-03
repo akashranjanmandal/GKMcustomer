@@ -40,7 +40,7 @@ class _GPlanCardState extends State<GPlanCard> {
     final hidden = features.length - shown.length;
 
     final fg = best ? Colors.white : V.ink;
-    final muted = best ? Colors.white.withValues(alpha: 0.65) : V.fog;
+    final muted = best ? Colors.white.withValues(alpha: 0.85) : V.fog;
     final line = best ? Colors.white.withValues(alpha: 0.12) : V.ink.withValues(alpha: 0.08);
 
     final body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

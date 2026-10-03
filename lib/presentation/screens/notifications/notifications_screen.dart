@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
@@ -102,15 +101,16 @@ class _NotifState extends State<NotificationsScreen> {
             SliverPadding(padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
               sliver: SliverList(delegate: SliverChildBuilderDelegate((_, __) => const GSkelCard(), childCount: 5)))
           else if (_items.isEmpty)
-            const SliverFillRemaining(hasScrollBody: false, child: GEmpty(
-              title: 'No alerts', sub: 'Booking updates, payments and plan reminders will show up here.', icon: Icons.notifications_none_outlined))
+            SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+              title: 'No alerts', sub: 'Booking updates, payments and plan reminders will show up here.', icon: Icons.notifications_none_outlined,
+              action: GBtn(label: 'Book a visit', onTap: () => Navigator.pushNamed(ctx, '/book'), w: 200, h: 48)))
           else
             SliverPadding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, bottom),
               sliver: SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (today.isNotEmpty) group('Today', today),
                 if (earlier.isNotEmpty) group(today.isEmpty ? 'Recent' : 'Earlier', earlier),
-              ]).animate().fadeIn(duration: 300.ms)),
+              ])),
             ),
         ]),
       ),

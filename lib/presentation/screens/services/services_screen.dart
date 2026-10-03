@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../data/services/api.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
@@ -61,10 +60,11 @@ class _ServicesState extends State<ServicesScreen> {
         action: GBtn(label: 'Try again', onTap: _load, w: 180, h: 48)))];
     }
     if (_services.isEmpty) {
-      return [const SliverFillRemaining(hasScrollBody: false, child: GEmpty(
+      return [SliverFillRemaining(hasScrollBody: false, child: GEmpty(
         title: 'No services yet',
-        sub: 'Our service catalogue will appear here soon.',
-        icon: Icons.spa_outlined))];
+        sub: 'Our service catalogue will appear here soon. You can still book a visit.',
+        icon: Icons.spa_outlined,
+        action: GBtn(label: 'Book a visit', onTap: () => Navigator.pushNamed(ctx, '/book'), w: 200, h: 48)))];
     }
     return [SliverPadding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(ctx).padding.bottom + 32),
@@ -101,8 +101,7 @@ class _ServicesState extends State<ServicesScreen> {
               ]),
             ),
           ),
-        ).animate().fadeIn(delay: Duration(milliseconds: (i * 50).clamp(0, 400)))
-          .slideY(begin: 0.05, end: 0, delay: Duration(milliseconds: (i * 50).clamp(0, 400)));
+        );
       }, childCount: _services.length)),
     )];
   }

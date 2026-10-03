@@ -104,7 +104,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: _newImg != null
                       ? Image.file(_newImg!, fit: BoxFit.cover)
                       : imgUrl != null
-                        ? Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _initials(auth.name))
+                        ? Image.network(imgUrl, cacheWidth: 400, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _initials(auth.name))
                         : _initials(auth.name),
                   )),
                 ),
@@ -136,7 +136,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ]),
         ),
         Positioned(left: 16, right: 16, bottom: MediaQuery.of(ctx).padding.bottom + 14,
-          child: GBtn(label: 'Save changes', loading: _saving, onTap: _save)),
+          child: GBtn(label: 'Save changes', loading: _saving, glass: true, onTap: _save)),
       ]),
     );
   }

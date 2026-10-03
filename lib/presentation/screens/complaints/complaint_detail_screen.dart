@@ -75,7 +75,8 @@ class _State extends State<ComplaintDetailScreen> {
     ]));
     if (_ticket == null) return Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
       VPageHeader(title: 'Ticket', onBack: () => Navigator.pop(ctx, true)),
-      const Expanded(child: GEmpty(title: 'Ticket not found', sub: 'It may have been closed or removed.', icon: Icons.headset_mic_outlined)),
+      Expanded(child: GEmpty(title: 'Ticket not found', sub: 'It may have been closed or removed.', icon: Icons.headset_mic_outlined,
+        action: GBtn(label: 'Back to support', onTap: () => Navigator.pop(ctx, true), w: 220, h: 48))),
     ]));
 
     final t = _ticket!;
@@ -108,7 +109,7 @@ class _State extends State<ComplaintDetailScreen> {
               radius: 24,
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (type.isNotEmpty) Text(type[0].toUpperCase() + type.substring(1), style: p(12, color: Colors.white.withValues(alpha: 0.6))),
+                if (type.isNotEmpty) Text(type[0].toUpperCase() + type.substring(1), style: p(12, color: Colors.white.withValues(alpha: 0.85))),
                 const SizedBox(height: 2),
                 Text(asStr(t['subject'], 'Your issue'), style: vx(21, w: FontWeight.w600, color: Colors.white, h: 1.2)),
                 const SizedBox(height: 10),
@@ -231,7 +232,7 @@ class _Attach extends StatelessWidget {
       onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
       child: isImage
         ? ClipRRect(borderRadius: BorderRadius.circular(12),
-            child: Image.network(url, width: 84, height: 84, fit: BoxFit.cover,
+            child: Image.network(url, cacheWidth: 300, width: 84, height: 84, fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(width: 84, height: 84, color: V.mint, child: const Icon(Icons.image_outlined, color: V.deep))))
         : Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

@@ -139,7 +139,7 @@ class _GProductCardState extends State<GProductCard> {
                                 border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
                               ),
                               clipBehavior: Clip.antiAlias,
-                              child: CachedNetworkImage(
+                              child: CachedNetworkImage(fadeInDuration: const Duration(milliseconds: 120), fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero, memCacheWidth: 540, 
                                 imageUrl: productImageUrl(pData),
                                 fit: BoxFit.cover,
                                 placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F1)),
@@ -188,7 +188,7 @@ class _GProductCardState extends State<GProductCard> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 1),
                             child: Text('₹${mrp.toStringAsFixed(0)}',
-                                style: p(11, color: Colors.white54, decoration: TextDecoration.lineThrough)),
+                                style: p(11, color: Colors.white.withValues(alpha: 0.85), decoration: TextDecoration.lineThrough)),
                           ),
                       ]),
                     ),

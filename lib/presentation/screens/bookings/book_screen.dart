@@ -1,5 +1,8 @@
+import 'dart:math' as math;
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/api.dart';
@@ -563,10 +566,10 @@ class _BookState extends State<BookScreen> {
             ]),
           ),
         _stepIdx < _lastStep
-          ? GBtn(label: 'Continue', icon: Icons.arrow_forward_rounded, onTap: _canNext() ? _goNext : null)
+          ? GBtn(label: 'Continue', icon: Icons.arrow_forward_rounded, glass: true, onTap: _canNext() ? _goNext : null)
           : GBtn(
               label: _isSub ? 'Subscribe · ₹${_total.toStringAsFixed(0)}${_isAnnualPlan ? '/yr' : '/mo'}' : 'Pay ₹${_total.toStringAsFixed(0)} & book',
-              loading: _submitting, onTap: _submit),
+              loading: _submitting, glass: true, onTap: _submit),
       ]),
     );
   }
@@ -630,7 +633,7 @@ class _BookState extends State<BookScreen> {
           ),
         ]),
       ]),
-    ).animate().fadeIn().slideY(begin: 0.06, end: 0)
+    )
     else Column(children: [
       const SizedBox(height: 30),
       const VOrb(icon: Icons.add_location_alt_outlined, size: 80, dark: false),
@@ -707,21 +710,18 @@ class _BookState extends State<BookScreen> {
         style: p(13.5, color: V.fog, h: 1.5),
       ),
       const SizedBox(height: 34),
+      // Rotary knob — turn to change the count; one haptic tick per step.
+      _PlantKnob(
+        value: _plantCount,
+        max: 200,
+        onChanged: (v) => setState(() { _plantCount = v; _clearCoupon(); }),
+      ),
+      const SizedBox(height: 18),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         _CounterBtn(icon: Icons.remove_rounded, enabled: _plantCount > 0, onTap: () => setState(() { _plantCount--; _clearCoupon(); })),
-        const SizedBox(width: 22),
-        Container(
-          width: 150, height: 150,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.7), border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [BoxShadow(color: V.ink.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 10))]),
-          alignment: Alignment.center,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-            child: Text('$_plantCount', key: ValueKey(_plantCount), style: vx(64, w: FontWeight.w600, color: V.ink, h: 1)),
-          ),
-        ),
-        const SizedBox(width: 22),
+        const SizedBox(width: 18),
+        Text('Turn the dial or tap', style: p(12, color: V.fog)),
+        const SizedBox(width: 18),
         _CounterBtn(icon: Icons.add_rounded, enabled: _plantCount < 200, onTap: () => setState(() { _plantCount++; _clearCoupon(); })),
       ]),
       const SizedBox(height: 20),
@@ -896,7 +896,7 @@ class _BookState extends State<BookScreen> {
             const Icon(Icons.location_on_outlined, size: 16, color: Colors.white60),
             const SizedBox(width: 8),
             Expanded(child: Text('${prov.label} — ${_cleanAddr(prov.fullAddress)}', maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: p(12.5, color: Colors.white.withValues(alpha: 0.75), h: 1.4))),
+              style: p(12.5, color: Colors.white.withValues(alpha: 0.85), h: 1.4))),
           ]),
         ]),
       ),
@@ -1073,7 +1073,7 @@ class _PlanItem extends StatelessWidget {
     final maxPlants = asInt(plan['max_plants']);
     final features = asList(plan['features']).map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
     final fg = sel ? Colors.white : V.ink;
-    final muted = sel ? Colors.white.withValues(alpha: 0.65) : V.fog;
+    final muted = sel ? Colors.white.withValues(alpha: 0.85) : V.fog;
 
     final body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1136,7 +1136,7 @@ class _CounterBtn extends StatelessWidget {
   const _CounterBtn({required this.icon, required this.enabled, required this.onTap});
   @override
   Widget build(BuildContext ctx) => GestureDetector(
-    onTap: enabled ? onTap : null,
+    onTap: enabled ? () { HapticFeedback.selectionClick(); onTap(); } : () => HapticFeedback.heavyImpact(),
     child: AnimatedOpacity(
       duration: const Duration(milliseconds: 150),
       opacity: enabled ? 1 : 0.35,
@@ -1145,4 +1145,172 @@ class _CounterBtn extends StatelessWidget {
         child: Icon(icon, color: Colors.white)),
     ),
   );
+}
+
+
+// ─── Rotary plant-count knob ──────────────────────────────────────────────────
+// Drag around the dial: every [_step] of rotation is one plant, with a
+// selection-click haptic per detent and a heavier bump when hitting 0 or max.
+// The face (grip notches) turns with the finger; the outer arc fills with the
+// count (full at [_arcFull] plants).
+class _PlantKnob extends StatefulWidget {
+  final int value, max;
+  final ValueChanged<int> onChanged;
+  const _PlantKnob({required this.value, required this.max, required this.onChanged});
+  @override
+  State<_PlantKnob> createState() => _PlantKnobState();
+}
+
+class _PlantKnobState extends State<_PlantKnob> {
+  static const double _step = math.pi / 10; // 18° per plant
+  static const int _arcFull = 50;
+  double _rotation = 0; // visual rotation of the face
+  double _carry = 0;    // rotation not yet turned into a step
+  double? _lastAngle;
+  bool _active = false;
+
+  void _release() => setState(() { _lastAngle = null; _carry = 0; _active = false; });
+
+  double _angleOf(Offset local, Size size) =>
+      math.atan2(local.dy - size.height / 2, local.dx - size.width / 2);
+
+  void _onUpdate(Offset local, Size size) {
+    final a = _angleOf(local, size);
+    final last = _lastAngle;
+    _lastAngle = a;
+    if (last == null) return;
+    var d = a - last;
+    if (d > math.pi) d -= 2 * math.pi;
+    if (d < -math.pi) d += 2 * math.pi;
+    _carry += d;
+    var v = widget.value;
+    while (_carry >= _step) { _carry -= _step; v++; }
+    while (_carry <= -_step) { _carry += _step; v--; }
+    final clamped = v.clamp(0, widget.max);
+    if (clamped != v) {
+      // Hit a limit — stop the dial and give a firm bump once.
+      if (widget.value != clamped || _carry.abs() > 0) HapticFeedback.heavyImpact();
+      _carry = 0;
+    }
+    setState(() => _rotation += (clamped == v) ? d : 0);
+    if (clamped != widget.value) {
+      HapticFeedback.selectionClick();
+      widget.onChanged(clamped);
+    }
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    const size = 220.0;
+    return SizedBox(
+      width: size, height: size,
+      // Claims the touch immediately so the page doesn't scroll while the
+      // dial is being turned.
+      child: RawGestureDetector(
+        gestures: {
+          _EagerPan: GestureRecognizerFactoryWithHandlers<_EagerPan>(_EagerPan.new, (r) => r
+            ..onStart = (d) { _lastAngle = _angleOf(d.localPosition, const Size(size, size)); setState(() => _active = true); HapticFeedback.lightImpact(); }
+            ..onUpdate = (d) { _onUpdate(d.localPosition, const Size(size, size)); }
+            ..onEnd = (_) { _release(); }
+            ..onCancel = () { _release(); }),
+        },
+        child: Stack(alignment: Alignment.center, children: [
+          // Ticks + progress arc
+          CustomPaint(size: const Size(size, size), painter: _KnobRingPainter(
+            fraction: (widget.value / _arcFull).clamp(0.0, 1.0),
+            over: widget.value > _arcFull,
+          )),
+          // Knob face — scales slightly while held, grip notches rotate
+          AnimatedScale(
+            scale: _active ? 0.97 : 1,
+            duration: const Duration(milliseconds: 120),
+            child: Container(
+              width: size * 0.66, height: size * 0.66,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(center: Alignment(-0.35, -0.45), colors: [Colors.white, Color(0xFFE6EFE8)]),
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(color: V.ink.withValues(alpha: _active ? 0.10 : 0.16), blurRadius: _active ? 14 : 26, offset: Offset(0, _active ? 6 : 12)),
+                  BoxShadow(color: Colors.white.withValues(alpha: 0.9), blurRadius: 10, offset: const Offset(-4, -4)),
+                ],
+              ),
+              child: Stack(alignment: Alignment.center, children: [
+                Transform.rotate(
+                  angle: _rotation,
+                  child: CustomPaint(size: Size.square(size * 0.66), painter: _GripPainter()),
+                ),
+                Column(mainAxisSize: MainAxisSize.min, children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 120),
+                    transitionBuilder: (c, a) => ScaleTransition(scale: Tween(begin: 0.85, end: 1.0).animate(a), child: FadeTransition(opacity: a, child: c)),
+                    child: Text('${widget.value}', key: ValueKey(widget.value), style: vx(52, w: FontWeight.w600, color: V.ink, h: 1)),
+                  ),
+                  Text(widget.value == 1 ? 'plant' : 'plants', style: p(12, color: V.fog)),
+                ]),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _KnobRingPainter extends CustomPainter {
+  final double fraction;
+  final bool over;
+  _KnobRingPainter({required this.fraction, required this.over});
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2 - 6;
+    const start = -math.pi / 2;
+    // 50 tick marks
+    for (var i = 0; i < 50; i++) {
+      final a = start + i / 50 * 2 * math.pi;
+      final lit = i / 50 < fraction || over;
+      final major = i % 5 == 0;
+      final p1 = c + Offset(math.cos(a), math.sin(a)) * (r - (major ? 12 : 8));
+      final p2 = c + Offset(math.cos(a), math.sin(a)) * r;
+      canvas.drawLine(p1, p2, Paint()
+        ..strokeWidth = major ? 2.2 : 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = lit ? V.leaf : V.ink.withValues(alpha: 0.14));
+    }
+    // inner progress arc
+    final rect = Rect.fromCircle(center: c, radius: r - 20);
+    canvas.drawArc(rect, 0, 2 * math.pi, false, Paint()..style = PaintingStyle.stroke..strokeWidth = 4..color = V.ink.withValues(alpha: 0.06));
+    if (fraction > 0) {
+      canvas.drawArc(rect, start, 2 * math.pi * fraction, false, Paint()
+        ..style = PaintingStyle.stroke..strokeWidth = 4..strokeCap = StrokeCap.round..color = V.lime);
+    }
+  }
+  @override
+  bool shouldRepaint(_KnobRingPainter old) => old.fraction != fraction || old.over != over;
+}
+
+class _GripPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    final paint = Paint()..strokeWidth = 2..strokeCap = StrokeCap.round..color = V.ink.withValues(alpha: 0.08);
+    for (var i = 0; i < 24; i++) {
+      final a = i / 24 * 2 * math.pi;
+      canvas.drawLine(c + Offset(math.cos(a), math.sin(a)) * (r - 14), c + Offset(math.cos(a), math.sin(a)) * (r - 6), paint);
+    }
+    // indicator notch
+    canvas.drawCircle(c + const Offset(0, -1) * (r - 22), 4, Paint()..color = V.leaf);
+  }
+  @override
+  bool shouldRepaint(_GripPainter old) => false;
+}
+
+class _EagerPan extends PanGestureRecognizer {
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+  }
 }
