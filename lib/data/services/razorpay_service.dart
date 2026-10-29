@@ -22,6 +22,7 @@ class RazorpayService {
     int? subscriptionId,
     int? orderId,
     int? geofenceId,
+    bool useWallet = false, // spend wallet first; gateway charges the remainder
   }) async {
     Map<String, dynamic> order;
     try {
@@ -32,12 +33,17 @@ class RazorpayService {
         subscriptionId: subscriptionId,
         orderId: orderId,
         geofenceId: geofenceId,
+        useWallet: useWallet,
       );
       order = asMap(res);
     } on ApiError catch (e) {
       return RazorpayResult(false, message: e.message);
     } catch (_) {
       return RazorpayResult(false, message: 'Could not start the payment.');
+    }
+    // Wallet covered the full amount — already paid and fulfilled server-side.
+    if (order['wallet_paid'] == true) {
+      return RazorpayResult(true, message: 'Paid ₹${order['wallet_applied']} from your wallet');
     }
     if (asStr(order['key_id']).isEmpty || asStr(order['order_id']).isEmpty) {
       return RazorpayResult(false, message: 'Payment is not configured. Please contact support.');

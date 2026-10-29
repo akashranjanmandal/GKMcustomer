@@ -66,6 +66,10 @@ class _BookState extends State<BookScreen> {
   String? _couponsLoadedFor; // "scope|subtotal" key the available-coupon list was fetched for
   Timer? _couponsDebounce;
 
+  // Wallet at checkout: spend balance first, Razorpay charges the remainder.
+  double _walletBalance = 0;
+  bool _useWallet = false;
+
   static const _slots = ['09:00','10:00','11:00','14:00','15:00','16:00','17:00'];
   List<String> _availableSlots = [];
   bool _loadingSlots = false, _slotsLoaded = false, _noGardenersInZone = false, _slotsError = false;
@@ -207,11 +211,12 @@ class _BookState extends State<BookScreen> {
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
-      final r = await Future.wait([ _api.getPlans().catchError((_) => null), _api.getAddons().catchError((_) => null), _api.getPlantSlabs().catchError((_) => null) ]);
+      final r = await Future.wait([ _api.getPlans().catchError((_) => null), _api.getAddons().catchError((_) => null), _api.getPlantSlabs().catchError((_) => null), _api.getWallet().catchError((_) => null) ]);
       if (!mounted) return;
       setState(() {
         _plans  = asList(r[0]);
         _addons = asList(r[1]);
+        _walletBalance = asDouble(asMap(r[3])['balance']);
         final slabPayload = r[2];
         final fetchedSlabs = slabPayload is Map ? asList(slabPayload['slabs'] ?? (slabPayload['data'] is Map ? slabPayload['data']['slabs'] : null)) : <dynamic>[];
         if (fetchedSlabs.isNotEmpty) _plantSlabs = fetchedSlabs;
@@ -427,7 +432,7 @@ class _BookState extends State<BookScreen> {
           couponCode: couponCode,
         );
         final subId = asInt(asMap(sub)['id']);
-        final pay = await RazorpayService().pay(type: 'subscription', subscriptionId: subId);
+        final pay = await RazorpayService().pay(type: 'subscription', subscriptionId: subId, useWallet: _useWallet);
         if (!mounted) return;
         setState(() => _submitting = false);
         showMsg(context, pay.ok ? 'Subscription activated!' : (pay.cancelled ? 'Payment cancelled — subscription not placed.' : (pay.message ?? 'Payment failed')), ok: pay.ok, err: !pay.ok && !pay.cancelled);
@@ -454,7 +459,7 @@ class _BookState extends State<BookScreen> {
           couponCode: couponCode,
         );
         final bookingId = asInt(asMap(booking)['id']);
-        final pay = await RazorpayService().pay(type: 'booking', bookingId: bookingId);
+        final pay = await RazorpayService().pay(type: 'booking', bookingId: bookingId, useWallet: _useWallet);
         if (!mounted) return;
         setState(() => _submitting = false);
         showMsg(context, pay.ok ? 'Booking confirmed & paid!' : (pay.cancelled ? 'Payment cancelled — booking not placed.' : (pay.message ?? 'Payment failed')), ok: pay.ok, err: !pay.ok && !pay.cancelled);
@@ -588,6 +593,33 @@ class _BookState extends State<BookScreen> {
               const SizedBox(width: 10),
               Text('₹${_total.toStringAsFixed(0)}', style: vx(18, w: FontWeight.w600, color: V.ink)),
             ]),
+          ),
+        // Wallet toggle — only on the pay step and only when there is money.
+        if (_stepIdx == _lastStep && _walletBalance > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GestureDetector(
+              onTap: () => setState(() => _useWallet = !_useWallet),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _useWallet ? V.leaf.withValues(alpha: 0.12) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _useWallet ? V.leaf : const Color(0xFFE3E8E1)),
+                ),
+                child: Row(children: [
+                  Icon(_useWallet ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                      size: 20, color: _useWallet ? V.leaf : V.fog),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(
+                    'Use wallet — ₹${_walletBalance.toStringAsFixed(0)} available'
+                    '${_useWallet ? (_walletBalance >= _total ? ' (covers it fully)' : ' (pay ₹${(_total - _walletBalance).toStringAsFixed(0)} online)') : ''}',
+                    style: p(12.5, color: V.ink), maxLines: 1, overflow: TextOverflow.ellipsis,
+                  )),
+                  const Icon(Icons.account_balance_wallet_rounded, size: 18, color: V.leaf),
+                ]),
+              ),
+            ),
           ),
         _stepIdx < _lastStep
           ? GBtn(label: 'Continue', icon: Icons.arrow_forward_rounded, glass: true, onTap: _canNext() ? _goNext : null)

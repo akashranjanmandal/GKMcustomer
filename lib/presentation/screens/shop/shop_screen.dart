@@ -600,6 +600,9 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   final _api = Api(); bool _busy = false;
+  // Wallet at checkout: spend balance first, Razorpay charges the remainder.
+  double _walletBalance = 0;
+  bool _useWallet = false;
   bool _applyGst = false;
   String _gstState = 'Uttar Pradesh';
   final _gstinCtrl = TextEditingController();
@@ -631,6 +634,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
       _qtyMap[prodId] = asInt(item['qty']);
     }
     _loadCoupons();
+    _api.getWallet().then((w) {
+      if (mounted) setState(() => _walletBalance = asDouble(asMap(w)['balance']));
+    }).catchError((_) {});
   }
 
   // The server evaluates every coupon against (scope=products, subtotal) and
@@ -944,6 +950,32 @@ class _CheckoutPageState extends State<CheckoutPage> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (!loc.hasLocation) Padding(padding: const EdgeInsets.only(bottom: 8),
               child: Text('Choose a delivery address first', style: p(12, color: C.red, w: FontWeight.w600))),
+            if (_walletBalance > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _useWallet = !_useWallet),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _useWallet ? V.leaf.withValues(alpha: 0.12) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _useWallet ? V.leaf : const Color(0xFFE3E8E1)),
+                    ),
+                    child: Row(children: [
+                      Icon(_useWallet ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                          size: 20, color: _useWallet ? V.leaf : V.fog),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(
+                        'Use wallet — ₹${_walletBalance.toStringAsFixed(0)} available'
+                        '${_useWallet ? (_walletBalance >= grand ? ' (covers it fully)' : ' (pay ₹${(grand - _walletBalance).toStringAsFixed(0)} online)') : ''}',
+                        style: p(12.5, color: V.ink), maxLines: 1, overflow: TextOverflow.ellipsis,
+                      )),
+                      const Icon(Icons.account_balance_wallet_rounded, size: 18, color: V.leaf),
+                    ]),
+                  ),
+                ),
+              ),
             GBtn(label: 'Pay ₹${grand.toStringAsFixed(0)}', loading: _busy, glass: true, onTap: (loc.hasLocation && !_busy && visibleCart.isNotEmpty) ? _place : null),
           ]),
         ),
@@ -1076,7 +1108,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
       // Order is created pending; pay for it via Razorpay.
       final orderId = asInt(asMap(res)['order_id']);
-      final pay = await RazorpayService().pay(type: 'order', orderId: orderId);
+      final pay = await RazorpayService().pay(type: 'order', orderId: orderId, useWallet: _useWallet);
       if (!mounted) return;
       if (pay.ok) {
         widget.onOrdered(); // paid — clear the cart

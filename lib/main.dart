@@ -24,6 +24,7 @@ import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/complaints/complaints_screen.dart';
 import 'presentation/screens/profile/saved_addresses_screen.dart';
 import 'presentation/screens/profile/edit_profile_screen.dart';
+import 'presentation/screens/wallet/wallet_screen.dart';
 import 'presentation/screens/green_makeover/green_makeover_screen.dart';
 import 'presentation/screens/services/services_screen.dart';
 
@@ -114,6 +115,8 @@ class GkmApp extends StatelessWidget {
         return _slide(const ComplaintsScreen(), s);
       case '/saved-addresses':
         return _slide(const SavedAddressesScreen(), s);
+      case '/wallet':
+        return _slide(const WalletScreen(), s);
       case '/edit-profile':
         return _slide(const EditProfileScreen(), s);
       default:

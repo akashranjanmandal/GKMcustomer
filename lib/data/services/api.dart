@@ -498,7 +498,7 @@ class Api {
       req('GET', '/payments/status/$txnId');
 
   // ─── RAZORPAY ──────────────────────────────────────────────────────────────
-  Future<dynamic> createRazorpayOrder({String? type, double? amount, int? bookingId, int? subscriptionId, int? orderId, int? geofenceId}) =>
+  Future<dynamic> createRazorpayOrder({String? type, double? amount, int? bookingId, int? subscriptionId, int? orderId, int? geofenceId, bool useWallet = false}) =>
       req('POST', '/payments/razorpay/order', body: {
         if (type != null) 'type': type,
         if (amount != null) 'amount': amount,
@@ -506,6 +506,7 @@ class Api {
         if (subscriptionId != null) 'subscription_id': subscriptionId,
         if (orderId != null) 'order_id': orderId,
         if (geofenceId != null) 'geofence_id': geofenceId,
+        if (useWallet) 'use_wallet': true,
       });
 
   Future<dynamic> verifyRazorpayPayment({required String razorpayOrderId, required String razorpayPaymentId, required String razorpaySignature}) =>
@@ -519,6 +520,12 @@ class Api {
   // cancelled (stock + coupon restored) instead of lingering in "pending".
   Future<dynamic> cancelRazorpayPayment({required String razorpayOrderId}) =>
       req('POST', '/payments/razorpay/cancel', body: {'razorpay_order_id': razorpayOrderId});
+
+  // ─── WALLET (cashback + top-ups — ledger lives on the backend) ──────────────
+  // Balance, cashback offer tiers, expiring credits and transaction history.
+  Future<dynamic> getWallet() => req('GET', '/wallet');
+  // Public cashback tiers for banners.
+  Future<dynamic> getWalletOffers() => req('GET', '/wallet/offers', auth: false);
 
   // ─── GARDENER TIPS (online only — gateway-verified server-side) ────────────
   Future<dynamic> getTipConfig() => req('GET', '/tips/config', auth: false);
