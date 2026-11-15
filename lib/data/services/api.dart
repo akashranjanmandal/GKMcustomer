@@ -246,9 +246,9 @@ class Api {
   // ─── PLANS & ADDONS ──────────────────────────────────────────────────────
   Future<dynamic> getPlans() => req('GET', '/plans', auth: false);
   Future<dynamic> getAddons() => req('GET', '/addons', auth: false);
-  // Plant-count pricing slabs: base covers 10 plants, the slab extra is added
-  // on top; beyond the last slab = custom quote (admin-configurable).
-  Future<dynamic> getPlantSlabs() => req('GET', '/pricing/plant-slabs', auth: false);
+  // One-time service pricing for a zone: base price (first 10 plants),
+  // per-plant range rates, vermicompost prices and active surcharges.
+  Future<dynamic> getOneTimePricing(int geofenceId) => req('GET', '/pricing/one-time?geofence_id=$geofenceId', auth: false);
   Future<dynamic> getBookingAddons(int bookingId) => req('GET', '/bookings/$bookingId/addons');
   Future<dynamic> addBookingAddons(int bookingId, List<Map<String, dynamic>> addonIds) =>
       req('POST', '/bookings/$bookingId/addons', body: {'addon_ids': addonIds});
@@ -274,6 +274,8 @@ class Api {
     int? geofenceId,
     bool isInstant = false,
     String? couponCode,
+    int? vermicompostKg,   // optional add-on: 1 / 5 / 10 kg
+    double? expectedTotal, // total shown to the customer — server answers 409 if it changed
   }) => req('POST', '/bookings', body: {
     'zone_id': zoneId,
     'geofence_id': geofenceId ?? zoneId,
@@ -297,6 +299,8 @@ class Api {
     if (addons != null) 'addons': addons,
     if (totalAmount != null) 'total_amount': totalAmount,
     if (couponCode != null && couponCode.isNotEmpty) 'coupon_code': couponCode,
+    if (vermicompostKg != null && vermicompostKg > 0) 'vermicompost_kg': vermicompostKg,
+    if (expectedTotal != null) 'expected_total': double.parse(expectedTotal.toStringAsFixed(2)),
   });
 
   // Check zone-configured instant ETA + whether any gardener is free right now.
