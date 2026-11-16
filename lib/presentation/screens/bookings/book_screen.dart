@@ -12,6 +12,8 @@ import '../../../data/services/razorpay_service.dart';
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/location_picker_sheet.dart';
+import '../../../utils/one_time_pricing.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import 'bookings_screen.dart';
 
 class BookScreen extends StatefulWidget {
@@ -25,32 +27,50 @@ class _BookState extends State<BookScreen> {
   bool _loading = true, _submitting = false;
 
   List<dynamic> _plans = [], _addons = [];
-  // Plant-count pricing slabs — defaults mirror the server's table and are
-  // replaced by the live (admin-configurable) table once fetched.
-  List<dynamic> _plantSlabs = const [
-    {'min': 11, 'max': 15, 'extra': 100}, {'min': 16, 'max': 20, 'extra': 200},
-    {'min': 21, 'max': 30, 'extra': 350}, {'min': 31, 'max': 40, 'extra': 400},
-    {'min': 41, 'max': 50, 'extra': 600}, {'min': 51, 'max': 60, 'extra': 800},
-    {'min': 61, 'max': 70, 'extra': 1000}, {'min': 71, 'max': 80, 'extra': 1200},
-    {'min': 81, 'max': 100, 'extra': 1300}, {'min': 101, 'max': 150, 'extra': 1800},
-    {'min': 151, 'max': 200, 'extra': 2000},
-  ];
+  // One-time visit pricing for the selected zone: zone base price covers the
+  // first 10 plants, each extra plant is charged at its own range's rate
+  // (progressive), rounded to ₹1 once. Fetched per zone; until it lands the
+  // zone base + standard rates are shown. The server recomputes at checkout.
+  OneTimePricing? _zonePricing;
+  int _pricingZoneId = 0;
+  bool _pricingFailed = false;
+  OneTimePricing? get _pricing {
+    final zid = asInt(_zone?['id']);
+    if (_zonePricing != null && _pricingZoneId == zid) return _zonePricing;
+    final base = asDouble(_zone?['base_price']);
+    return base > 0 ? OneTimePricing.fallback(base) : null;
+  }
+  int get _maxAutoPlants => _pricing?.maxPlants ?? 200;
+  int _vermiKg = 0; // optional vermicompost add-on: 0 = none (never preselected)
+  static const double _subExtraPlantRate = 25; // monthly plans: server adds ₹25 per extra plant
+  ServiceCharge? get _service => (_isSub || _pricing == null) ? null : _pricing!.serviceCharge(_plantCount);
+  double get _vermiAmount => (_isSub || _vermiKg == 0) ? 0 : (_pricing?.vermicompost[_vermiKg] ?? 0);
+  List<SurchargeLine> get _surcharges {
+    final s = _service;
+    if (s == null || !s.ok) return const [];
+    return _pricing!.surchargeLines(s.amount, _date);
+  }
+  double get _surchargeTotal => _surcharges.fold(0.0, (t, l) => t + l.amount);
 
-  int get _maxAutoPlants => _plantSlabs.isEmpty ? 10 : asInt(_plantSlabs.last['max']);
-  // Slab surcharge for a plant count; up to 10 plants are covered by the base.
-  double _plantSurcharge(int n) {
-    if (n <= 10) return 0;
-    for (final s in _plantSlabs) {
-      if (n >= asInt(s['min']) && n <= asInt(s['max'])) return asDouble(s['extra']);
+  Future<void> _loadPricing({bool force = false}) async {
+    final id = asInt(_zone?['id']);
+    if (id <= 0 || (!force && id == _pricingZoneId && _zonePricing != null)) return;
+    try {
+      final res = asMap(await _api.getOneTimePricing(id));
+      if (!mounted || asInt(_zone?['id']) != id) return;
+      setState(() { _zonePricing = OneTimePricing.fromJson(res); _pricingZoneId = id; _pricingFailed = false; _clearCoupon(); });
+    } catch (_) {
+      if (mounted) setState(() => _pricingFailed = true);
     }
-    return _plantSlabs.isEmpty ? 0 : asDouble(_plantSlabs.last['extra']);
   }
   PickedLocation? _picked;
   Map<String, dynamic>? get _zone => _picked?.zone;
 
   final _notesCtrl = TextEditingController();
   int? _planId;
-  int _plantCount = 0; // additional plants beyond the plan's coverage (optional)
+  // One-time visit: the EXACT number of plants (min 10, default 10).
+  // Monthly plan: extra plants beyond the plan (from 0).
+  int _plantCount = kMinPlants;
   String _date = '', _time = '';
   final Set<int> _selectedAddons = {};
   bool _autoRenew = true;
@@ -130,9 +150,14 @@ class _BookState extends State<BookScreen> {
     if (!_isSub && _picked != null && _zone != null && asDouble(_zone!['base_price']) > 0) {
       base = asDouble(_zone!['base_price']);
     }
-    // Plant-count SLAB surcharge (base covers up to 10 plants) — exact slab
-    // price from the admin-configurable table, never per-plant math.
-    double t = base + _plantSurcharge(_plantCount);
+    double t;
+    if (_isSub) {
+      t = base + _plantCount * _subExtraPlantRate; // plan price + extra plants (server rule)
+    } else {
+      // One-time visit: service charge + vermicompost + surcharges (separate lines).
+      final s = _service;
+      t = s == null ? base : (s.ok ? s.amount.toDouble() : 0.0) + _vermiAmount + _surchargeTotal;
+    }
     for (final id in _selectedAddons) {
       final a = _addons.where((x) => asInt(x['id']) == id).firstOrNull;
       t += asDouble(a?['price']);
@@ -168,6 +193,7 @@ class _BookState extends State<BookScreen> {
           _recheckZone(saved.lat, saved.lng);
         } else {
           _loadInstantInfo();
+          _loadPricing();
           _scheduleCouponRefresh(); // zone base price feeds the coupon subtotal
         }
       }
@@ -187,6 +213,7 @@ class _BookState extends State<BookScreen> {
         // Persist the resolved zone back to provider
         context.read<LocationProvider>().updateZoneForCurrent(zone);
         _loadInstantInfo();
+        _loadPricing();
         _scheduleCouponRefresh(); // zone base price feeds the coupon subtotal
       } else {
         if (mounted) setState(() => _zoneChecking = false);
@@ -212,16 +239,14 @@ class _BookState extends State<BookScreen> {
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
-      final r = await Future.wait([ _api.getPlans().catchError((_) => null), _api.getAddons().catchError((_) => null), _api.getPlantSlabs().catchError((_) => null), _api.getWallet().catchError((_) => null) ]);
+      final r = await Future.wait([ _api.getPlans().catchError((_) => null), _api.getAddons().catchError((_) => null), _api.getWallet().catchError((_) => null) ]);
       if (!mounted) return;
       setState(() {
         _plans  = asList(r[0]);
         _addons = asList(r[1]);
-        _walletBalance = asDouble(asMap(r[3])['balance']);
-        final slabPayload = r[2];
-        final fetchedSlabs = slabPayload is Map ? asList(slabPayload['slabs'] ?? (slabPayload['data'] is Map ? slabPayload['data']['slabs'] : null)) : <dynamic>[];
-        if (fetchedSlabs.isNotEmpty) _plantSlabs = fetchedSlabs;
+        _walletBalance = asDouble(asMap(r[2])['balance']);
         if (_planId == null && _plans.isNotEmpty) _planId = asInt(_plans.first['id']);
+        _plantCount = _isSub ? 0 : math.max(kMinPlants, _plantCount);
         _loading = false;
       });
       _loadCoupons();
@@ -231,7 +256,13 @@ class _BookState extends State<BookScreen> {
   void _selectPlan(Map<String, dynamic> pl) {
     final newId = asInt(pl['id']);
     if (newId == _planId) return;
-    setState(() { _planId = newId; _clearCoupon(); }); // also refreshes coupons (scope/subtotal may change)
+    setState(() {
+      _planId = newId;
+      // One-time visits count all plants (min 10); monthly plans count extras.
+      _plantCount = _isSub ? 0 : math.max(kMinPlants, _plantCount);
+      if (_isSub) _vermiKg = 0;
+      _clearCoupon(); // also refreshes coupons (scope/subtotal may change)
+    });
   }
 
   // ── Coupons ──────────────────────────────────────────────────────────────
@@ -369,6 +400,7 @@ class _BookState extends State<BookScreen> {
       // lp.save(result); // Already handled in showSavedLocations for new ones
       setState(() { _picked = result; _slotCache.clear(); _slotsLoaded = false; _time = ''; }); // new address → new availability
       _loadInstantInfo();
+      _loadPricing(); // a different zone may have different prices
       _scheduleCouponRefresh(); // zone base price feeds the coupon subtotal
     }
   }
@@ -417,6 +449,9 @@ class _BookState extends State<BookScreen> {
       }
       zoneId = asInt(fresh['id']);
       if (mounted) context.read<LocationProvider>().updateZoneForCurrent(fresh);
+      if (!_isSub && _service != null && !_service!.ok) {
+        throw ApiError('For more than $_maxAutoPlants plants we prepare a custom quote — please contact us on WhatsApp.', 400);
+      }
 
       final addonsPayload = _selectedAddons.map((id) => {'addon_id': id, 'quantity': 1}).toList();
       final totalAmount = _total; // client estimate; server recomputes and is authoritative
@@ -465,6 +500,8 @@ class _BookState extends State<BookScreen> {
           addons: addonsPayload,
           totalAmount: totalAmount,
           couponCode: couponCode,
+          vermicompostKg: _vermiKg > 0 ? _vermiKg : null,
+          expectedTotal: totalAmount, // server refuses (409) if the real total differs
         );
         final bookingId = asInt(asMap(booking)['id']);
         final pay = await RazorpayService().pay(type: 'booking', bookingId: bookingId, useWallet: _useWallet);
@@ -479,6 +516,12 @@ class _BookState extends State<BookScreen> {
       }
     } on ApiError catch (e) {
       setState(() => _submitting = false);
+      if (e.code == 409) {
+        // Prices changed since the customer looked (new zone rates or a
+        // surcharge) — refresh the quote so they confirm the real total.
+        await _loadPricing(force: true);
+        if (mounted) setState(_clearCoupon);
+      }
       if (mounted) showMsg(context, e.message, err: true);
     }
   }
@@ -487,6 +530,7 @@ class _BookState extends State<BookScreen> {
     switch (_currentStepKey) {
       case 'Location': return !_zoneChecking && _picked != null && asInt(_picked?.zone['id']) > 0;
       case 'Plan':     return _planId != null;
+      case 'Plants':   return _service == null || _service!.ok; // above the last range → custom quote
       case 'Schedule':
         if (_isSub) return true;
         // Scheduled: need a date, slots loaded, gardeners available, and a valid selected slot.
@@ -517,7 +561,7 @@ class _BookState extends State<BookScreen> {
   static const _stepTitles = {
     'Location': 'Where should\nwe come?',
     'Plan': 'Choose your\ncare',
-    'Plants': 'Any extra\nplants?',
+    'Plants': 'How many\nplants?',
     'Add-ons': 'Anything\nextra?',
     'Schedule': 'Pick a date\n& time',
     'Checkout': 'Review\n& pay',
@@ -576,7 +620,11 @@ class _BookState extends State<BookScreen> {
       const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       if (d != null) parts.add('${d.day} ${m[d.month - 1]}${_time.isNotEmpty ? ', $_time' : ''}');
     }
-    if (_plantCount > 0) parts.add('+$_plantCount plants');
+    if (!_isSub) {
+      parts.add('$_plantCount plants');
+    } else if (_plantCount > 0) {
+      parts.add('+$_plantCount plants');
+    }
     return parts.join('  ·  ');
   }
 
@@ -764,12 +812,12 @@ class _BookState extends State<BookScreen> {
   ]));
 
   Widget _stepPlants() {
-    final freePlants = asInt(_selectedPlan?['max_plants']);
+    final s = _service;
+    final pr = _pricing;
+    final maxP = _maxAutoPlants;
     return SingleChildScrollView(padding: _stepPad, child: Column(children: [
       Text(
-        freePlants > 0
-            ? 'Your plan covers up to $freePlants plants. More plants are priced by range — the shown amount is added to the price.'
-            : 'The price covers up to 10 plants. More plants are priced by range — the shown amount is added to the price. For over $_maxAutoPlants plants, contact us for a custom quote.',
+        'The price covers the first $kMinPlants plants. Each extra plant is charged at its range\'s rate. For more than $maxP plants, contact us for a custom quote.',
         textAlign: TextAlign.center,
         style: p(13.5, color: V.fog, h: 1.5),
       ),
@@ -777,28 +825,92 @@ class _BookState extends State<BookScreen> {
       // Rotary knob — turn to change the count; one haptic tick per step.
       _PlantKnob(
         value: _plantCount,
-        max: _maxAutoPlants,
+        min: kMinPlants,
+        max: maxP + 1, // one past the last range → custom quote
         onChanged: (v) => setState(() { _plantCount = v; _clearCoupon(); }),
       ),
       const SizedBox(height: 18),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        _CounterBtn(icon: Icons.remove_rounded, enabled: _plantCount > 0, onTap: () => setState(() { _plantCount--; _clearCoupon(); })),
+        _CounterBtn(icon: Icons.remove_rounded, enabled: _plantCount > kMinPlants, onTap: () => setState(() { _plantCount--; _clearCoupon(); })),
         const SizedBox(width: 18),
         Text('Turn the dial or tap', style: p(12, color: V.fog)),
         const SizedBox(width: 18),
-        _CounterBtn(icon: Icons.add_rounded, enabled: _plantCount < _maxAutoPlants, onTap: () => setState(() { _plantCount++; _clearCoupon(); })),
+        _CounterBtn(icon: Icons.add_rounded, enabled: _plantCount <= maxP, onTap: () => setState(() { _plantCount++; _clearCoupon(); })),
       ]),
       const SizedBox(height: 20),
-      Text(
-        _plantCount <= 10
-            ? (_plantCount == 0 ? 'Up to 10 plants · included' : '$_plantCount plant${_plantCount == 1 ? '' : 's'} · included in the base price')
-            : '$_plantCount plants  ·  +₹${_plantSurcharge(_plantCount).toStringAsFixed(0)}',
-        style: p(14, color: V.deep, w: FontWeight.w600)),
+      if (s != null && s.ok) ...[
+        Text('$_plantCount plants  ·  ₹${s.amount}', style: p(15, color: V.deep, w: FontWeight.w700)),
+        if (s.breakdown.isNotEmpty && pr != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            '₹${pr.basePrice.toStringAsFixed(0)} for the first $kMinPlants + ${s.breakdown.map((b) => '${b.plants} × ₹${b.rate == b.rate.roundToDouble() ? b.rate.toStringAsFixed(0) : b.rate.toStringAsFixed(2)}').join(' + ')}'
+            '${s.rawAmount != s.amount ? ' (₹${s.rawAmount.toStringAsFixed(2)}, rounded)' : ''} · excl. GST',
+            textAlign: TextAlign.center,
+            style: p(11.5, color: V.fog, h: 1.4),
+          ),
+        ],
+      ] else if (s != null && !s.ok) ...[
+        Text('More than $maxP plants — we\'ll prepare a custom quote', textAlign: TextAlign.center, style: p(14, color: V.deep, w: FontWeight.w600)),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => launchUrlString(
+            'https://wa.me/919643701701?text=${Uri.encodeComponent('Hi GharKaMali! I need a custom quote for more than $maxP plants.')}',
+            mode: LaunchMode.externalApplication),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(color: V.ink, borderRadius: BorderRadius.circular(99)),
+            child: Text('Request a custom quote on WhatsApp', style: p(13, color: Colors.white, w: FontWeight.w600)),
+          ),
+        ),
+      ],
+      if (_pricingFailed && _zonePricing == null) ...[
+        const SizedBox(height: 12),
+        Text('Showing standard rates — we couldn\'t load this area\'s latest prices. The final amount is confirmed before payment.',
+          textAlign: TextAlign.center, style: p(11.5, color: V.fog, h: 1.4)),
+      ],
     ]));
   }
 
+  // Optional vermicompost add-on — zone-priced, separate from the service charge.
+  Widget _vermicompostPicker() {
+    final pr = _pricing;
+    if (_isSub || pr == null) return const SizedBox.shrink();
+    Widget opt(int kg) {
+      final sel = _vermiKg == kg;
+      final price = kg == 0 ? 0.0 : (pr.vermicompost[kg] ?? -1);
+      if (price < 0) return const SizedBox.shrink();
+      return Expanded(child: GestureDetector(
+        onTap: () => setState(() { _vermiKg = kg; _clearCoupon(); }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: sel ? V.mint : Colors.white.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: sel ? V.leaf : Colors.white, width: sel ? 1.5 : 1),
+          ),
+          child: Column(children: [
+            Text(kg == 0 ? 'None' : '$kg kg', style: p(13, w: FontWeight.w600, color: V.ink)),
+            const SizedBox(height: 2),
+            Text(kg == 0 ? '₹0' : '+₹${price.toStringAsFixed(0)}', style: p(12, color: V.fog)),
+          ]),
+        ),
+      ));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Add vermicompost? (optional)', style: p(14, w: FontWeight.w600, color: V.ink)),
+      const SizedBox(height: 4),
+      Text('Organic compost delivered with the visit — charged separately.', style: p(12.5, color: V.fog)),
+      const SizedBox(height: 10),
+      Row(children: [opt(0), ...kVermicompostSizes.map(opt)]),
+      const SizedBox(height: 22),
+    ]);
+  }
+
   Widget _stepAddons() => SingleChildScrollView(padding: _stepPad, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (_addons.isEmpty) const GEmpty(title: 'No add-ons right now', sub: 'Continue to the next step.', icon: Icons.add_box_outlined)
+    _vermicompostPicker(),
+    if (_addons.isEmpty) const GEmpty(title: 'No other add-ons right now', sub: 'Continue to the next step.', icon: Icons.add_box_outlined)
     else ...[
       Text('Optional extras for this visit.', style: p(13.5, color: V.fog)),
       const SizedBox(height: 14),
@@ -974,7 +1086,14 @@ class _BookState extends State<BookScreen> {
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
         radius: BorderRadius.circular(24),
         child: Column(children: [
-          line('Plants', _plantCount <= 10 ? 'Up to 10 (included)' : '$_plantCount · +₹${_plantSurcharge(_plantCount).toStringAsFixed(0)}'),
+          if (_isSub)
+            line('Extra plants', _plantCount == 0 ? 'None' : '$_plantCount × ₹${_subExtraPlantRate.toStringAsFixed(0)}')
+          else ...[
+            // Separate line items: service charge, vermicompost, each surcharge.
+            line('Gardening service · $_plantCount plants', _service != null && _service!.ok ? '₹${_service!.amount}' : 'Custom quote'),
+            if (_vermiKg > 0) line('Vermicompost · $_vermiKg kg', '₹${_vermiAmount.toStringAsFixed(0)}'),
+            ..._surcharges.map((x) => line('Surcharge · ${x.name}\n${[if (x.reason.isNotEmpty) x.reason, x.basis].join(' · ')}', '₹${x.amount.toStringAsFixed(x.amount == x.amount.roundToDouble() ? 0 : 2)}')),
+          ],
           if (!_isSub && _selectedAddons.isNotEmpty)
             line('Add-ons', _addons.where((a) => _selectedAddons.contains(asInt(a['id']))).map((a) => asStr(a['name'])).join(', ')),
           line('Subtotal', '₹${_baseAmount.toStringAsFixed(0)}'),
@@ -1223,9 +1342,9 @@ class _CounterBtn extends StatelessWidget {
 // The face (grip notches) turns with the finger; the outer arc fills with the
 // count (full at [_arcFull] plants).
 class _PlantKnob extends StatefulWidget {
-  final int value, max;
+  final int value, min, max;
   final ValueChanged<int> onChanged;
-  const _PlantKnob({required this.value, required this.max, required this.onChanged});
+  const _PlantKnob({required this.value, this.min = 0, required this.max, required this.onChanged});
   @override
   State<_PlantKnob> createState() => _PlantKnobState();
 }
@@ -1255,7 +1374,7 @@ class _PlantKnobState extends State<_PlantKnob> {
     var v = widget.value;
     while (_carry >= _step) { _carry -= _step; v++; }
     while (_carry <= -_step) { _carry += _step; v--; }
-    final clamped = v.clamp(0, widget.max);
+    final clamped = v.clamp(widget.min, widget.max);
     if (clamped != v) {
       // Hit a limit — stop the dial and give a firm bump once.
       if (widget.value != clamped || _carry.abs() > 0) HapticFeedback.heavyImpact();

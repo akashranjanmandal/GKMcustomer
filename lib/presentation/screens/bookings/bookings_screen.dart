@@ -188,7 +188,8 @@ const _days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 String _bkAmount(Map<String, dynamic> b) {
   final t = asDouble(b['total_amount']) > 0
       ? asDouble(b['total_amount'])
-      : asDouble(b['base_amount']) + asList(b['addons']).fold(0.0, (sum, a) => sum + asDouble(asMap(a)['price']));
+      : asDouble(b['base_amount']) + asDouble(b['vermicompost_amount']) + asDouble(b['surcharge_amount'])
+          + asList(b['addons']).fold(0.0, (sum, a) => sum + asDouble(asMap(a)['price']));
   return '₹${t.toStringAsFixed(0)}';
 }
 
@@ -676,8 +677,15 @@ class _BkDetailState extends State<BookingDetailScreen> {
               GDetailRow(icon: Icons.calendar_month_rounded, label: 'DATE', value: asStr(_bk!['scheduled_date'], '—').length >= 10 ? asStr(_bk!['scheduled_date']).substring(0,10) : '—'),
               GDetailRow(icon: Icons.access_time_rounded, label: 'TIME', value: asStr(_bk!['scheduled_time'], 'Flexible')),
               GDetailRow(icon: Icons.local_florist_rounded, label: 'PLANTS', value: '${_bk!['plant_count'] ?? '—'} plants'),
+              // One-time visit price lines (excl. GST): service, vermicompost, surcharges.
+              if (asStr(_bk!['booking_type']) != 'subscription' && asDouble(_bk!['base_amount']) > 0)
+                GDetailRow(icon: Icons.spa_rounded, label: 'SERVICE CHARGE', value: '₹${asDouble(_bk!['base_amount']).toStringAsFixed(0)}'),
+              if (asDouble(_bk!['vermicompost_amount']) > 0)
+                GDetailRow(icon: Icons.eco_rounded, label: 'VERMICOMPOST', value: '${asInt(_bk!['vermicompost_kg'])} kg · ₹${asDouble(_bk!['vermicompost_amount']).toStringAsFixed(0)}'),
+              ...asList(_bk!['surcharge_details'] is String ? (() { try { return jsonDecode(_bk!['surcharge_details'] as String); } catch (_) { return const []; } })() : _bk!['surcharge_details'])
+                  .map((s) => GDetailRow(icon: Icons.add_circle_outline_rounded, label: 'SURCHARGE', value: '${asStr(asMap(s)['name'], 'Surcharge')} · ₹${asDouble(asMap(s)['amount']).toStringAsFixed(0)}')),
               if (asDouble(_bk!['total_amount']) > 0)
-                GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL', value: '₹${asDouble(_bk!['total_amount']).toStringAsFixed(0)}'),
+                GDetailRow(icon: Icons.receipt_rounded, label: 'TOTAL (INCL. GST)', value: '₹${asDouble(_bk!['total_amount']).toStringAsFixed(0)}'),
               
               // Add-ons Section
               if (_addons.isNotEmpty) ...[
