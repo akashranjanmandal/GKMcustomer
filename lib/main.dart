@@ -26,6 +26,7 @@ import 'presentation/screens/profile/saved_addresses_screen.dart';
 import 'presentation/screens/profile/edit_profile_screen.dart';
 import 'presentation/screens/wallet/wallet_screen.dart';
 import 'presentation/screens/green_makeover/green_makeover_screen.dart';
+import 'presentation/screens/prive/prive_screen.dart';
 import 'presentation/screens/services/services_screen.dart';
 
 void main() {
@@ -99,6 +100,8 @@ class GkmApp extends StatelessWidget {
         return _slide(const PlansScreen(), s);
       case '/green-makeover':
         return _slide(const GreenMakeoverScreen(), s);
+      case '/prive':
+        return _slide(const PriveScreen(), s);
       case '/services':
         return _slide(const ServicesScreen(), s);
       case '/shop':

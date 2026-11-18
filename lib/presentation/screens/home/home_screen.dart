@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/auth.dart';
 import '../../../data/services/cart_provider.dart';
+import '../prive/prive_screen.dart' show PriveWordmark;
 import '../shop/shop_screen.dart';
 import '../shop/product_view_screen.dart';
 import '../../widgets/product_card.dart';
@@ -96,6 +98,13 @@ class _HomeState extends State<HomeScreen> {
                 const SizedBox(height: 22),
                 const GOpsBanner(margin: EdgeInsets.fromLTRB(16, 0, 16, 22)),
                 _buildBento(ctx),
+                const SizedBox(height: 16),
+                // Privé — the members-only collection, set apart from the
+                // everyday services.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _PriveTile(onTap: () => Navigator.pushNamed(ctx, '/prive')),
+                ),
                 const SizedBox(height: 34),
                 _buildServices(ctx),
                 const SizedBox(height: 34),
@@ -335,7 +344,7 @@ class _HomeState extends State<HomeScreen> {
       (icon: Icons.receipt_long_outlined, title: 'Orders', soon: false, onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
       (icon: Icons.event_repeat_outlined, title: 'My Plans', soon: false, onTap: () => Navigator.pushNamed(ctx, '/subscriptions')),
       (icon: Icons.yard_outlined, title: 'Makeover', soon: false, onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
-      (icon: Icons.notifications_none_outlined, title: 'Alerts', soon: false, onTap: () => Navigator.pushNamed(ctx, '/notifications')),
+      (icon: Icons.diamond_outlined, title: 'Privé', soon: false, onTap: () => Navigator.pushNamed(ctx, '/prive')),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const VSection(title: 'Explore'),
@@ -569,6 +578,48 @@ class _BannerCapsuleState extends State<_BannerCapsule> {
 }
 
 // ─── Bento glass tile ───────────────────────────────────────────────────────
+// ─── Privé entry — a dark "invitation" card ────────────────────────────────
+class _PriveTile extends StatelessWidget {
+  final VoidCallback onTap;
+  const _PriveTile({required this.onTap});
+  static const _ivory = Color(0xFFEDE8DF);
+  static const _muted = Color(0xFFB5B0A6);
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+    onTap: () { HapticFeedback.mediumImpact(); onTap(); },
+    child: Container(
+      height: 168,
+      decoration: BoxDecoration(
+        color: const Color(0xFF080B09),
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 12))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(fit: StackFit.expand, children: [
+        Transform.scale(scale: 1.14, alignment: const Alignment(0.3, 0.8), child: Image.asset('assets/images/prive_scene.jpg', fit: BoxFit.cover, alignment: const Alignment(0.55, 0.1), cacheWidth: 900)),
+        const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.centerLeft, end: Alignment.centerRight,
+          colors: [Color(0xFA070B08), Color(0xC7070B08), Color(0x33070B08)], stops: [0, 0.5, 1]))),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 18, 18),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Spacer(),
+            const PriveWordmark(size: 32, centered: false),
+            const SizedBox(height: 10),
+            Text('Artisanal planters for curated spaces.', style: GoogleFonts.inter(fontSize: 13, color: _muted, height: 1.4, letterSpacing: -0.1)),
+            const SizedBox(height: 14),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('Pre-order now', style: GoogleFonts.inter(fontSize: 13, color: _ivory, fontWeight: FontWeight.w500, letterSpacing: -0.1)),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward_rounded, size: 15, color: _ivory),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  );
+}
+
 class _BentoTile extends StatelessWidget {
   final IconData icon;
   final String title;
