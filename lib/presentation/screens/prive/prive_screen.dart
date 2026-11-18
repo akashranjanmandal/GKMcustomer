@@ -6,16 +6,20 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 // PRIVÉ by GharKaMali — a members-only collection of sculptural planters.
 //
-// A press-and-hold gate opens onto a widescreen film frame, then a quiet,
-// image-led page that ends in one action: reserve your seat.
+// Set on the poster's forest green with a warm light from the top right.
+// A swipe parts the doors onto a widescreen film frame, then an image-led page
+// that ends in one action: reserve your seat.
 //
-// Type is deliberately restrained: Instrument Serif only for a few display
-// lines, Inter for everything else, sentence case, normal tracking. Copy uses
-// the client's own wording. All animation is one-shot or scroll-driven.
+// Type: the PRIVÉ wordmark in Cinzel (as on the poster), Instrument Serif for
+// a few headings, Inter for everything else. All animation is one-shot or
+// scroll-driven — nothing loops.
 
-const _black = Color(0xFF080B09);
-const _ivory = Color(0xFFEDE8DF);
-const _muted = Color(0xFF9C978D);
+const _green = Color(0xFF1F3D30);
+const _panel = Color(0xFF284A3B);
+const _ink = Color(0xFF13281D);
+const _ivory = Color(0xFFF6F1E7);
+const _muted = Color(0xFFC6CFC3);
+const _gold = Color(0xFFDDBF82);
 
 const _waNumber = '919643701701';
 
@@ -43,12 +47,43 @@ class PriveWordmark extends StatelessWidget {
         fontWeight: FontWeight.w400,
         foreground: Paint()..shader = const LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [Color(0xFFF2DCA4), Color(0xFFCFA862), Color(0xFFE6C88A)],
+          colors: [Color(0xFFF6E3B0), Color(0xFFD6B26C), Color(0xFFEBD096)],
           stops: [0, 0.6, 1],
         ).createShader(Rect.fromLTWH(0, 0, size * 5, size)),
       )),
     );
   }
+}
+
+// The GharKaMali logo in gold, as on the poster. Cropped above the small
+// tagline, which turns into an unreadable smudge at these sizes.
+class PriveLogo extends StatelessWidget {
+  final double width;
+  const PriveLogo({super.key, this.width = 120});
+  @override
+  Widget build(BuildContext ctx) => ClipRect(
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: 0.835,
+          child: Image.asset('assets/images/logo.png',
+              width: width, cacheWidth: (width * 3).round(), filterQuality: FilterQuality.medium),
+        ),
+      );
+}
+
+// "Scroll to see more" with a chevron.
+class _ScrollCue extends StatelessWidget {
+  final double nudge;
+  const _ScrollCue({this.nudge = 0});
+  @override
+  Widget build(BuildContext ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('Scroll to see more', style: _text(13, color: _muted)),
+        const SizedBox(height: 4),
+        Transform.translate(
+          offset: Offset(0, nudge),
+          child: const Icon(Icons.keyboard_arrow_down_rounded, color: _gold, size: 24),
+        ),
+      ]);
 }
 
 const _forms = [
@@ -78,8 +113,8 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
   final _scrollTick = ValueNotifier<int>(0);
   bool _entered = false;
 
-  late final AnimationController _gateIn = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..forward();
-  late final AnimationController _doors = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
+  late final AnimationController _gateIn = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..forward();
+  late final AnimationController _doors = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
   late final AnimationController _film = AnimationController(vsync: this, duration: const Duration(seconds: 10));
 
   @override
@@ -98,11 +133,26 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
     super.dispose();
   }
 
-  void _enter() {
+  // ── Gate: swipe up (or tap) to part the doors ──
+  void _dragGate(DragUpdateDetails d, double h) {
     if (_entered) return;
-    HapticFeedback.heavyImpact();
+    _doors.value = (_doors.value - (d.primaryDelta ?? 0) / (h * 0.45)).clamp(0.0, 1.0);
+  }
+
+  void _releaseGate(DragEndDetails d) {
+    if (_entered) return;
+    if (_doors.value > 0.28 || (d.primaryVelocity ?? 0) < -500) {
+      _open();
+    } else {
+      _doors.animateBack(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
+  }
+
+  void _open() {
+    if (_entered) return;
+    HapticFeedback.mediumImpact();
     setState(() => _entered = true);
-    _doors.forward();
+    _doors.animateTo(1, curve: Curves.easeOutCubic);
     _film.forward();
   }
 
@@ -112,7 +162,7 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (_) => const _SeatSheet(),
     );
   }
@@ -124,7 +174,7 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
-        backgroundColor: _black,
+        backgroundColor: _green,
         body: Stack(children: [
           CustomScrollView(
             controller: _sc,
@@ -133,21 +183,18 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
               SliverToBoxAdapter(child: _Hero(height: h, film: _film, scroll: _sc)),
               SliverToBoxAdapter(child: _Statement(tick: _scrollTick)),
               SliverToBoxAdapter(child: _FormsGrid(tick: _scrollTick)),
-              SliverToBoxAdapter(child: _Material(tick: _scrollTick, scroll: _sc)),
+              SliverToBoxAdapter(child: _Material(scroll: _sc)),
               SliverToBoxAdapter(child: _Features(tick: _scrollTick)),
               SliverToBoxAdapter(child: _Finale(tick: _scrollTick, onReserve: _reserve)),
               SliverToBoxAdapter(child: SizedBox(height: mq.padding.bottom + 24)),
             ],
           ),
 
-          // Static film grain (painted once, cached)
-          const Positioned.fill(child: IgnorePointer(child: RepaintBoundary(child: CustomPaint(painter: _GrainPainter())))),
-
           // Top fade for the status bar / back button
           Positioned(top: 0, left: 0, right: 0, height: mq.padding.top + 64,
             child: const IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
               begin: Alignment.topCenter, end: Alignment.bottomCenter,
-              colors: [Color(0xE6080B09), Color(0x00080B09)]))))),
+              colors: [Color(0xE61F3D30), Color(0x001F3D30)]))))),
 
           // Floating reserve button — after the hero, hidden near the end
           Positioned(
@@ -168,7 +215,7 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
                   ),
                 );
               },
-              child: _ReserveButton(onTap: _reserve),
+              child: _ReserveButton(onTap: _reserve, shadow: true),
             ),
           ),
 
@@ -177,20 +224,33 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
             animation: _doors,
             builder: (_, __) {
               if (_doors.isCompleted) return const SizedBox.shrink();
-              final t = Curves.easeInOutCubic.transform(_doors.value);
+              final t = _doors.value;
               final w = mq.size.width;
-              return Stack(children: [
-                Positioned(top: 0, bottom: 0, left: -w / 2 * t, width: w / 2 + 1, child: const _DoorPanel(left: true)),
-                Positioned(top: 0, bottom: 0, right: -w / 2 * t, width: w / 2 + 1, child: const _DoorPanel(left: false)),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: _entered,
-                    child: Opacity(opacity: (1 - t * 2.2).clamp(0.0, 1.0), child: _Gate(intro: _gateIn, onEnter: _enter)),
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: (_) { if (!_entered) HapticFeedback.selectionClick(); },
+                onVerticalDragUpdate: (d) => _dragGate(d, h),
+                onVerticalDragEnd: _releaseGate,
+                onTap: _open,
+                child: Stack(children: [
+                  Positioned(top: 0, bottom: 0, left: -w / 2 * t, width: w / 2 + 1, child: const _DoorPanel(left: true)),
+                  Positioned(top: 0, bottom: 0, right: -w / 2 * t, width: w / 2 + 1, child: const _DoorPanel(left: false)),
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: (1 - t * 2.4).clamp(0.0, 1.0),
+                      child: Transform.translate(offset: Offset(0, -t * 60), child: _Gate(intro: _gateIn)),
+                    ),
                   ),
-                ),
-              ]);
+                ]),
+              );
             },
           ),
+
+          // Warm light from the top right, as on the poster (static).
+          const Positioned.fill(child: IgnorePointer(child: RepaintBoundary(child: DecoratedBox(decoration: BoxDecoration(
+            gradient: RadialGradient(center: Alignment(1.1, -0.9), radius: 1.3,
+              colors: [Color(0x26F2C77E), Color(0x00F2C77E)]),
+          ))))),
 
           // Back
           Positioned(
@@ -213,116 +273,81 @@ class _DoorPanel extends StatelessWidget {
   @override
   Widget build(BuildContext ctx) => DecoratedBox(
         decoration: BoxDecoration(
-          color: _black,
-          border: Border(
-            right: left ? BorderSide(color: _ivory.withValues(alpha: 0.12), width: 0.5) : BorderSide.none,
-            left: left ? BorderSide.none : BorderSide(color: _ivory.withValues(alpha: 0.12), width: 0.5),
+          gradient: LinearGradient(
+            begin: left ? Alignment.centerLeft : Alignment.centerRight,
+            end: left ? Alignment.centerRight : Alignment.centerLeft,
+            colors: const [Color(0xFF1B3729), _green],
           ),
         ),
       );
 }
 
-class _Gate extends StatefulWidget {
+class _Gate extends StatelessWidget {
   final AnimationController intro;
-  final VoidCallback onEnter;
-  const _Gate({required this.intro, required this.onEnter});
-  @override
-  State<_Gate> createState() => _GateState();
-}
-
-class _GateState extends State<_Gate> with SingleTickerProviderStateMixin {
-  late final AnimationController _hold = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100), reverseDuration: const Duration(milliseconds: 350));
-  int _lastTick = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _hold.addListener(() {
-      final step = (_hold.value * 10).floor();
-      if (_hold.status == AnimationStatus.forward && step > _lastTick) HapticFeedback.selectionClick();
-      _lastTick = step;
-    });
-    _hold.addStatusListener((s) { if (s == AnimationStatus.completed) widget.onEnter(); });
-  }
-
-  @override
-  void dispose() { _hold.dispose(); super.dispose(); }
+  const _Gate({required this.intro});
 
   @override
   Widget build(BuildContext ctx) {
-    final title = CurvedAnimation(parent: widget.intro, curve: const Interval(0.0, 0.7, curve: Curves.easeOut));
-    final rest = CurvedAnimation(parent: widget.intro, curve: const Interval(0.45, 1.0, curve: Curves.easeOut));
+    final logo = CurvedAnimation(parent: intro, curve: const Interval(0.0, 0.4, curve: Curves.easeOut));
+    final title = CurvedAnimation(parent: intro, curve: const Interval(0.15, 0.55, curve: Curves.easeOut));
+    final line = CurvedAnimation(parent: intro, curve: const Interval(0.3, 0.65, curve: Curves.easeOut));
+    final cue = CurvedAnimation(parent: intro, curve: const Interval(0.8, 1.0, curve: Curves.easeOut));
     return AnimatedBuilder(
-      animation: widget.intro,
+      animation: intro,
       builder: (_, __) => Column(children: [
-        const Spacer(flex: 5),
+        const Spacer(flex: 4),
+        Opacity(opacity: logo.value, child: const PriveLogo(width: 118)),
+        const SizedBox(height: 34),
         Opacity(
           opacity: title.value,
-          child: Transform.translate(offset: Offset(0, (1 - title.value) * 10), child: const PriveWordmark(size: 50)),
+          child: Transform.translate(offset: Offset(0, (1 - title.value) * 10), child: const PriveWordmark(size: 52)),
         ),
-        const SizedBox(height: 16),
-        Opacity(opacity: rest.value, child: Text('by GharKaMali', style: _text(13, color: _muted))),
-        const Spacer(flex: 6),
-        Opacity(
-          opacity: rest.value,
-          child: GestureDetector(
-            onTapDown: (_) { HapticFeedback.lightImpact(); _hold.forward(); },
-            onTapUp: (_) { if (!_hold.isCompleted) _hold.reverse(); },
-            onTapCancel: () { if (!_hold.isCompleted) _hold.reverse(); },
-            child: AnimatedBuilder(
-              animation: _hold,
-              builder: (_, __) => Column(children: [
-                SizedBox(
-                  width: 64, height: 64,
-                  child: CustomPaint(
-                    painter: _RingPainter(_hold.value),
-                    child: Center(child: Container(
-                      width: 6 + 8 * _hold.value, height: 6 + 8 * _hold.value,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: _ivory.withValues(alpha: 0.6 + 0.4 * _hold.value)),
-                    )),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text('Hold to enter', style: _text(12.5, color: _muted)),
-              ]),
-            ),
-          ),
-        ),
-        SizedBox(height: MediaQuery.of(ctx).padding.bottom + 44),
+        const SizedBox(height: 18),
+        Opacity(opacity: line.value, child: Text('Artisanal planters for curated spaces.', style: _text(15.5, color: _ivory))),
+        const Spacer(flex: 3),
+        _Arches(intro: intro),
+        const Spacer(flex: 3),
+        Opacity(opacity: cue.value, child: _ScrollCue(nudge: math.sin(cue.value * math.pi) * 6)),
+        SizedBox(height: MediaQuery.of(ctx).padding.bottom + 26),
       ]),
     );
   }
 }
 
-class _RingPainter extends CustomPainter {
-  final double t;
-  _RingPainter(this.t);
+// Four arched windows onto the collection, echoing the arch in the poster.
+// They rise in one after another as the page opens.
+class _Arches extends StatelessWidget {
+  final AnimationController intro;
+  const _Arches({required this.intro});
   @override
-  void paint(Canvas canvas, Size s) {
-    final r = Rect.fromCircle(center: s.center(Offset.zero), radius: s.width / 2 - 1);
-    canvas.drawArc(r, 0, 2 * math.pi, false, Paint()..style = PaintingStyle.stroke..strokeWidth = 1..color = _ivory.withValues(alpha: 0.18));
-    if (t > 0) {
-      canvas.drawArc(r, -math.pi / 2, 2 * math.pi * t, false, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4..strokeCap = StrokeCap.round..color = _ivory);
-    }
-  }
-  @override
-  bool shouldRepaint(_RingPainter o) => o.t != t;
-}
-
-class _GrainPainter extends CustomPainter {
-  const _GrainPainter();
-  @override
-  void paint(Canvas canvas, Size s) {
-    final rnd = math.Random(7);
-    final light = Paint()..color = Colors.white.withValues(alpha: 0.03);
-    final dark = Paint()..color = Colors.black.withValues(alpha: 0.05);
-    final n = (s.width * s.height / 90).round();
-    for (var i = 0; i < n; i++) {
-      canvas.drawRect(Rect.fromLTWH(rnd.nextDouble() * s.width, rnd.nextDouble() * s.height, 1, 1), i.isEven ? light : dark);
-    }
-  }
-  @override
-  bool shouldRepaint(_GrainPainter o) => false;
+  Widget build(BuildContext ctx) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          for (var i = 0; i < _forms.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(child: Builder(builder: (_) {
+              final t = Curves.easeOutCubic.transform(((intro.value - 0.4 - i * 0.08) / 0.32).clamp(0.0, 1.0));
+              return Opacity(
+                opacity: t,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - t) * 18),
+                  child: AspectRatio(
+                    aspectRatio: 0.62,
+                    child: Container(
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(200), bottom: Radius.circular(3)),
+                        border: Border.all(color: _gold.withValues(alpha: 0.45), width: 0.8),
+                      ),
+                      child: Image.asset(_forms[i], fit: BoxFit.cover, cacheWidth: 300),
+                    ),
+                  ),
+                ),
+              );
+            })),
+          ],
+        ]),
+      );
 }
 
 // ─── Reveal-on-scroll ────────────────────────────────────────────────────────
@@ -363,8 +388,7 @@ mixin _OnScreen<T extends StatefulWidget> on State<T> {
 class _Reveal extends StatefulWidget {
   final Widget child;
   final ValueNotifier<int> tick;
-  final Duration delay;
-  const _Reveal({required this.child, required this.tick, this.delay = Duration.zero});
+  const _Reveal({required this.child, required this.tick});
   @override
   State<_Reveal> createState() => _RevealState();
 }
@@ -376,17 +400,17 @@ class _RevealState extends State<_Reveal> with _OnScreen<_Reveal> {
   @override
   void initState() { super.initState(); watch(); }
   @override
-  void onShow() => Future.delayed(widget.delay, () { if (mounted) setState(() => _visible = true); });
+  void onShow() => setState(() => _visible = true);
   @override
   void dispose() { unwatch(); super.dispose(); }
   @override
   Widget build(BuildContext ctx) => AnimatedOpacity(
         opacity: _visible ? 1 : 0,
-        duration: const Duration(milliseconds: 900),
+        duration: const Duration(milliseconds: 800),
         curve: Curves.easeOut,
         child: AnimatedSlide(
           offset: _visible ? Offset.zero : const Offset(0, 0.06),
-          duration: const Duration(milliseconds: 1000),
+          duration: const Duration(milliseconds: 900),
           curve: Curves.easeOutCubic,
           child: widget.child,
         ),
@@ -404,8 +428,9 @@ class _Hero extends StatelessWidget {
   Widget build(BuildContext ctx) {
     final w = MediaQuery.of(ctx).size.width;
     final frameH = w / 2.2;
-    final aperture = CurvedAnimation(parent: film, curve: const Interval(0.03, 0.16, curve: Curves.easeInOutCubic));
-    final text = CurvedAnimation(parent: film, curve: const Interval(0.14, 0.34, curve: Curves.easeOut));
+    final aperture = CurvedAnimation(parent: film, curve: const Interval(0.02, 0.14, curve: Curves.easeInOutCubic));
+    final text = CurvedAnimation(parent: film, curve: const Interval(0.1, 0.28, curve: Curves.easeOut));
+    final cue = CurvedAnimation(parent: film, curve: const Interval(0.26, 0.4, curve: Curves.easeOut));
     return SizedBox(
       height: height,
       child: AnimatedBuilder(
@@ -419,7 +444,7 @@ class _Hero extends StatelessWidget {
           SizedBox(
             width: w, height: frameH,
             child: AnimatedBuilder(
-              animation: Listenable.merge([film, aperture]),
+              animation: film,
               builder: (_, __) {
                 final p = Curves.easeOutSine.transform(film.value);
                 return ClipRect(
@@ -435,7 +460,7 @@ class _Hero extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 30),
           AnimatedBuilder(
             animation: text,
             builder: (_, __) => Opacity(
@@ -446,14 +471,24 @@ class _Hero extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const PriveWordmark(size: 46, centered: false),
-                    const SizedBox(height: 14),
-                    Text('Artisanal planters for curated spaces.', style: _text(15, color: _muted)),
+                    const SizedBox(height: 16),
+                    Text('Artisanal planters for curated spaces.', style: _text(16, color: _ivory)),
+                    const SizedBox(height: 4),
+                    Text('by GharKaMali', style: _text(14, color: _muted)),
                   ]),
                 ),
               ),
             ),
           ),
-          const Spacer(flex: 6),
+          const Spacer(flex: 5),
+          AnimatedBuilder(
+            animation: cue,
+            builder: (_, __) => Opacity(
+              opacity: cue.value,
+              child: Center(child: _ScrollCue(nudge: math.sin(cue.value * math.pi) * 6)),
+            ),
+          ),
+          const SizedBox(height: 28),
         ]),
       ),
     );
@@ -478,8 +513,8 @@ class _Statement extends StatelessWidget {
   const _Statement({required this.tick});
   @override
   Widget build(BuildContext ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 40, 24, 56),
-        child: _Reveal(tick: tick, child: Text('A limited collection of sculptural planters.', style: _display(36, h: 1.1))),
+        padding: const EdgeInsets.fromLTRB(24, 48, 24, 48),
+        child: _Reveal(tick: tick, child: Text('A limited collection of sculptural planters.', style: _display(38, h: 1.1))),
       );
 }
 
@@ -489,7 +524,7 @@ class _FormsGrid extends StatelessWidget {
   const _FormsGrid({required this.tick});
   @override
   Widget build(BuildContext ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 64),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(child: Column(children: [
             _Frame(img: _forms[0], tick: tick, ratio: 0.72),
@@ -518,7 +553,7 @@ class _Frame extends StatefulWidget {
 }
 
 class _FrameState extends State<_Frame> with SingleTickerProviderStateMixin, _OnScreen<_Frame> {
-  late final AnimationController _unveil = AnimationController(vsync: this, duration: const Duration(milliseconds: 1300));
+  late final AnimationController _unveil = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
   @override
   ValueNotifier<int> get tick => widget.tick;
   @override
@@ -551,14 +586,13 @@ class _BottomUp extends CustomClipper<Rect> {
   bool shouldReclip(_BottomUp o) => o.t != t;
 }
 
-// ─── Material ────────────────────────────────────────────────────────────────
+// ─── Material: the stone texture as a quiet interlude ───────────────────────
 class _Material extends StatelessWidget {
-  final ValueNotifier<int> tick;
   final ScrollController scroll;
-  const _Material({required this.tick, required this.scroll});
+  const _Material({required this.scroll});
   @override
   Widget build(BuildContext ctx) {
-    final h = MediaQuery.of(ctx).size.height * 0.5;
+    final h = MediaQuery.of(ctx).size.height * 0.42;
     return SizedBox(
       height: h,
       child: Stack(fit: StackFit.expand, children: [
@@ -568,15 +602,15 @@ class _Material extends StatelessWidget {
             var drift = 0.0;
             final box = ctx.findRenderObject();
             if (box is RenderBox && box.hasSize && box.attached) {
-              drift = (box.localToGlobal(Offset.zero).dy / MediaQuery.of(ctx).size.height - 0.5) * 80;
+              drift = (box.localToGlobal(Offset.zero).dy / MediaQuery.of(ctx).size.height - 0.5) * 70;
             }
             return Transform.translate(offset: Offset(0, drift), child: Transform.scale(scale: 1.25, child: child));
           },
-          child: Opacity(opacity: 0.55, child: Image.asset('assets/images/prive_texture.jpg', fit: BoxFit.cover)),
+          child: Opacity(opacity: 0.85, child: Image.asset('assets/images/prive_texture.jpg', fit: BoxFit.cover)),
         ))),
         const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
           begin: Alignment.topCenter, end: Alignment.bottomCenter,
-          colors: [_black, Color(0x00080B09), Color(0x00080B09), _black], stops: [0, 0.3, 0.7, 1]))),
+          colors: [_green, Color(0x001F3D30), Color(0x001F3D30), _green], stops: [0, 0.25, 0.75, 1]))),
       ]),
     );
   }
@@ -588,20 +622,27 @@ class _Features extends StatelessWidget {
   const _Features({required this.tick});
   @override
   Widget build(BuildContext ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 56, 24, 40),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          for (var i = 0; i < _features.length; i++)
-            _Reveal(
-              tick: tick,
-              delay: Duration(milliseconds: 90 * i),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: _ivory.withValues(alpha: 0.1)))),
-                child: Text(_features[i], style: _text(17)),
-              ),
+        padding: const EdgeInsets.fromLTRB(20, 40, 20, 24),
+        child: _Reveal(
+          tick: tick,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 8),
+            decoration: BoxDecoration(
+              color: _panel,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _gold.withValues(alpha: 0.25), width: 0.8),
             ),
-        ]),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (var i = 0; i < _features.length; i++)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  decoration: BoxDecoration(border: i == 0 ? null : Border(top: BorderSide(color: _ivory.withValues(alpha: 0.12)))),
+                  child: Text(_features[i], style: _text(17)),
+                ),
+            ]),
+          ),
+        ),
       );
 }
 
@@ -612,23 +653,24 @@ class _Finale extends StatelessWidget {
   const _Finale({required this.tick, required this.onReserve});
   @override
   Widget build(BuildContext ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 60, 24, 30),
+        padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
         child: _Reveal(tick: tick, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Pre-order now', style: _display(40)),
+          Text('Pre-order now', style: _display(42)),
           const SizedBox(height: 12),
           Text('Privé is available by pre-order. Reserve a seat and we’ll contact you on WhatsApp when the collection is ready.',
-            style: _text(15, color: _muted)),
+            style: _text(15.5, color: _muted)),
           const SizedBox(height: 28),
           _ReserveButton(onTap: onReserve),
           const SizedBox(height: 56),
-          Center(child: Text('Privé by GharKaMali', style: _text(12, color: _muted.withValues(alpha: 0.7)))),
+          const Center(child: Opacity(opacity: 0.85, child: PriveLogo(width: 84))),
         ])),
       );
 }
 
 class _ReserveButton extends StatefulWidget {
   final VoidCallback onTap;
-  const _ReserveButton({required this.onTap});
+  final bool shadow;
+  const _ReserveButton({required this.onTap, this.shadow = false});
   @override
   State<_ReserveButton> createState() => _ReserveButtonState();
 }
@@ -647,8 +689,12 @@ class _ReserveButtonState extends State<_ReserveButton> {
             height: 54,
             width: double.infinity,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: _ivory, borderRadius: BorderRadius.circular(2)),
-            child: Text('Reserve your seat', style: _text(15, color: _black, w: FontWeight.w500)),
+            decoration: BoxDecoration(
+              color: _gold,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: widget.shadow ? [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 18, offset: const Offset(0, 8))] : null,
+            ),
+            child: Text('Reserve your seat', style: _text(15.5, color: _ink, w: FontWeight.w600)),
           ),
         ),
       );
@@ -671,25 +717,26 @@ class _SeatSheet extends StatelessWidget {
   @override
   Widget build(BuildContext ctx) => Container(
         padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(ctx).padding.bottom + 22),
-        decoration: const BoxDecoration(
-          color: Color(0xFF111512),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        decoration: BoxDecoration(
+          color: _panel,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border(top: BorderSide(color: _gold.withValues(alpha: 0.35), width: 0.8)),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: _ivory.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(99)))),
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: _ivory.withValues(alpha: 0.25), borderRadius: BorderRadius.circular(99)))),
           const SizedBox(height: 24),
-          Text('Reserve your seat', style: _display(32)),
+          Text('Reserve your seat', style: _display(34)),
           const SizedBox(height: 10),
           Text('We’ll message you on WhatsApp to confirm your reservation. No payment is needed now.',
-            style: _text(15, color: _muted)),
+            style: _text(15.5, color: _muted)),
           const SizedBox(height: 26),
           GestureDetector(
             onTap: () => _send(ctx),
             child: Container(
               height: 54,
               alignment: Alignment.center,
-              decoration: BoxDecoration(color: _ivory, borderRadius: BorderRadius.circular(2)),
-              child: Text('Continue on WhatsApp', style: _text(15, color: _black, w: FontWeight.w500)),
+              decoration: BoxDecoration(color: _gold, borderRadius: BorderRadius.circular(4)),
+              child: Text('Continue on WhatsApp', style: _text(15.5, color: _ink, w: FontWeight.w600)),
             ),
           ),
           const SizedBox(height: 10),
