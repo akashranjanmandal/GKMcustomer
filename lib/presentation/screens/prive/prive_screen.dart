@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+import '../../widgets/cinematic.dart';
 
 // PRIVÉ by GharKaMali — a members-only collection of sculptural planters.
 //
@@ -178,10 +179,11 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
         body: Stack(children: [
           CustomScrollView(
             controller: _sc,
-            physics: _entered ? const BouncingScrollPhysics() : const NeverScrollableScrollPhysics(),
+            physics: _entered ? const CinematicScrollPhysics() : const NeverScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _Hero(height: h, film: _film, scroll: _sc)),
-              SliverToBoxAdapter(child: _Statement(tick: _scrollTick)),
+              // Both opening scenes pin while you scroll, so neither can be skipped past.
+              SliverToBoxAdapter(child: PinnedScene(length: h * 1.9, scroll: _sc, builder: (t, _) => _Hero(film: _film, t: t))),
+              SliverToBoxAdapter(child: PinnedScene(length: h * 1.9, scroll: _sc, builder: (t, _) => _Statement(t: t))),
               SliverToBoxAdapter(child: _FormsGrid(tick: _scrollTick)),
               SliverToBoxAdapter(child: _Material(scroll: _sc)),
               SliverToBoxAdapter(child: _Features(tick: _scrollTick)),
@@ -205,7 +207,7 @@ class _PriveScreenState extends State<PriveScreen> with TickerProviderStateMixin
                 final ready = _sc.hasClients && _sc.position.hasContentDimensions;
                 final off = ready ? _sc.offset : 0.0;
                 final max = ready ? _sc.position.maxScrollExtent : double.infinity;
-                final show = _entered && off > h * 0.7 && off < max - 300;
+                final show = _entered && off > h * 2.75 && off < max - 300;
                 return IgnorePointer(
                   ignoring: !show,
                   child: AnimatedOpacity(
@@ -419,10 +421,9 @@ class _RevealState extends State<_Reveal> with _OnScreen<_Reveal> {
 
 // ─── Hero: widescreen frame that opens like an aperture ─────────────────────
 class _Hero extends StatelessWidget {
-  final double height;
   final AnimationController film;
-  final ScrollController scroll;
-  const _Hero({required this.height, required this.film, required this.scroll});
+  final double t; // progress through the pinned scene
+  const _Hero({required this.film, required this.t});
 
   @override
   Widget build(BuildContext ctx) {
@@ -431,14 +432,13 @@ class _Hero extends StatelessWidget {
     final aperture = CurvedAnimation(parent: film, curve: const Interval(0.02, 0.14, curve: Curves.easeInOutCubic));
     final text = CurvedAnimation(parent: film, curve: const Interval(0.1, 0.28, curve: Curves.easeOut));
     final cue = CurvedAnimation(parent: film, curve: const Interval(0.26, 0.4, curve: Curves.easeOut));
-    return SizedBox(
-      height: height,
-      child: AnimatedBuilder(
-        animation: scroll,
-        builder: (_, child) {
-          final off = scroll.hasClients ? scroll.offset.clamp(0.0, height) : 0.0;
-          return Transform.translate(offset: Offset(0, off * 0.3), child: Opacity(opacity: (1 - off / (height * 0.7)).clamp(0.0, 1.0), child: child));
-        },
+    // Holds still for most of the pin, then lifts and fades into the next scene.
+    final out = Curves.easeInCubic.transform(((t - 0.62) / 0.38).clamp(0.0, 1.0));
+    final cueOut = (1 - t * 5).clamp(0.0, 1.0);
+    return Transform.translate(
+      offset: Offset(0, -60 * out),
+      child: Opacity(
+        opacity: 1 - out,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Spacer(flex: 4),
           SizedBox(
@@ -452,7 +452,7 @@ class _Hero extends StatelessWidget {
                   // Anchored low and never below 1.1x, so the poster's thin rule
                   // along the top edge of this crop stays out of frame.
                   child: Transform.scale(
-                    scale: 1.22 - 0.12 * p,
+                    scale: 1.22 - 0.12 * p + 0.08 * t,
                     alignment: const Alignment(0, 0.75),
                     child: Image.asset('assets/images/prive_scene.jpg', fit: BoxFit.cover, alignment: Alignment(-0.7 + 1.2 * p, 0.2)),
                   ),
@@ -484,7 +484,7 @@ class _Hero extends StatelessWidget {
           AnimatedBuilder(
             animation: cue,
             builder: (_, __) => Opacity(
-              opacity: cue.value,
+              opacity: cue.value * cueOut,
               child: Center(child: _ScrollCue(nudge: math.sin(cue.value * math.pi) * 6)),
             ),
           ),
@@ -509,13 +509,35 @@ class _Aperture extends CustomClipper<Rect> {
 
 // ─── Statement (client wording) ──────────────────────────────────────────────
 class _Statement extends StatelessWidget {
-  final ValueNotifier<int> tick;
-  const _Statement({required this.tick});
+  final double t; // progress through the pinned scene
+  const _Statement({required this.t});
+
+  static const _words = ['A', 'limited', 'collection', 'of', 'sculptural', 'planters.'];
+
   @override
-  Widget build(BuildContext ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 48, 24, 48),
-        child: _Reveal(tick: tick, child: Text('A limited collection of sculptural planters.', style: _display(38, h: 1.1))),
-      );
+  Widget build(BuildContext ctx) {
+    final n = _words.length;
+    final out = ((t - 0.85) / 0.15).clamp(0.0, 1.0);
+    return Opacity(
+      opacity: 1 - out,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Align(
+          alignment: const Alignment(-1, -0.05),
+          child: Text.rich(TextSpan(children: [
+            for (var k = 0; k < n; k++)
+              TextSpan(
+                text: k == n - 1 ? _words[k] : '${_words[k]} ',
+                style: _display(46, h: 1.12, color: _ivory.withValues(
+                  // Each word brightens in turn across the first 75% of the scene.
+                  alpha: 0.16 + 0.84 * ((t - k * 0.11) / 0.14).clamp(0.0, 1.0),
+                )),
+              ),
+          ])),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── The forms: staggered grid; each frame unveils bottom-up ────────────────

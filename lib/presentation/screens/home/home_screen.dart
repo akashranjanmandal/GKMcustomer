@@ -2,11 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/auth.dart';
 import '../../../data/services/cart_provider.dart';
-import '../prive/prive_screen.dart' show PriveLogo, PriveWordmark;
+import '../prive/prive_screen.dart' show PriveWordmark;
 import '../shop/shop_screen.dart';
 import '../shop/product_view_screen.dart';
 import '../../widgets/product_card.dart';
@@ -344,7 +343,7 @@ class _HomeState extends State<HomeScreen> {
       (icon: Icons.receipt_long_outlined, title: 'Orders', soon: false, onTap: () => Navigator.pushNamed(ctx, '/shop/orders')),
       (icon: Icons.event_repeat_outlined, title: 'My Plans', soon: false, onTap: () => Navigator.pushNamed(ctx, '/subscriptions')),
       (icon: Icons.yard_outlined, title: 'Makeover', soon: false, onTap: () => Navigator.pushNamed(ctx, '/green-makeover')),
-      (icon: Icons.circle_outlined, title: 'Privé', soon: false, onTap: () => Navigator.pushNamed(ctx, '/prive')),
+      (icon: Icons.local_florist_outlined, title: 'Privé', soon: false, onTap: () => Navigator.pushNamed(ctx, '/prive')),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const VSection(title: 'Explore'),
@@ -368,7 +367,7 @@ class _HomeState extends State<HomeScreen> {
                   onTap: it.onTap,
                   child: Column(children: [
                     Stack(clipBehavior: Clip.none, children: [
-                      it.title == 'Privé' ? const _PriveMonogram() : VOrb(icon: it.icon, size: 50, dark: false, shine: true, shineDelay: Duration(milliseconds: 250 + k * 70)),
+                      VOrb(icon: it.icon, size: 50, dark: false, shine: true, shineDelay: Duration(milliseconds: 250 + k * 70)),
                       if (it.soon) Positioned(top: -6, right: -10, child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                         decoration: BoxDecoration(color: V.ink, borderRadius: BorderRadius.circular(99)),
@@ -581,7 +580,6 @@ class _BannerCapsuleState extends State<_BannerCapsule> {
 // ─── Privé entry — set like the poster: forest green, gold name, no photo ───
 const _pGreen = Color(0xFF1F3D30);
 const _pGold = Color(0xFFDDBF82);
-const _pIvory = Color(0xFFF6F1E7);
 
 class _PriveTile extends StatelessWidget {
   final VoidCallback onTap;
@@ -591,51 +589,25 @@ class _PriveTile extends StatelessWidget {
   Widget build(BuildContext ctx) => GestureDetector(
     onTap: () { HapticFeedback.mediumImpact(); onTap(); },
     child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+      height: 78,
+      padding: const EdgeInsets.fromLTRB(22, 0, 14, 0),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _pGold.withValues(alpha: 0.3), width: 0.8),
         gradient: const RadialGradient(
-          center: Alignment(1.0, -1.0), radius: 1.6,
-          colors: [Color(0xFF34584A), _pGreen, Color(0xFF19332A)], stops: [0, 0.55, 1],
+          center: Alignment(1.0, -1.0), radius: 2.2,
+          colors: [Color(0xFF34584A), _pGreen, Color(0xFF19332A)], stops: [0, 0.5, 1],
         ),
-        boxShadow: [BoxShadow(color: _pGreen.withValues(alpha: 0.28), blurRadius: 24, offset: const Offset(0, 12))],
       ),
-      child: Column(children: [
-        const PriveLogo(width: 76),
-        const SizedBox(height: 18),
-        const PriveWordmark(size: 34),
-        const SizedBox(height: 14),
-        Text('Artisanal planters for curated spaces.', textAlign: TextAlign.center,
-          style: GoogleFonts.inter(fontSize: 14.5, color: _pIvory, height: 1.4, letterSpacing: -0.1)),
-        const SizedBox(height: 14),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('Pre-order now', style: GoogleFonts.inter(fontSize: 13.5, color: _pGold, fontWeight: FontWeight.w600, letterSpacing: -0.1)),
-          const SizedBox(width: 6),
-          const Icon(Icons.arrow_forward_rounded, size: 15, color: _pGold),
-        ]),
+      child: Row(children: [
+        const PriveWordmark(size: 24, centered: false),
+        const Spacer(),
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _pGold.withValues(alpha: 0.6), width: 0.8)),
+          child: const Icon(Icons.arrow_forward_rounded, size: 18, color: _pGold),
+        ),
       ]),
-    ),
-  );
-}
-
-// Explore-grid mark for Privé: a gold Cinzel monogram on green, not an icon.
-class _PriveMonogram extends StatelessWidget {
-  static const size = 50.0;
-  const _PriveMonogram();
-  @override
-  Widget build(BuildContext ctx) => Container(
-    width: size, height: size,
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: const RadialGradient(center: Alignment(0.6, -0.6), colors: [Color(0xFF34584A), _pGreen]),
-      border: Border.all(color: _pGold.withValues(alpha: 0.55), width: 0.8),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Text('P', style: GoogleFonts.cinzel(fontSize: size * 0.42, color: _pGold, height: 1)),
     ),
   );
 }
