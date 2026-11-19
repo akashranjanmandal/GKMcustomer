@@ -29,6 +29,8 @@
 	<string>Used to identify plants and update your profile photo</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used to check if your area is serviceable and book garden visits</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Used to check if your area is serviceable and book garden visits. GharKaMali only uses your location while the app is open.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Used to select photos for plant identification</string>
 	<key>UIApplicationSceneManifest</key>
